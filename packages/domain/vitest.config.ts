@@ -7,7 +7,11 @@ export default defineConfig({
       reporter: ["text", "json-summary", "json"],
       reportsDirectory: "coverage",
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/index.ts"],
+      exclude: [
+        "src/**/*.test.ts",
+        // Barris de reexportação não têm lógica a cobrir.
+        "**/index.ts",
+      ],
       // domain é função pura: não há desculpa para cobertura baixa aqui, e é
       // onde moram as conversões que, erradas, corrompem dado em silêncio.
       thresholds: {

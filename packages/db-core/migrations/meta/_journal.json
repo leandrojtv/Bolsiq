@@ -15,6 +15,13 @@
       "when": 1793582020249,
       "tag": "0001_timescale",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793584450996,
+      "tag": "0002_eventos",
+      "breakpoints": true
     }
   ]
 }

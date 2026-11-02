@@ -1,7 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import type { Messaging } from "@bolsiq/messaging";
 import { buildOpenApi, BolsiqError, type ErrorCode } from "@bolsiq/contracts";
 import type { Env } from "./config.js";
 import { rotas } from "./routes/specs.js";
+import { registrarStream } from "./stream/rota.js";
 
 export interface AppDeps {
   env: Env;
@@ -19,6 +21,13 @@ export interface AppDeps {
    * documento OpenAPI.
    */
   apenasHealth?: boolean;
+  /**
+   * Conexão com o NATS. Quando presente, habilita o `/v1/stream`.
+   *
+   * Opcional: o serviço sobe e serve `/v1` sem o barramento. Um WebSocket
+   * indisponível não deve derrubar a API de cotações.
+   */
+  messaging?: Messaging;
 }
 
 /**
@@ -130,6 +139,13 @@ export async function criarApp(deps: AppDeps): Promise<FastifyInstance> {
   );
 
   app.get("/v1/openapi.json", () => documento);
+
+  if (deps.messaging) {
+    const stream = await registrarStream(app, deps.messaging);
+    app.addHook("onClose", async () => {
+      await stream.parar();
+    });
+  }
 
   return app;
 }

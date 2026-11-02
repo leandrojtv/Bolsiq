@@ -122,6 +122,37 @@ export function demonstrativoDe(p: FundamentalsPeriod): Demonstrativo | null {
   };
 }
 
+/** Faixa de P/VP plausivel. A razao entre os extremos (800) e menor que 1000. */
+const PVP_MIN = 0.05;
+const PVP_MAX = 40;
+
+/**
+ * Corrige a escala do numero de acoes.
+ *
+ * O `composicao_capital` da CVM mistura unidades e milhares no mesmo arquivo,
+ * sem coluna que diga qual: no DFP 2025, 261 de 668 companhias informam em
+ * milhares (Cyrela: 366.311 em vez de 366 milhoes; Vale: 4.268.779). Usar o
+ * numero cru da P/L perto de zero e o screener devolve essas empresas no topo.
+ *
+ * O teste e o P/VP: com a escala certa ele cai entre 0,05 e 40; com a errada,
+ * fica mil vezes fora. Como a faixa e mais estreita que o fator, no maximo uma
+ * escala passa. Nenhuma passando (patrimonio negativo, preco quebrado), devolve
+ * `null`, e os indicadores por acao ficam indefinidos em vez de errados.
+ */
+export function acoesNaEscalaCerta(
+  acoes: number,
+  preco: string,
+  patrimonio: string,
+): number | null {
+  const pl = d(patrimonio);
+  if (acoes <= 0 || pl.lte(0) || d(preco).lte(0)) return null;
+  for (const candidata of [acoes, acoes * 1000]) {
+    const pvp = d(preco).times(candidata).div(pl).toNumber();
+    if (pvp >= PVP_MIN && pvp <= PVP_MAX) return candidata;
+  }
+  return null;
+}
+
 function razao(v: number | null | undefined): string | null {
   if (
     v === null ||
@@ -191,7 +222,10 @@ export function recalcular(dados: DadosDoAtivo): LinhaDeIndicadores | null {
 
   const periodo = dados.anuais.find((p) => demonstrativoDe(p) !== null);
   const dem = periodo ? demonstrativoDe(periodo) : null;
-  const acoes = periodo?.shares_outstanding ?? null;
+  const acoes =
+    periodo?.shares_outstanding && dem
+      ? acoesNaEscalaCerta(periodo.shares_outstanding, preco, dem.patrimonio_liquido)
+      : null;
 
   const comum = {
     ticker: dados.ticker,

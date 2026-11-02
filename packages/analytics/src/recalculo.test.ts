@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Candle, Dividend, FundamentalsPeriod } from "@bolsiq/contracts";
 import { DFP_2024 } from "./cvm.fixtures.js";
 import {
+  acoesNaEscalaCerta,
   demonstrativoDe,
   proventos12m,
   proventosPorAno,
@@ -105,6 +106,23 @@ describe("proventos", () => {
   });
 });
 
+describe("acoesNaEscalaCerta", () => {
+  it("mantem a quantidade que a CVM informou em unidades", () => {
+    // Petrobras: 12,9 bi de acoes a R$ 30, PL de 367 bi. P/VP ~1,05.
+    expect(acoesNaEscalaCerta(12_888_732_761, "30", "367514000000")).toBe(12_888_732_761);
+  });
+
+  it("multiplica por mil a quantidade informada em milhares", () => {
+    // Cyrela no DFP 2025: 366.311 (milhares), PL de 11,5 bi, preco ~R$ 20.
+    expect(acoesNaEscalaCerta(366_311, "20", "11466784000")).toBe(366_311_000);
+  });
+
+  it("sem escala plausivel, ou patrimonio negativo, devolve null", () => {
+    expect(acoesNaEscalaCerta(10, "1", "1000000000000")).toBeNull();
+    expect(acoesNaEscalaCerta(1_000_000, "10", "-5")).toBeNull();
+  });
+});
+
 describe("demonstrativoDe", () => {
   it("exige as contas sem as quais nao ha indicador", () => {
     expect(demonstrativoDe({ ...periodo, net_income: null })).toBeNull();
@@ -150,6 +168,14 @@ describe("recalcular", () => {
   it("sem acoes em circulacao cai no caminho sem demonstrativo", () => {
     const r = recalcular(dados({ anuais: [{ ...periodo, shares_outstanding: null }] }));
     expect(r?.fonte_demonstrativo).toBeNull();
+  });
+
+  it("acoes em milhares nao produzem P/L perto de zero", () => {
+    const emMilhares = Math.round(DFP_2024.PETR4.acoes / 1000);
+    const r = recalcular(
+      dados({ anuais: [{ ...periodo, shares_outstanding: emMilhares }] }),
+    );
+    expect(Number(r?.pl)).toBeGreaterThan(5);
   });
 
   it("sem preco nao ha indicador", () => {

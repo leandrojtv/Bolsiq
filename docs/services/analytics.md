@@ -43,9 +43,19 @@ BDR, sem demonstrativo, calculam o que so depende de preco e provento:
 desempenho, dividend yield e Bazin, com data-base no ultimo pregao.
 
 Conta ausente na fonte vira indicador nulo, nao zero: banco sem resultado bruto
-fica sem margem bruta. Razao acima de 10^11 (dado quebrado na fonte, como o
-numero de acoes da Vale em milhares) tambem vira nula, em vez de estourar o
-`numeric`.
+fica sem margem bruta. Razao acima de 10^11 tambem vira nula, em vez de
+estourar o `numeric`.
+
+### Escala do numero de acoes
+
+O `composicao_capital` da CVM mistura unidades e milhares no mesmo arquivo, sem
+coluna que diga qual. No DFP 2025, 261 de 668 companhias informam em milhares
+(Cyrela: 366.311; Vale: 4.268.779). O `market-data` devolve o numero como a
+fonte publica; o recalculo escolhe a escala em que o P/VP fica entre 0,05 e 40. A faixa e mais estreita que o fator mil, entao no maximo uma escala passa.
+Nenhuma passando (patrimonio negativo), os indicadores por acao ficam nulos.
+
+Sem a correcao, essas 261 empresas apareciam com P/L perto de zero no topo de
+qualquer filtro de valor.
 
 ## Entradas
 

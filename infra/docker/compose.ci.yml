@@ -147,3 +147,19 @@ services:
         condition: service_healthy
       analytics-migrate:
         condition: service_completed_successfully
+
+  web:
+    image: bolsiq-web:${IMAGE_TAG:-local}
+    environment:
+      # Sem o Kong ainda, o BFF fala direto com o market-data. Com o gateway,
+      # muda so esta URL (ADR 0007). A chave fica so no servidor.
+      MARKET_DATA_URL: http://market-data:3001
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-mdk_test_chave_interna_de_desenvolvimento}
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    ports:
+      - "3000:3000"
+    depends_on:
+      market-data:
+        condition: service_healthy
+      analytics-migrate:
+        condition: service_completed_successfully

@@ -6,6 +6,7 @@ import {
   nomesDeEventos,
   STREAM_MARKETDATA,
   SUBJECT_MARKETDATA,
+  streamDoEvento,
   validarPayload,
 } from "./catalog.js";
 import { EVENT_NAME_PATTERN, EventEnvelope } from "./envelope.js";
@@ -42,12 +43,18 @@ describe("catálogo de eventos", () => {
     }
   });
 
-  it("todo evento cabe no subject do stream", () => {
+  it("todo evento pertence a um stream conhecido", () => {
     expect(STREAM_MARKETDATA).toBe("MARKETDATA");
-    const prefixo = SUBJECT_MARKETDATA.replace(">", "");
+    expect(SUBJECT_MARKETDATA).toBe("marketdata.>");
     for (const nome of nomesDeEventos) {
-      expect(nome.startsWith(prefixo), nome).toBe(true);
+      const s = streamDoEvento(nome);
+      expect(s, nome).toBeDefined();
+      expect(nome.startsWith(s?.subject.replace(">", "") ?? "?"), nome).toBe(true);
     }
+  });
+
+  it("dominio desconhecido nao tem stream", () => {
+    expect(streamDoEvento("inventado.coisa.v1")).toBeUndefined();
   });
 });
 

@@ -294,6 +294,9 @@ jobs:
         run: pnpm turbo run test:unit --filter="...[origin/${{ github.base_ref || 'develop' }}]"
       - name: Resumo de cobertura no PR
         if: always() && github.event_name == 'pull_request'
+        # Comentario e informativo: instabilidade da API do GitHub nao pode
+        # reprovar o job de testes. O resumo ja fica no step summary.
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}

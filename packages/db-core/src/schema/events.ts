@@ -63,50 +63,59 @@ export const outbox = marketData.table(
 );
 
 /**
- * Idempotência no consumidor.
+ * Tabelas de consumidor: idempotencia e dead-letter.
  *
- * A janela de deduplicação do JetStream é finita. Passada a janela, uma
- * reentrega volta a parecer mensagem nova — e reentrega acontece sempre que um
- * consumidor processa e morre antes do ack. Esta tabela é o que fecha a lacuna.
+ * Fabrica por schema, e nao tabela fixa, porque cada servico que consome
+ * eventos e dono da propria idempotencia. Com tabela fixa em `market_data`, o
+ * alerts consumindo eventos gravaria no schema do market-data, e a regra de
+ * propriedade de dados do CLAUDE.md cairia no primeiro consumidor novo.
  *
- * A chave é (consumer, event_id): o mesmo evento precisa ser processado uma vez
- * por cada consumidor, não uma vez no total.
+ * A janela de deduplicacao do JetStream e finita: passada a janela, uma
+ * reentrega volta a parecer mensagem nova. `processed_events` fecha a lacuna,
+ * com chave (consumer, event_id) -- uma vez por consumidor, nao no total.
+ * `dead_letter` guarda o que falhou N vezes, para nao bloquear a fila.
  */
-export const processedEvents = marketData.table(
-  "processed_events",
-  {
-    consumer: text("consumer").notNull(),
-    eventId: text("event_id").notNull(),
-    eventName: text("event_name").notNull(),
-    processedAt: utc("processed_at").notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.consumer, t.eventId] }),
-    index("processed_events_processed_at_idx").on(t.processedAt),
-  ],
-);
+export function tabelasDeConsumidor(nomeDoSchema: string) {
+  const schema = pgSchema(nomeDoSchema);
 
-/**
- * Dead-letter.
- *
- * Mensagem que falhou N vezes para. Insistir indefinidamente em payload
- * inválido ou bug de consumidor não conserta nada e bloqueia a fila atrás dela.
- */
-export const deadLetter = marketData.table(
-  "dead_letter",
-  {
-    id: text("id").primaryKey(),
-    consumer: text("consumer").notNull(),
-    eventId: text("event_id"),
-    eventName: text("event_name"),
-    subject: text("subject").notNull(),
-    payload: jsonb("payload"),
-    error: text("error").notNull(),
-    attempts: integer("attempts").notNull(),
-    createdAt: utc("created_at").notNull().defaultNow(),
-  },
-  (t) => [
-    index("dead_letter_consumer_idx").on(t.consumer),
-    index("dead_letter_created_at_idx").on(t.createdAt),
-  ],
-);
+  const processedEvents = schema.table(
+    "processed_events",
+    {
+      consumer: text("consumer").notNull(),
+      eventId: text("event_id").notNull(),
+      eventName: text("event_name").notNull(),
+      processedAt: utc("processed_at").notNull().defaultNow(),
+    },
+    (t) => [
+      primaryKey({ columns: [t.consumer, t.eventId] }),
+      index("processed_events_processed_at_idx").on(t.processedAt),
+    ],
+  );
+
+  const deadLetter = schema.table(
+    "dead_letter",
+    {
+      id: text("id").primaryKey(),
+      consumer: text("consumer").notNull(),
+      eventId: text("event_id"),
+      eventName: text("event_name"),
+      subject: text("subject").notNull(),
+      payload: jsonb("payload"),
+      error: text("error").notNull(),
+      attempts: integer("attempts").notNull(),
+      createdAt: utc("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+      index("dead_letter_consumer_idx").on(t.consumer),
+      index("dead_letter_created_at_idx").on(t.createdAt),
+    ],
+  );
+
+  return { processedEvents, deadLetter };
+}
+
+export type TabelasDeConsumidor = ReturnType<typeof tabelasDeConsumidor>;
+
+const doMarketData = tabelasDeConsumidor("market_data");
+export const processedEvents = doMarketData.processedEvents;
+export const deadLetter = doMarketData.deadLetter;

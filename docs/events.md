@@ -52,6 +52,7 @@ irrelevante.
 | [`marketdata.statement.published.v1`](#marketdatastatementpublishedv1) | `market-data` | `analytics` |
 | [`marketdata.asset.listed.v1`](#marketdataassetlistedv1) | `market-data` | `apps/web`, `analytics` |
 | [`marketdata.asset.delisted.v1`](#marketdataassetdelistedv1) | `market-data` | `apps/web`, `analytics`, `portfolio` |
+| [`analytics.indicators.updated.v1`](#analyticsindicatorsupdatedv1) | `analytics` | `alerts` |
 
 ## marketdata.quote.updated.v1
 
@@ -258,6 +259,46 @@ Ativo saiu do universo. Dado histórico permanece.
     "kind": "stock",
     "delisted_at": "2026-09-15",
     "reason": "fechamento de capital"
+  }
+}
+```
+
+## analytics.indicators.updated.v1
+
+Indicadores de um ativo foram recalculados. Alimenta os alertas fundamentalistas sem que o alerts leia o schema analytics.
+
+- **Subject:** `analytics.indicators.updated.v1`
+- **Produtor:** `analytics`
+- **Consumidores:** `alerts`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `ticker` | string | sim |
+| `reference_date` | string (YYYY-MM-DD) | sim |
+| `preco_graham` | string decimal | sim |
+| `preco_bazin` | ? | sim |
+| `dy_12m` | number | sim |
+| `pl` | number | sim |
+| `pvp` | number | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "analytics.indicators.updated.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "analytics",
+  "payload": {
+    "ticker": "PETR4",
+    "reference_date": "2026-09-30",
+    "preco_graham": "42.92",
+    "preco_bazin": "88.33",
+    "dy_12m": 0.0989,
+    "pl": 13.38,
+    "pvp": 1.35
   }
 }
 ```

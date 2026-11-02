@@ -1,0 +1,5 @@
+@import "tailwindcss";
+@import "@bolsiq/ui/tokens.css";
+@import "@bolsiq/ui/preset.css";
+@source "../componentes";
+@source "../app";

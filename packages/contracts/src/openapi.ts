@@ -18,9 +18,12 @@ export interface RouteSpec {
   tags: string[];
   /** `true` quando a rota é pública (não exige X-API-Key). */
   anonymous?: boolean;
+  /** `admin`: exige o token de administração em vez da chave de cliente. */
+  auth?: "admin";
   response: AnySchema;
   query?: AnySchema;
   params?: AnySchema;
+  body?: AnySchema;
 }
 
 export interface OpenApiOptions {
@@ -67,7 +70,19 @@ export function buildOpenApi(
     if (parameters.length > 0) {
       operation.parameters = parameters;
     }
-    if (route.anonymous !== true) {
+    if (route.body) {
+      operation.requestBody = {
+        required: false,
+        content: {
+          "application/json": {
+            schema: zodToJsonSchema(route.body, { target: "openApi3" }),
+          },
+        },
+      };
+    }
+    if (route.auth === "admin") {
+      operation.security = [{ adminToken: [] }];
+    } else if (route.anonymous !== true) {
       operation.security = [{ apiKey: [] }];
     }
 
@@ -90,6 +105,10 @@ export function buildOpenApi(
           type: "apiKey",
           in: "header",
           name: "X-API-Key",
+        },
+        adminToken: {
+          type: "http",
+          scheme: "bearer",
         },
       },
     },

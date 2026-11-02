@@ -162,6 +162,7 @@ jobs:
       monorepo: ${{ steps.monorepo.outputs.existe }}
       deployables: ${{ steps.monorepo.outputs.deployables }}
       compose_ci: ${{ steps.monorepo.outputs.compose_ci }}
+      web_app: ${{ steps.monorepo.outputs.web_app }}
       web: ${{ steps.filtro.outputs.web }}
       services: ${{ steps.filtro.outputs.services }}
       db: ${{ steps.filtro.outputs.db }}
@@ -196,6 +197,17 @@ jobs:
             echo "compose_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "compose_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # O e2e roda Playwright contra o apps/web. Sem o app, o job falharia
+          # em `pnpm --filter @bolsiq/web` com "No projects matched" — e o
+          # filtro `contracts` basta para acioná-lo, então isso aconteceria em
+          # qualquer PR que tocasse packages/contracts.
+          if [[ -f apps/web/package.json ]]; then
+            echo "web_app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web_app=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=apps/web ainda não existe::O job e2e é pulado até o front existir."
           fi
 
       - uses: dorny/paths-filter@v3
@@ -560,6 +572,7 @@ jobs:
     if: >-
       always() &&
       needs.changes.outputs.compose_ci == 'true' &&
+      needs.changes.outputs.web_app == 'true' &&
       needs.smoke.result == 'success' &&
       (needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true')
     steps:

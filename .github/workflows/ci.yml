@@ -607,6 +607,8 @@ jobs:
             psql -U bolsiq -d bolsiq -v ON_ERROR_STOP=1 -f - < infra/docker/seed-e2e.sql
       - name: Playwright
         run: |
+          # Os testes importam regras do analytics (filtro dos presets).
+          pnpm turbo run build --filter=@bolsiq/analytics
           pnpm --filter @bolsiq/web exec playwright install --with-deps chromium
           pnpm --filter @bolsiq/web exec playwright test --project=e2e
         env:

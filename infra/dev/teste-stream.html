@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bolsiq — teste local</title>
+    <style>
+      :root {
+        --fundo: #0f1115;
+        --cartao: #171a21;
+        --borda: #272c37;
+        --texto: #e6e8ec;
+        --fraco: #9aa3b2;
+        --alta: #2ecc71;
+        --baixa: #e74c3c;
+        --acento: #5b9dff;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--fundo);
+        color: var(--texto);
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: var(--fraco);
+        font-size: 13px;
+        margin-bottom: 20px;
+      }
+      .linha {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      input,
+      button {
+        font: inherit;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--borda);
+        background: var(--cartao);
+        color: var(--texto);
+      }
+      button {
+        cursor: pointer;
+      }
+      button.primario {
+        background: var(--acento);
+        border-color: var(--acento);
+        color: #0b1220;
+        font-weight: 600;
+      }
+      .grade {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .cartao {
+        background: var(--cartao);
+        border: 1px solid var(--borda);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      .cartao .tk {
+        font-size: 12px;
+        color: var(--fraco);
+        letter-spacing: 0.04em;
+      }
+      .cartao .pr {
+        font-size: 22px;
+        font-variant-numeric: tabular-nums;
+        margin: 2px 0;
+      }
+      .cartao .vr {
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .alta {
+        color: var(--alta);
+      }
+      .baixa {
+        color: var(--baixa);
+      }
+      pre {
+        background: #0b0d12;
+        border: 1px solid var(--borda);
+        border-radius: 10px;
+        padding: 12px;
+        max-height: 320px;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0;
+      }
+      .estado {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--fraco);
+      }
+      .bolinha {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--baixa);
+      }
+      .bolinha.on {
+        background: var(--alta);
+      }
+      label {
+        font-size: 12px;
+        color: var(--fraco);
+        display: block;
+        margin-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Bolsiq — teste local</h1>
+    <div class="sub">
+      <span class="estado"><span class="bolinha" id="luz"></span><span id="estado">desconectado</span></span>
+      &nbsp;·&nbsp; <code id="alvo"></code>
+    </div>
+
+    <div class="linha">
+      <div>
+        <label for="url">Base</label>
+        <input id="url" value="localhost:8000" size="18" />
+      </div>
+      <div>
+        <label for="tickers">Tickers</label>
+        <input id="tickers" value="PETR4,VALE3,ITUB4" size="26" />
+      </div>
+      <div style="align-self: flex-end">
+        <button class="primario" id="conectar">Conectar e assinar</button>
+        <button id="health">GET /v1/health</button>
+        <button id="limpar">Limpar log</button>
+      </div>
+    </div>
+
+    <div class="grade" id="grade"></div>
+    <pre id="log">Clique em “Conectar e assinar”.
+
+Para ver cotação chegando, rode num terminal:
+  make dev-cotacao TICKER=PETR4 PRECO=38.42
+</pre>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const precos = new Map();
+      let ws;
+
+      function registrar(texto) {
+        $("log").textContent = `${new Date().toLocaleTimeString("pt-BR")}  ${texto}\n${$("log").textContent}`;
+      }
+
+      function desenhar() {
+        $("grade").innerHTML = [...precos.entries()]
+          .map(([tk, q]) => {
+            const n = Number(q.change);
+            const classe = n > 0 ? "alta" : n < 0 ? "baixa" : "";
+            const sinal = n > 0 ? "+" : "";
+            return `<div class="cartao"><div class="tk">${tk}</div><div class="pr">${q.price}</div><div class="vr ${classe}">${sinal}${q.change}</div></div>`;
+          })
+          .join("");
+      }
+
+      function conectar() {
+        const base = $("url").value.trim().replace(/^https?:\/\//, "");
+        const tickers = $("tickers")
+          .value.split(",")
+          .map((t) => t.trim().toUpperCase())
+          .filter(Boolean);
+
+        ws?.close();
+        $("alvo").textContent = `ws://${base}/v1/stream`;
+        ws = new WebSocket(`ws://${base}/v1/stream`);
+
+        ws.onopen = () => {
+          $("luz").classList.add("on");
+          $("estado").textContent = "conectado";
+          registrar(`conectado; assinando ${tickers.join(", ")}`);
+          ws.send(JSON.stringify({ action: "subscribe", tickers }));
+        };
+
+        ws.onmessage = (ev) => {
+          const m = JSON.parse(ev.data);
+          if (m.type === "quote") {
+            precos.set(m.ticker, m);
+            desenhar();
+          }
+          registrar(JSON.stringify(m));
+        };
+
+        ws.onclose = () => {
+          $("luz").classList.remove("on");
+          $("estado").textContent = "desconectado";
+          registrar("conexão fechada");
+        };
+
+        ws.onerror = () => registrar("erro de WebSocket — o serviço está no ar?");
+      }
+
+      $("conectar").onclick = conectar;
+      $("limpar").onclick = () => ($("log").textContent = "");
+      $("health").onclick = async () => {
+        const base = $("url").value.trim().replace(/^https?:\/\//, "");
+        try {
+          const r = await fetch(`http://${base}/v1/health`);
+          registrar(`GET /v1/health → ${r.status} ${JSON.stringify(await r.json())}`);
+        } catch (e) {
+          registrar(`GET /v1/health falhou: ${String(e)}`);
+        }
+      };
+    </script>
+  </body>
+</html>

@@ -105,6 +105,11 @@ void (async () => {
 
     app.log.info({ nats: env.NATS_URL }, "NATS conectado");
 
+    // A rota /v1/stream já existe desde o listen; agora o repasse começa.
+    if (servirApiPublica(env.ROLE)) {
+      app.stream.ligar(messaging);
+    }
+
     // O publisher do outbox é trabalho de fundo: roda no worker, não na API.
     if (consumirFila(env.ROLE)) {
       loopDeOutbox = iniciarLoopDePublicacao({

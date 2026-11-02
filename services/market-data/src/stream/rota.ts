@@ -13,6 +13,16 @@ import {
 
 export interface StreamRegistrado {
   registro: RegistroDeAssinantes;
+  /**
+   * Liga o repasse do NATS para os clientes.
+   *
+   * Separado do registro da rota de propósito: o `server.ts` sobe o HTTP antes
+   * de conectar ao barramento, para o health responder mesmo com o NATS fora.
+   * Se a rota só existisse quando houvesse conexão, o `/v1/stream` devolveria
+   * 404 no serviço real — e foi o que aconteceu.
+   */
+  ligar: (messaging: Messaging) => void;
+  ligado: () => boolean;
   parar: () => Promise<void>;
 }
 
@@ -23,10 +33,7 @@ export interface StreamRegistrado {
  * conexão: com uma por cliente, mil navegadores abertos seriam mil assinaturas
  * recebendo o universo inteiro.
  */
-export async function registrarStream(
-  app: FastifyInstance,
-  messaging: Messaging,
-): Promise<StreamRegistrado> {
+export async function registrarStream(app: FastifyInstance): Promise<StreamRegistrado> {
   const registro = new RegistroDeAssinantes();
 
   await app.register(websocket, {
@@ -83,29 +90,35 @@ export async function registrarStream(
     done();
   });
 
-  app.addHook("onReady", () => {
-    assinatura = assinarEfemero({
-      messaging,
-      filtro: "marketdata.quote.updated.v1",
-      manipular: (_evento, payload) => {
-        const cotacao = payload as {
-          ticker: string;
-          price: string;
-          change: string;
-          ts: string;
-        };
-        registro.publicar(cotacao.ticker, mensagemDeCotacao(cotacao));
-      },
-      aoFalhar: (erro, contexto) => {
-        app.log.warn({ err: erro, ...contexto }, "evento descartado no stream");
-      },
-    });
-  });
-
   return {
     registro,
+
+    ligar: (messaging: Messaging) => {
+      if (assinatura) return;
+      assinatura = assinarEfemero({
+        messaging,
+        filtro: "marketdata.quote.updated.v1",
+        manipular: (_evento, payload) => {
+          const cotacao = payload as {
+            ticker: string;
+            price: string;
+            change: string;
+            ts: string;
+          };
+          registro.publicar(cotacao.ticker, mensagemDeCotacao(cotacao));
+        },
+        aoFalhar: (erro, contexto) => {
+          app.log.warn({ err: erro, ...contexto }, "evento descartado no stream");
+        },
+      });
+      app.log.info("repasse do /v1/stream ligado");
+    },
+
+    ligado: () => assinatura !== undefined,
+
     parar: async () => {
       await assinatura?.parar();
+      assinatura = undefined;
     },
   };
 }

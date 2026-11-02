@@ -187,6 +187,19 @@ dev-cotacao:
 	@docker compose -f $(COMPOSE_CI) exec -T postgres psql -U bolsiq -d bolsiq -v ON_ERROR_STOP=1 -c 		"INSERT INTO market_data.outbox (id, event_name, payload, occurred_at, producer) VALUES (gen_random_uuid()::text, 'marketdata.quote.updated.v1', jsonb_build_object('ticker', '$(TICKER)', 'price', '$(or $(PRECO),38.42)', 'change', '$(or $(VARIACAO),0.10)', 'ts', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')), now(), 'dev');"
 	@echo "cotação de $(TICKER) no outbox; o publisher a envia em até 1s"
 
+## storybook: sobe o Storybook do packages/ui em http://localhost:6006 (perfil tools)
+storybook:
+	docker compose -f $(COMPOSE_DEV) --profile tools up -d --build --wait storybook
+	@echo "  Storybook  http://localhost:6006"
+
+## ui-visual: regressao visual do packages/ui na imagem do Playwright (como o CI)
+ui-visual:
+	bash packages/ui/scripts/visual.sh
+
+## ui-visual-update: regrava as referencias visuais depois de mudanca intencional
+ui-visual-update:
+	bash packages/ui/scripts/visual.sh --update
+
 ## smoke: bate nos endpoints de health via Kong
 smoke:
 	bash infra/docker/smoke.sh $${BASE_URL:-http://localhost:8000}

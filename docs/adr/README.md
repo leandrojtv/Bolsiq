@@ -15,6 +15,7 @@ anterior como `substituído por`.
 | [0012](0012-alerts-worker.md)            | Processo e imagem dedicados para o alerts       | aceito       |
 | [0013](0013-cache-read-through.md)       | Read-through, com carga em lote para arquivo    | aceito       |
 | [0014](0014-fluxo-de-branches-e-cicd.md) | Fluxo de branches e CI/CD                       | aceito       |
+| [0015](0015-design-system.md)            | Design system em packages/ui                    | aceito       |
 | [0018](0018-analytics-worker.md)         | Processo dedicado para o recálculo do analytics | aceito       |
 
 ## Números reservados

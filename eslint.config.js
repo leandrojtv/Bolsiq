@@ -1,6 +1,7 @@
 // Configuração raiz do ESLint (flat config). Cada pacote herda daqui.
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import { regrasDeToken } from "./packages/ui/eslint-tokens.js";
 
 export default tseslint.config(
   {
@@ -11,6 +12,9 @@ export default tseslint.config(
       "**/.turbo/**",
       "**/migrations/**",
       "**/openapi.json",
+      "**/storybook-static/**",
+      "**/playwright-report/**",
+      "**/test-results/**",
     ],
   },
   js.configs.recommended,
@@ -45,6 +49,17 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-member-access": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
+    // Design system: cor e fonte so em packages/ui/tokens.css.
+    files: [
+      "packages/ui/src/**/*.{ts,tsx}",
+      "packages/ui/stories/**/*.{ts,tsx}",
+      "packages/ui/.storybook/**/*.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-syntax": ["error", ...regrasDeToken],
     },
   },
 );

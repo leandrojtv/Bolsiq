@@ -1,0 +1,87 @@
+/*
+ * Preset do Tailwind (v4): liga as utilidades as variaveis de tokens.css.
+ *
+ * No app: @import "tailwindcss"; @import "@bolsiq/ui/tokens.css";
+ *         @import "@bolsiq/ui/preset.css";
+ *
+ * `inline` faz a utilidade apontar para a variavel (bg-surface vira
+ * background: var(--surface)), entao trocar o tema troca tudo sem rebuild.
+ */
+
+@source "./src";
+
+/* Os nomes em tokens.css diferem dos do tema (--card-radius x --radius-card)
+   de proposito: com o mesmo nome a variavel do tema apontaria para si mesma. */
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-input: var(--border-input);
+  --color-border-active: var(--border-active);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-text: var(--accent-soft-text);
+  --color-accent-tint: var(--accent-tint);
+  --color-on-accent: var(--on-accent);
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-up-strong: var(--up-strong);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-down-strong: var(--down-strong);
+  --color-on-down: var(--on-down);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-3-soft: var(--series-3-soft);
+  --color-series-3-strong: var(--series-3-strong);
+  --color-series-4: var(--series-4);
+  --color-benchmark: var(--benchmark);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-volume-up: var(--volume-up);
+  --color-volume-down: var(--volume-down);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --radius-card: var(--card-radius);
+  --radius-control: var(--control-radius);
+  --radius-item: var(--item-radius);
+  --radius-chip: var(--chip-radius);
+
+  --font-*: initial;
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+
+  --spacing-sidebar: var(--sidebar-width);
+  --spacing-touch: var(--touch-target);
+  --spacing-content: var(--content-padding);
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-family-sans);
+  }
+  /* 14 px no body, nao no html: no html mudaria o rem, e todo espacamento do
+     Tailwind (h-9, p-4) encolheria junto. O botao de 36 px viraria 31,5. */
+  body {
+    font-size: 14px;
+  }
+  /* Foco visivel em todo elemento interativo, com o accent e afastado do
+     contorno para nao sumir sobre fundo da mesma cor. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}

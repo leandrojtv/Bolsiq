@@ -1,0 +1,9 @@
+/* Mesmo caminho que o app: Tailwind, tokens e preset. As fontes vem do
+   @fontsource (arquivos locais), no lugar do next/font, que so roda no Next:
+   o Storybook e a regressao visual nao dependem de rede. */
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "../tokens.css";
+@import "../preset.css";
+@source "../stories";

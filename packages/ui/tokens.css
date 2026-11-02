@@ -1,0 +1,99 @@
+/*
+ * Tokens do Bolsiq: a unica fonte de cor, raio e fonte do produto.
+ *
+ * Valores da tabela de docs/design/README.md, sem arredondar. Componentes nao
+ * usam hex nem nome de fonte: usam estas variaveis, pelas classes do preset
+ * (preset.css). O lint de packages/ui reprova hex fora deste arquivo.
+ *
+ * Tema escuro e o padrao (:root). O tema claro entra como outro bloco
+ * [data-theme="light"] redefinindo as mesmas variaveis; nenhum componente muda.
+ */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Superficies */
+  --bg: #0B0F14;
+  --sidebar: #0F141B;
+  --surface: #121821;
+  --surface-2: #18202B;
+
+  /* Bordas */
+  --border: #1E2631;
+  --border-strong: #2B3542;
+
+  /* Texto */
+  --text: #E7EBF0;
+  --text-2: #AEB8C5;
+  --text-3: #9BA6B4;
+
+  /* Acao */
+  --accent: #6C9CFF;
+  --accent-soft: #233049;
+  --accent-soft-text: #C2D5FF;
+
+  /* Variacao: alta sempre com ▲, queda sempre com ▼ */
+  --up: #3DD68C;
+  --down: #FF8A5B;
+
+  /* Selo de atraso e beta */
+  --warn: #F5C46B;
+  --warn-bg: #2A2113;
+
+  /* Series do comparador e da alocacao (a serie 1 e o accent) */
+  --series-1: var(--accent);
+  --series-2: #F5C46B;
+  --series-3: #C9A7FF;
+  --series-4: #4FD1C5;
+
+  /* Benchmarks: tracejado CDI 6-4, IPCA 2-4, IBOV 12-4 */
+  --benchmark: #8A95A3;
+
+  /*
+   * Derivados: cores que as telas de docs/design/ usam e a tabela do README
+   * nao lista. Ficam aqui, com nome de papel, para nao virarem hex solto.
+   */
+  --link: #8FB3FF;
+  --link-hover: #C2D5FF;
+  --border-input: #232C38;
+  --border-active: #3A4A63;
+  --on-accent: #0B0F14;
+  --on-down: #1A0E08;
+  --accent-tint: #16223A;
+  --up-soft: #1F3B2E;
+  --up-strong: #7CF0B4;
+  --down-soft: #3A2018;
+  --down-strong: #FFB49A;
+  --series-3-soft: #221B33;
+  --series-3-strong: #D8C2FF;
+  --volume-up: #1E5A40;
+  --volume-down: #6B3524;
+
+  /* Raios */
+  --card-radius: 14px;
+  --control-radius: 10px;
+  --item-radius: 8px;
+  --chip-radius: 6px;
+
+  /* Fontes. No app, --font-inter e --font-jetbrains vem do next/font
+     (src/fonts.ts). No Storybook nao existem, e vale o fallback: as familias
+     que o @fontsource registra ("Inter Variable", "JetBrains Mono Variable"). */
+  --font-family-sans: var(--font-inter, "Inter Variable", "Inter"), system-ui, sans-serif;
+  --font-family-mono:
+    var(--font-jetbrains, "JetBrains Mono Variable", "JetBrains Mono"), ui-monospace,
+    monospace;
+
+  /* Layout */
+  --sidebar-width: 220px;
+  --touch-target: 44px;
+  --content-padding: 28px;
+}
+
+/*
+ * Tema claro: estrutura pronta, valores a definir com o design. Enquanto nao
+ * houver valores aprovados, o bloco existe vazio de proposito: ativar
+ * data-theme="light" hoje mantem o escuro, em vez de exibir cores inventadas.
+ */
+[data-theme="light"] {
+}

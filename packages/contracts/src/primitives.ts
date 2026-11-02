@@ -25,7 +25,17 @@ export const Count = z.number().int().nonnegative();
  */
 export const IsoDate = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "data deve estar em YYYY-MM-DD");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "data deve estar em YYYY-MM-DD")
+  .refine(
+    (v) => {
+      const data = new Date(`${v}T00:00:00Z`);
+      // Comparar de volta pega data que tem o formato certo e nao existe no
+      // calendario: `2024-99-99` passa no regex, e `2024-02-31` rola para
+      // 02 de marco em silencio. As duas chegariam ao banco como data valida.
+      return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === v;
+    },
+    { message: "data inexistente no calendario" },
+  );
 
 /**
  * Instante em UTC.

@@ -22,7 +22,10 @@ WORKDIR /repo
 # ---------------------------------------------------------------------------
 FROM base AS pruner
 COPY . .
-RUN pnpm turbo prune @bolsiq/market-data --docker
+# `pnpm dlx` porque este estágio não tem node_modules: o turbo do workspace só
+# existe depois do install, que acontece no estágio seguinte, e o install
+# precisa do resultado da poda. O major acompanha o `turbo` do package.json.
+RUN pnpm dlx turbo@2 prune @bolsiq/market-data --docker
 
 # ---------------------------------------------------------------------------
 # Dependências — camada separada, invalidada só quando um manifesto muda

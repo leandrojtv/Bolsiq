@@ -169,7 +169,13 @@ make test              # unitários com piso de cobertura
 Ou o compose do CI, que é o caminho mais próximo de produção:
 
 ```bash
-docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:local .
+make build-image
+```
+
+Para reproduzir o que o CI faz, que parte de um checkout limpo:
+
+```bash
+make build-image-clean
 ```
 
 ```bash

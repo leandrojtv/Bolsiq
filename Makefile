@@ -136,6 +136,17 @@ docs-events-check:
 	$(call exige_monorepo)
 	$(PNPM) --filter @bolsiq/contracts run docs:events:check
 
+## build-image: constroi a imagem do market-data
+build-image:
+	docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
+
+## build-image-clean: constroi sem cache, como o CI faz
+build-image-clean:
+	@# O CI parte de um checkout limpo. Construir com cache local pode passar
+	@# por motivo errado — já passou, quando o node_modules da máquina entrava
+	@# no contexto e levava o turbo de carona.
+	docker build --no-cache -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
+
 ## smoke: bate nos endpoints de health via Kong
 smoke:
 	bash infra/docker/smoke.sh $${BASE_URL:-http://localhost:8000}

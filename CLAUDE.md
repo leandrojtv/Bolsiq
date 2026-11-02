@@ -40,3 +40,24 @@ docs/{adr, services, runbooks}
 6. Segredos só por variável de ambiente; `.env.example` sempre atualizado.
 7. Commits no padrão Conventional Commits.
 8. Documentação e mensagens em português; identificadores de código em inglês.
+
+## Fluxo de trabalho
+
+Em TODA tarefa:
+
+1. Identifique o tipo (feature, fix, hotfix, chore, docs, refactor, test). Se não houver issue, crie uma com `gh issue create` usando o template.
+2. Atualize a base (`git fetch`; `develop`, ou `main` para hotfix) e crie a branch no padrão `<tipo>/<issue>-<slug>`. Nunca trabalhe direto em `main` ou `develop`.
+3. Commits pequenos em Conventional Commits, referenciando a issue (ex.: `feat(market-data): adiciona adapter CVM (#12)`).
+4. Antes de cada push: `make lint test` dentro do Docker. Não faça push com falha.
+5. Atualize `docs/`, ADR quando houver decisão nova e `.env.example` quando houver variável nova.
+6. Abra o PR com `gh pr create` para a base correta, preenchendo o template, linkando a issue (`Closes #N`) e com labels.
+7. Acompanhe os checks (`gh pr checks --watch`). Se falhar, corrija na mesma branch; nunca desative teste ou check para passar.
+8. Nunca: force push em branch compartilhada, merge sem CI verde, commit de segredo, alterar rulesets sem pedido explícito.
+9. Ao terminar, responda com: branch, link do PR, status dos checks e o que falta para o merge.
+
+### Referências
+
+- Modelo de branches, commits, PR, release e hotfix: [docs/contributing.md](docs/contributing.md)
+- Workflows, checks, secrets e environments: [docs/ci-cd.md](docs/ci-cd.md)
+- Runbooks: [release](docs/runbooks/release.md), [hotfix](docs/runbooks/hotfix.md), [rollback](docs/runbooks/rollback.md)
+- Decisão de fluxo e CI/CD: [ADR 0014](docs/adr/0014-fluxo-de-branches-e-cicd.md)

@@ -12,7 +12,11 @@ COMPOSE_CI  ?= infra/docker/compose.ci.yml
 
 # Roda um comando pnpm dentro de um container, com o repositório montado e o
 # store do pnpm em volume nomeado para não reinstalar tudo a cada chamada.
-PNPM := docker run --rm -it \
+# -t só quando há TTY: em CI ou sob um agente, `docker run -it` falha com
+# "the input device is not a TTY".
+DOCKER_TTY := $(shell test -t 0 && echo -t)
+
+PNPM := docker run --rm -i $(DOCKER_TTY) \
 	-v "$(CURDIR)":/app \
 	-v bolsiq-pnpm-store:/pnpm-store \
 	-w /app \

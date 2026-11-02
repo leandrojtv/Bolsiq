@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, isNull, lt, sql } from "drizzle-orm";
 import { validarPayload } from "@bolsiq/contracts";
-import { deadLetter, outbox, type Db } from "@bolsiq/db-core";
+import {
+  deadLetter as deadLetterPadrao,
+  outbox as outboxPadrao,
+  type Db,
+  type TabelaDeOutbox,
+  type TabelasDeConsumidor,
+} from "@bolsiq/db-core";
 import { envelopeDaLinha, type Publicador, type ResultadoPublicacao } from "./outbox.js";
 import { MAX_ENTREGAS } from "./stream.js";
 
@@ -12,6 +18,11 @@ export interface PublicarPendentesDeps {
   lote?: number;
   /** Tentativas antes de mandar para a dead-letter. */
   maxTentativas?: number;
+  /**
+   * Outbox e dead-letter do servico produtor. Padrao: as do market_data. O
+   * analytics passa as do proprio schema.
+   */
+  tabelas?: { outbox: TabelaDeOutbox; deadLetter: TabelasDeConsumidor["deadLetter"] };
 }
 
 /**
@@ -28,6 +39,10 @@ export async function publicarPendentes(
   deps: PublicarPendentesDeps,
 ): Promise<ResultadoPublicacao> {
   const lote = deps.lote ?? 200;
+  const { outbox, deadLetter } = deps.tabelas ?? {
+    outbox: outboxPadrao,
+    deadLetter: deadLetterPadrao,
+  };
   const maxTentativas = deps.maxTentativas ?? MAX_ENTREGAS;
 
   const resultado: ResultadoPublicacao = {
@@ -50,7 +65,13 @@ export async function publicarPendentes(
     // versão anterior do serviço, com um schema que já mudou.
     const validacao = validarPayload(linha.eventName, linha.payload);
     if (!validacao.ok) {
-      await enterrar(deps.db, linha, validacao.erro, "outbox-publisher");
+      await enterrar(
+        deps.db,
+        { outbox, deadLetter },
+        linha,
+        validacao.erro,
+        "outbox-publisher",
+      );
       resultado.mortos += 1;
       continue;
     }
@@ -75,7 +96,14 @@ export async function publicarPendentes(
       const mensagem = erro instanceof Error ? erro.message : String(erro);
 
       if (tentativas >= maxTentativas) {
-        await enterrar(deps.db, linha, mensagem, "outbox-publisher", tentativas);
+        await enterrar(
+          deps.db,
+          { outbox, deadLetter },
+          linha,
+          mensagem,
+          "outbox-publisher",
+          tentativas,
+        );
         resultado.mortos += 1;
       } else {
         await deps.db
@@ -92,6 +120,10 @@ export async function publicarPendentes(
 
 async function enterrar(
   db: Db,
+  {
+    outbox,
+    deadLetter,
+  }: { outbox: TabelaDeOutbox; deadLetter: TabelasDeConsumidor["deadLetter"] },
   linha: { id: string; eventName: string; payload: unknown; attempts: number },
   erro: string,
   consumidor: string,
@@ -127,7 +159,11 @@ async function enterrar(
  * O outbox é fila, não histórico: o dado está nas tabelas de domínio e o
  * evento está no stream. Sem poda, a tabela cresce para sempre.
  */
-export async function podarOutbox(db: Db, dias = 7): Promise<number> {
+export async function podarOutbox(
+  db: Db,
+  dias = 7,
+  outbox: TabelaDeOutbox = outboxPadrao,
+): Promise<number> {
   const corte = new Date(Date.now() - dias * 24 * 60 * 60 * 1000).toISOString();
   const apagados = await db
     .delete(outbox)

@@ -234,6 +234,11 @@ jobs:
     if: needs.changes.outputs.monorepo == 'true'
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm turbo run lint --filter="...[origin/${{ github.base_ref || 'develop' }}]"
       - name: Prettier
@@ -246,6 +251,11 @@ jobs:
     if: needs.changes.outputs.monorepo == 'true'
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm turbo run typecheck --filter="...[origin/${{ github.base_ref || 'develop' }}]"
 
@@ -262,6 +272,11 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Vitest com cobertura
         run: pnpm turbo run test:unit --filter="...[origin/${{ github.base_ref || 'develop' }}]"
@@ -314,6 +329,11 @@ jobs:
        needs.changes.outputs.docker == 'true')
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Pré-baixa as imagens dos containers de teste
         run: |
@@ -346,6 +366,11 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/bolsiq_ci
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Aplica todas as migrations do zero
         run: pnpm turbo run db:migrate
@@ -529,6 +554,11 @@ jobs:
       (needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true')
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - uses: actions/download-artifact@v4
         with:
@@ -580,7 +610,7 @@ jobs:
 
       - name: Trivy — dependências
         if: needs.changes.outputs.monorepo == 'true'
-        uses: aquasecurity/trivy-action@v0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .

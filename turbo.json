@@ -21,17 +21,21 @@
     },
     "test:integration": {
       "dependsOn": ["^build"],
-      "cache": false
+      "cache": false,
+      "env": ["DATABASE_URL", "TESTCONTAINERS_RYUK_DISABLED"]
     },
     "openapi:generate": {
       "dependsOn": ["^build"],
-      "outputs": ["openapi.json"]
+      "outputs": ["openapi.json"],
+      "env": ["SERVICE_VERSION"]
     },
     "db:generate": {
-      "cache": false
+      "cache": false,
+      "env": ["DATABASE_URL"]
     },
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "env": ["DATABASE_URL"]
     }
   }
 }

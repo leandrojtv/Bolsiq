@@ -11,9 +11,7 @@
     "test:unit": "vitest run --coverage",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "openapi:generate": "tsx src/openapi-generate.ts",
-    "db:generate": "pnpm --filter @bolsiq/db-core db:generate",
-    "db:migrate": "pnpm --filter @bolsiq/db-core db:migrate"
+    "openapi:generate": "tsx src/openapi-generate.ts"
   },
   "dependencies": {
     "@bolsiq/contracts": "workspace:*",

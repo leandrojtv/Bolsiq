@@ -38,6 +38,23 @@ services:
       timeout: 5s
       retries: 10
 
+  # Servidor de e-mail de desenvolvimento. Verificacao de e-mail, recuperacao
+  # de senha e 2FA mandam mensagem; sem isto o fluxo nao da para testar, e
+  # mandar e-mail de verdade a partir de maquina de desenvolvimento e pior.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres-dev:
   nats-dev:

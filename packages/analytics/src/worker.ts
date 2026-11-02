@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@bolsiq/db-core";
 import { assinar, type Assinatura, type Messaging } from "@bolsiq/messaging";
 import {
@@ -221,40 +221,45 @@ export async function iniciarWorkerDeAnalytics(deps: {
     return macroCache;
   }
 
-  /** Pega e processa um item da fila. `false` quando a fila esta vazia. */
+  /**
+   * Pega e processa um item da fila. `false` quando a fila esta vazia.
+   *
+   * O lock da linha fica com a transacao ate o fim do recalculo. Soltar logo
+   * depois de pegar deixava a linha pendente e livre, e outro laco recalculava
+   * o mesmo ticker em paralelo: 5 mil execucoes para 3,6 mil itens no backfill.
+   * Se o processo cair no meio, a transacao desfaz e o item volta para a fila.
+   */
   async function processarUm(): Promise<boolean> {
-    const [item] = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const r = await tx.execute<{ id: string; ticker: string }>(sql`
         SELECT id, ticker FROM analytics.recalc_queue
         WHERE processado_em IS NULL AND tentativas < 5
         ORDER BY enfileirado_em
         LIMIT 1 FOR UPDATE SKIP LOCKED`);
-      const linha = r.rows[0];
-      if (linha) {
+      const item = r.rows[0];
+      if (!item) return false;
+
+      try {
+        const resultado = await recalcularTicker(db, cliente, item.ticker, await macro());
+        await tx
+          .update(recalc_queue)
+          .set({ processado_em: new Date().toISOString() })
+          .where(eq(recalc_queue.id, item.id));
+        if (resultado !== "ok") {
+          log("debug", "recalculo sem indicador", { ticker: item.ticker, resultado });
+        }
+      } catch (erro) {
         await tx
           .update(recalc_queue)
           .set({ tentativas: sql`${recalc_queue.tentativas} + 1` })
-          .where(eq(recalc_queue.id, linha.id));
+          .where(eq(recalc_queue.id, item.id));
+        log("warn", "recalculo falhou", {
+          ticker: item.ticker,
+          erro: erro instanceof Error ? erro.message : String(erro),
+        });
       }
-      return r.rows;
+      return true;
     });
-    if (!item) return false;
-
-    try {
-      const resultado = await recalcularTicker(db, cliente, item.ticker, await macro());
-      await db
-        .update(recalc_queue)
-        .set({ processado_em: new Date().toISOString() })
-        .where(and(eq(recalc_queue.id, item.id), isNull(recalc_queue.processado_em)));
-      if (resultado !== "ok")
-        log("debug", "recalculo sem indicador", { ticker: item.ticker, resultado });
-    } catch (erro) {
-      log("warn", "recalculo falhou", {
-        ticker: item.ticker,
-        erro: erro instanceof Error ? erro.message : String(erro),
-      });
-    }
-    return true;
   }
 
   async function drenar(): Promise<number> {

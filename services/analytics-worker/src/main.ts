@@ -16,9 +16,10 @@ const log = (nivel: string, msg: string, ctx: Record<string, unknown> = {}) => {
   );
 };
 
+// Cada laco segura uma conexao com o lock do item e usa outra para gravar.
 const pool = criarPool({
   url: env.DATABASE_URL,
-  maxConnections: env.RECALC_CONCURRENCY + 2,
+  maxConnections: env.RECALC_CONCURRENCY * 2 + 2,
 });
 const db = criarDb(pool);
 const messaging = await conectar({ servers: env.NATS_URL, name: "analytics-worker" });

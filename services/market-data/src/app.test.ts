@@ -32,16 +32,31 @@ describe("app", () => {
     });
   });
 
-  it("devolve degraded quando o banco não responde", async () => {
+  it("devolve 503 e degraded quando o banco não responde", async () => {
     const outro = await criarApp({
       env,
       verificarBanco: () => Promise.resolve(false),
     });
     const res = await outro.inject({ method: "GET", url: "/v1/health" });
+
+    // 503, não 200: o HEALTHCHECK da imagem e o `compose up --wait` olham o
+    // status HTTP, não o corpo.
+    expect(res.statusCode).toBe(503);
     expect(res.json()).toMatchObject({
       status: "degraded",
       checks: { database: "fail" },
     });
+    await outro.close();
+  });
+
+  it("devolve 503 quando a sonda do banco lança", async () => {
+    const outro = await criarApp({
+      env,
+      verificarBanco: () => Promise.reject(new Error("conexão recusada")),
+    });
+    const res = await outro.inject({ method: "GET", url: "/v1/health" });
+    expect(res.statusCode).toBe(500);
+    expect(res.json().error.code).toBe("internal_error");
     await outro.close();
   });
 
@@ -86,6 +101,7 @@ describe("app", () => {
         NODE_ENV: "test",
         ROLE: "worker",
       }),
+      verificarBanco: () => Promise.resolve(true),
       apenasHealth: true,
     });
 

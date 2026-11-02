@@ -5,8 +5,15 @@ import { rotas } from "./routes/specs.js";
 
 export interface AppDeps {
   env: Env;
-  /** Injetável para teste; devolve `ok` quando o banco responde. */
-  verificarBanco?: () => Promise<boolean>;
+  /**
+   * Sonda do banco. **Obrigatória de propósito.**
+   *
+   * Antes era opcional e a ausência era tratada como sucesso, o que fazia o
+   * health reportar `database: "ok"` com o Postgres inalcançável — porque o
+   * `server.ts` não passava sonda nenhuma. Um health que não detecta queda é
+   * pior que nenhum: o orquestrador confia nele.
+   */
+  verificarBanco: () => Promise<boolean>;
   /**
    * `true` no processo `worker`: serve só o health, sem a API pública nem o
    * documento OpenAPI.
@@ -89,15 +96,21 @@ export async function criarApp(deps: AppDeps): Promise<FastifyInstance> {
     });
   });
 
-  app.get("/v1/health", async () => {
-    const bancoOk = deps.verificarBanco ? await deps.verificarBanco() : true;
+  app.get("/v1/health", async (_request, reply) => {
+    const bancoOk = await deps.verificarBanco();
 
-    return {
+    const corpo = {
       status: bancoOk ? ("ok" as const) : ("degraded" as const),
       role: env.ROLE,
       version: env.SERVICE_VERSION,
       checks: { database: bancoOk ? ("ok" as const) : ("fail" as const) },
     };
+
+    // 503 quando degradado, não 200. O HEALTHCHECK da imagem e o
+    // `docker compose up --wait` olham o status HTTP, não o corpo: devolver 200
+    // com "degraded" faria o orquestrador considerar saudável um processo que
+    // não alcança o banco.
+    return reply.status(bancoOk ? 200 : 503).send(corpo);
   });
 
   if (deps.apenasHealth === true) {

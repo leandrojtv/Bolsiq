@@ -66,12 +66,24 @@ export async function conectar(opts: MessagingOptions): Promise<Messaging> {
           discard: DiscardPolicy.Old,
         };
 
-        try {
-          await jsm.streams.add(config);
-        } catch {
-          // Já existe: atualiza para o que está versionado em stream.ts, para o
-          // broker não ficar com configuração antiga de um deploy anterior.
-          await jsm.streams.update(s.name, config);
+        for (let tentativa = 1; ; tentativa++) {
+          try {
+            await jsm.streams.add(config);
+            break;
+          } catch {
+            try {
+              // Já existe: atualiza para o que está versionado em stream.ts,
+              // para o broker não ficar com configuração de um deploy anterior.
+              await jsm.streams.update(s.name, config);
+              break;
+            } catch (erro) {
+              // O add falhou e o stream não existe: o JetStream ainda está
+              // subindo. Visto no CI, com o broker recém-criado aceitando a
+              // conexão antes de aceitar comando de JetStream.
+              if (tentativa >= 20) throw erro;
+              await new Promise((r) => setTimeout(r, 250 * tentativa));
+            }
+          }
         }
       }
     },

@@ -74,6 +74,18 @@ export const AssetDelistedV1 = z.object({
   reason: z.string().nullable(),
 });
 
+export const IndicatorsUpdatedV1 = z.object({
+  ticker: Ticker,
+  reference_date: IsoDate,
+  /** Preco justo de Graham; nulo quando LPA ou VPA nao sao positivos. */
+  preco_graham: Money.nullable(),
+  /** Preco-teto de Bazin; nulo sem historico de proventos. */
+  preco_bazin: Money.nullable(),
+  dy_12m: z.number().nullable(),
+  pl: z.number().nullable(),
+  pvp: z.number().nullable(),
+});
+
 // ---------------------------------------------------------------------------
 // Catálogo
 // ---------------------------------------------------------------------------
@@ -159,6 +171,23 @@ export const eventos = {
       reason: "fechamento de capital",
     },
   },
+  "analytics.indicators.updated.v1": {
+    name: "analytics.indicators.updated.v1",
+    description:
+      "Indicadores de um ativo foram recalculados. Alimenta os alertas fundamentalistas sem que o alerts leia o schema analytics.",
+    producer: "analytics",
+    consumers: ["alerts"],
+    payload: IndicatorsUpdatedV1,
+    example: {
+      ticker: "PETR4",
+      reference_date: "2026-09-30",
+      preco_graham: "42.92",
+      preco_bazin: "88.33",
+      dy_12m: 0.0989,
+      pl: 13.38,
+      pvp: 1.35,
+    },
+  },
 } as const satisfies Record<string, EventDefinition>;
 
 export type EventName = keyof typeof eventos;
@@ -170,6 +199,28 @@ export const STREAM_MARKETDATA = "MARKETDATA";
 
 /** Assunto curinga do stream. */
 export const SUBJECT_MARKETDATA = "marketdata.>";
+
+export const STREAM_ANALYTICS = "ANALYTICS";
+export const SUBJECT_ANALYTICS = "analytics.>";
+
+/**
+ * Stream de cada dominio, pelo prefixo do nome do evento.
+ *
+ * Um stream por produtor, e nao um unico, porque retencao e limite sao
+ * decisoes do produtor: cotacao e muitas por dia, indicador e uma por
+ * trimestre.
+ */
+export const streams = {
+  marketdata: { name: STREAM_MARKETDATA, subject: SUBJECT_MARKETDATA },
+  analytics: { name: STREAM_ANALYTICS, subject: SUBJECT_ANALYTICS },
+} as const;
+
+export function streamDoEvento(
+  nome: string,
+): (typeof streams)[keyof typeof streams] | undefined {
+  const dominio = nome.split(".")[0] ?? "";
+  return dominio in streams ? streams[dominio as keyof typeof streams] : undefined;
+}
 
 export function ehNomeDeEvento(nome: string): nome is EventName {
   return Object.prototype.hasOwnProperty.call(eventos, nome);

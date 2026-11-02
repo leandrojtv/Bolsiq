@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { AckPolicy, DeliverPolicy, type JsMsg } from "nats";
 import { EventEnvelope, SUBJECT_MARKETDATA, validarPayload } from "@bolsiq/contracts";
-import { deadLetter, processedEvents, type Db } from "@bolsiq/db-core";
+import {
+  deadLetter,
+  processedEvents,
+  type Db,
+  type TabelasDeConsumidor,
+} from "@bolsiq/db-core";
 import type { Messaging } from "./client.js";
 import { MAX_ENTREGAS } from "./stream.js";
 import { STREAM_MARKETDATA } from "@bolsiq/contracts";
@@ -40,6 +45,15 @@ export interface AssinarOptions {
    * teste que não deve ver o histórico.
    */
   desde?: "todas" | "novas";
+  /**
+   * Tabelas de idempotencia e dead-letter do servico consumidor.
+   *
+   * Padrao: as do market_data. Outro servico passa as do proprio schema
+   * (`tabelasDeConsumidor("alerts")`), para nao gravar no schema alheio.
+   */
+  tabelas?: TabelasDeConsumidor;
+  /** Stream a consumir. Padrao: MARKETDATA. */
+  stream?: string;
   manipular: (ctx: ContextoDeEvento) => Promise<void>;
   /** Chamado em erro; injetável para o teste não depender de logger. */
   aoFalhar?: (erro: Error, contexto: Record<string, unknown>) => void;
@@ -64,7 +78,8 @@ export async function assinar(opts: AssinarOptions): Promise<Assinatura> {
   const maxTentativas = opts.maxTentativas ?? MAX_ENTREGAS;
   const filtro = opts.filtro ?? SUBJECT_MARKETDATA;
 
-  await opts.messaging.jsm.consumers.add(STREAM_MARKETDATA, {
+  const stream = opts.stream ?? STREAM_MARKETDATA;
+  await opts.messaging.jsm.consumers.add(stream, {
     durable_name: opts.consumidor,
     ack_policy: AckPolicy.Explicit,
     deliver_policy: opts.desde === "novas" ? DeliverPolicy.New : DeliverPolicy.All,
@@ -75,10 +90,7 @@ export async function assinar(opts: AssinarOptions): Promise<Assinatura> {
     ack_wait: 30_000_000_000,
   });
 
-  const consumidor = await opts.messaging.js.consumers.get(
-    STREAM_MARKETDATA,
-    opts.consumidor,
-  );
+  const consumidor = await opts.messaging.js.consumers.get(stream, opts.consumidor);
   const mensagens = await consumidor.consume();
 
   let parado = false;
@@ -127,14 +139,14 @@ async function processar(
   try {
     const jaProcessado = await opts.db.transaction(async (tx) => {
       const inserido = await tx
-        .insert(processedEvents)
+        .insert(tabelasDe(opts).processedEvents)
         .values({
           consumer: opts.consumidor,
           eventId: envelope.id,
           eventName: envelope.name,
         })
         .onConflictDoNothing()
-        .returning({ eventId: processedEvents.eventId });
+        .returning({ eventId: tabelasDe(opts).processedEvents.eventId });
 
       // Conflito: outro processo (ou outra entrega) já cuidou deste evento.
       if (inserido.length === 0) {
@@ -187,7 +199,7 @@ async function enterrar(
     deadLetter: true,
   });
 
-  await opts.db.insert(deadLetter).values({
+  await opts.db.insert(tabelasDe(opts).deadLetter).values({
     id: randomUUID(),
     consumer: opts.consumidor,
     eventId: envelope?.id ?? null,
@@ -201,4 +213,8 @@ async function enterrar(
 
 function mensagemDeErro(erro: unknown): string {
   return erro instanceof Error ? erro.message : String(erro);
+}
+
+function tabelasDe(opts: AssinarOptions): TabelasDeConsumidor {
+  return opts.tabelas ?? { processedEvents, deadLetter };
 }

@@ -1,0 +1,38 @@
+{
+  "name": "@bolsiq/portfolio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test:unit": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@bolsiq/contracts": "workspace:*",
+    "decimal.js": "^10.4.3",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@bolsiq/config": "workspace:*",
+    "@types/pg": "^8.11.10",
+    "@vitest/coverage-v8": "^2.1.8",
+    "drizzle-kit": "^0.31.11",
+    "pg": "^8.13.1",
+    "testcontainers": "^10.16.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

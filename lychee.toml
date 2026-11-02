@@ -29,4 +29,7 @@ exclude = [
   # Domínio do produto, ainda não registrado. Aparece nos exemplos do
   # guia do cliente.
   '^https://api\.bolsiq\.com',
+  # Enderecos do ambiente local (Mailpit, API em dev). Existem so com o compose
+  # no ar, e nunca no runner do CI.
+  '^https?://(localhost|127\.0\.0\.1)',
 ]

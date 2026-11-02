@@ -136,9 +136,10 @@ docs-events-check:
 	$(call exige_monorepo)
 	$(PNPM) --filter @bolsiq/contracts run docs:events:check
 
-## build-image: constroi a imagem do market-data
+## build-image: constroi as imagens (market-data e alerts-worker)
 build-image:
 	docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
+	docker build -f infra/docker/alerts-worker.Dockerfile -t bolsiq-alerts-worker:$${IMAGE_TAG:-local} .
 
 ## build-image-clean: constroi sem cache, como o CI faz
 build-image-clean:
@@ -162,7 +163,7 @@ dev-up: build-image
 	@echo
 	@echo "  Publicar cotação:  make dev-cotacao TICKER=PETR4 PRECO=38.42"
 	@echo
-	@echo "  Caixa de e-mail (make up):  http://localhost:8025"
+	@echo "  Caixa de e-mail:  http://localhost:8025"
 
 ## dev-down: derruba o ambiente local e apaga os volumes
 dev-down:

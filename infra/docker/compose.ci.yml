@@ -33,6 +33,46 @@ services:
       timeout: 5s
       retries: 20
 
+  mailpit:
+    image: axllent/mailpit:v1.21
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  alerts-migrate:
+    image: bolsiq-alerts-worker:${IMAGE_TAG:-local}
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  alerts-worker:
+    image: bolsiq-alerts-worker:${IMAGE_TAG:-local}
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      NATS_URL: nats://nats:4222
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    depends_on:
+      nats:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      alerts-migrate:
+        condition: service_completed_successfully
+
   migrate:
     image: bolsiq-market-data:${IMAGE_TAG:-local}
     command: ["node", "node_modules/@bolsiq/db-core/dist/migrate.js"]

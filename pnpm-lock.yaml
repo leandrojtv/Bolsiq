@@ -172,6 +172,46 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
 
+  packages/portfolio:
+    dependencies:
+      '@bolsiq/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      decimal.js:
+        specifier: ^10.4.3
+        version: 10.6.0
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(gel@2.2.1)(pg@8.23.1)
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      '@bolsiq/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.23.1
+      '@vitest/coverage-v8':
+        specifier: ^2.1.8
+        version: 2.1.9(vitest@2.1.9(@types/node@22.20.5))
+      drizzle-kit:
+        specifier: ^0.31.11
+        version: 0.31.11
+      pg:
+        specifier: ^8.13.1
+        version: 8.23.1
+      testcontainers:
+        specifier: ^10.16.0
+        version: 10.28.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.5)
+
   services/market-data:
     dependencies:
       '@bolsiq/contracts':

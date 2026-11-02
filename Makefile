@@ -161,6 +161,8 @@ dev-up: build-image
 	@echo "  Página   infra/dev/teste-stream.html  (abra no navegador)"
 	@echo
 	@echo "  Publicar cotação:  make dev-cotacao TICKER=PETR4 PRECO=38.42"
+	@echo
+	@echo "  Caixa de e-mail (make up):  http://localhost:8025"
 
 ## dev-down: derruba o ambiente local e apaga os volumes
 dev-down:

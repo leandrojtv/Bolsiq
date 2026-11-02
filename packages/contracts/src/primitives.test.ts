@@ -36,6 +36,16 @@ describe("IsoDate", () => {
   it("recusa formato brasileiro, que é o que a CVM e o BCB devolvem", () => {
     expect(() => IsoDate.parse("31/10/2026")).toThrow();
   });
+
+  it("recusa data com formato certo que não existe no calendário", () => {
+    // `2024-99-99` passa no regex; `2024-02-31` rolaria para 02 de março em
+    // silêncio. As duas chegariam ao banco como data válida.
+    expect(() => IsoDate.parse("2024-99-99")).toThrow();
+    expect(() => IsoDate.parse("2024-02-31")).toThrow();
+    expect(() => IsoDate.parse("2023-02-29")).toThrow();
+    // Ano bissexto de verdade passa.
+    expect(IsoDate.parse("2024-02-29")).toBe("2024-02-29");
+  });
 });
 
 describe("IsoDateTime", () => {

@@ -73,6 +73,36 @@ const servico: ServicoDeDados = {
       meta,
     });
   },
+  buscarFundos: (q) => {
+    chamadas.push(["buscarFundos", q]);
+    return Promise.resolve({ data: [], meta });
+  },
+  fundo: (c) => {
+    chamadas.push(["fundo", c]);
+    return Promise.resolve({
+      data: {
+        cnpj: c,
+        name: "F",
+        class_type: null,
+        classification: null,
+        status: null,
+        anbima_class: null,
+        aum: null,
+        aum_date: null,
+        provenance: {
+          source: "cvm-fundos",
+          fetched_at: meta.fetched_at,
+          license: "x",
+          source_ref: "y",
+        },
+      },
+      meta,
+    });
+  },
+  historicoDeFundo: (c, q) => {
+    chamadas.push(["historicoDeFundo", c, q]);
+    return Promise.resolve({ data: { cnpj: c, points: [] }, meta });
+  },
   macro: (s, q) => {
     chamadas.push(["macro", s, q]);
     return Promise.resolve({
@@ -178,6 +208,21 @@ describe("rotas /v1", () => {
     await get("/v1/macro/CDI");
     expect(chamadas.at(-1)).toEqual(["macro", "cdi", {}]);
     expect((await get("/v1/macro/dolar")).statusCode).toBe(422);
+  });
+
+  it("fundos: busca, cadastro e historico, com CNPJ pontuado", async () => {
+    await get("/v1/funds?q=verde");
+    expect(chamadas.at(-1)).toEqual(["buscarFundos", "verde"]);
+    expect((await get("/v1/funds?q=a")).statusCode).toBe(422);
+    await get("/v1/funds/00.017.024%2F0001-53");
+    expect(chamadas.at(-1)).toEqual(["fundo", "00017024000153"]);
+    await get("/v1/funds/00017024000153/history?from=2025-01-01");
+    expect(chamadas.at(-1)).toEqual([
+      "historicoDeFundo",
+      "00017024000153",
+      { from: "2025-01-01" },
+    ]);
+    expect((await get("/v1/funds/123/history")).statusCode).toBe(422);
   });
 
   it("Swagger UI em /docs", async () => {

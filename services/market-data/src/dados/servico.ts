@@ -6,6 +6,8 @@ import {
   dividends,
   fetchLog,
   financialStatements,
+  fundDaily,
+  funds,
   liveQuotes,
   macroSeries,
   outbox,
@@ -20,6 +22,8 @@ import {
   type AssetSummary,
   type Candle,
   type Dividend,
+  type FundDetail,
+  type FundSummary,
   type FundamentalsPeriod,
   type Interval,
   type LiveQuote,
@@ -77,6 +81,17 @@ export interface ServicoDeDados {
       cnpj: string;
       period: "annual" | "quarterly";
       periods: FundamentalsPeriod[];
+    }>
+  >;
+  buscarFundos(q: string): Promise<Resposta<FundSummary[]>>;
+  fundo(cnpj: string): Promise<Resposta<FundDetail>>;
+  historicoDeFundo(
+    cnpj: string,
+    q: { from?: string; to?: string },
+  ): Promise<
+    Resposta<{
+      cnpj: string;
+      points: { date: string; nav: string; aum: string; holders: number | null }[];
     }>
   >;
   macro(
@@ -1100,5 +1115,148 @@ export function criarServicoDeDados(deps: {
     };
   }
 
-  return { buscarAtivos, ativo, cotacoes, historico, proventos, fundamentos, macro };
+  // -------------------------------------------------------------------------
+  // Fundos: carga em lote pelo job cvm-fundos (ADR 0013)
+  // -------------------------------------------------------------------------
+
+  const META_FUNDOS = { source: "cvm-fundos", license: CVM_LICENSE };
+  /** O informe diario sai com um a dois dias uteis de atraso. */
+  const FUNDOS_DELAY_MINUTES = 2 * 24 * 60;
+
+  async function buscarFundos(q: string): Promise<Resposta<FundSummary[]>> {
+    const termo = q.trim();
+    const digitos = termo.replace(/\D/g, "");
+    const condicao =
+      digitos.length >= 6 && /^[\d./-]+$/.test(termo)
+        ? like(funds.cnpj, `${digitos}%`)
+        : ilike(funds.name, `%${termo.replace(/[%_\\]/g, "")}%`);
+    const linhas = await db
+      .select()
+      .from(funds)
+      .where(condicao)
+      .orderBy(
+        sql`(${funds.status} = 'Em Funcionamento Normal') DESC`,
+        sql`${funds.aum} DESC NULLS LAST`,
+        asc(funds.name),
+      )
+      .limit(20);
+    return {
+      data: linhas.map((f) => ({
+        cnpj: f.cnpj,
+        name: f.name,
+        class_type: f.classType,
+        classification: f.classification,
+        status: f.status,
+      })),
+      meta: {
+        ...META_FUNDOS,
+        fetched_at: paraIso(
+          linhas
+            .map((l) => l.fetchedAt)
+            .sort()
+            .pop() ?? agora().toISOString(),
+        ),
+        stale: false,
+        delay_minutes: 0,
+      },
+    };
+  }
+
+  async function fundo(cnpj: string): Promise<Resposta<FundDetail>> {
+    const [f] = await db.select().from(funds).where(eq(funds.cnpj, cnpj));
+    if (!f) naoEncontrado(`fundo ${cnpj} nao esta no cadastro da CVM`);
+    const provenance = {
+      source: f.source,
+      fetched_at: paraIso(f.fetchedAt),
+      license: f.license,
+      source_ref: f.sourceRef,
+    };
+    return {
+      data: {
+        cnpj: f.cnpj,
+        name: f.name,
+        class_type: f.classType,
+        classification: f.classification,
+        status: f.status,
+        anbima_class: f.anbimaClass,
+        aum: nn(f.aum),
+        aum_date: f.aumDate,
+        provenance,
+      },
+      meta: {
+        ...META_FUNDOS,
+        fetched_at: provenance.fetched_at,
+        stale: false,
+        delay_minutes: 0,
+      },
+    };
+  }
+
+  async function historicoDeFundo(cnpj: string, q: { from?: string; to?: string }) {
+    const ate = q.to ?? hoje(agora());
+    const de = q.from ?? umAnoAntes(ate);
+    if (de > ate) throw new BolsiqError("validation_error", "from posterior a to");
+    const linhas = await db
+      .select({
+        date: fundDaily.date,
+        nav: fundDaily.nav,
+        aum: fundDaily.aum,
+        holders: fundDaily.holders,
+        fetchedAt: fundDaily.fetchedAt,
+      })
+      .from(fundDaily)
+      .where(
+        and(
+          eq(fundDaily.cnpjFundo, cnpj),
+          gte(fundDaily.date, de),
+          lte(fundDaily.date, ate),
+        ),
+      )
+      .orderBy(asc(fundDaily.date));
+    if (linhas.length === 0) {
+      const [existe] = await db
+        .select({ c: funds.cnpj })
+        .from(funds)
+        .where(eq(funds.cnpj, cnpj));
+      if (!existe) naoEncontrado(`fundo ${cnpj} nao esta no cadastro da CVM`);
+    }
+    const ultima = linhas.at(-1)?.date ?? "";
+    return {
+      data: {
+        cnpj,
+        points: linhas.map((l) => ({
+          date: l.date,
+          nav: n(l.nav),
+          aum: n(l.aum),
+          holders: l.holders,
+        })),
+      },
+      meta: {
+        ...META_FUNDOS,
+        fetched_at: paraIso(
+          linhas
+            .map((l) => l.fetchedAt)
+            .sort()
+            .pop() ?? agora().toISOString(),
+        ),
+        // Mais de uma semana sem cota com o periodo chegando a hoje: carga atrasada.
+        stale:
+          ate >= somarDias(hoje(agora()), -1) && ultima < somarDias(hoje(agora()), -7),
+        delay_minutes: FUNDOS_DELAY_MINUTES,
+      },
+    };
+  }
+
+  return {
+    buscarAtivos,
+    ativo,
+    cotacoes,
+    historico,
+    proventos,
+    fundamentos,
+    buscarFundos,
+    fundo,
+    historicoDeFundo,
+    macro,
+  };
 }

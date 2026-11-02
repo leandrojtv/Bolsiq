@@ -14,6 +14,9 @@ import {
 } from "@bolsiq/db-core";
 
 import {
+  carregarCadastroDeFundos,
+  carregarInformeDiario,
+  ultimosMeses,
   carregarCadastro,
   carregarCotahist,
   carregarDemonstracoes,
@@ -513,5 +516,74 @@ describe("read-through", () => {
     expect(r.data[0]).toMatchObject({ ticker: "PETR4", sector: "Petróleo e Gás" });
     expect((await s.buscarAtivos("bova", "stock")).data).toEqual([]);
     expect((await db.select().from(quotesDaily)).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("fundos", () => {
+  it("cadastro, informe diario e leitura pelo servico", async () => {
+    const registro = await criarZip({
+      "registro_classe.csv":
+        "CNPJ_Classe;Tipo_Classe;Denominacao_Social;Situacao;Classificacao;Classificacao_Anbima;Patrimonio_Liquido;Data_Patrimonio_Liquido\n" +
+        "00017024000153;Classes de Cotas de Fundos FIF;VERDE FIC FIM;Em Funcionamento Normal;Multimercado;;1214792.63;2026-09-30\n",
+    });
+    const linhas = ["2026-09-01;44.6", "2026-09-02;45.0", "2026-09-03;44.1"].map((x) => {
+      const [dia, cota] = x.split(";");
+      return `CLASSES - FIF;00.017.024/0001-53;;${dia};1;${cota};1214792.63;0;0;10`;
+    });
+    const informe = await criarZip({
+      "inf_diario_fi_202609.csv":
+        "TP_FUNDO_CLASSE;CNPJ_FUNDO_CLASSE;ID_SUBCLASSE;DT_COMPTC;VL_TOTAL;VL_QUOTA;VL_PATRIM_LIQ;CAPTC_DIA;RESG_DIA;NR_COTST\n" +
+        linhas.join("\n"),
+    });
+    const cvm = new CvmAdapter(
+      buscarFalso({
+        "registro_fundo_classe.zip": () => binario(registro),
+        "inf_diario_fi_202609.zip": () => binario(informe),
+      }),
+    );
+    expect((await carregarCadastroDeFundos(db, cvm, { log })).linhas).toBe(1);
+    expect((await carregarInformeDiario(db, cvm, { aaaamm: "202609", log })).linhas).toBe(
+      3,
+    );
+    expect((await carregarInformeDiario(db, cvm, { aaaamm: "202609", log })).pulado).toBe(
+      true,
+    );
+    expect((await carregarInformeDiario(db, cvm, { aaaamm: "209901", log })).pulado).toBe(
+      true,
+    );
+
+    const s = criarServicoDeDados({
+      db,
+      brapi: new BrapiAdapter(buscarFalso({}), undefined, "https://b"),
+      bcb: new BcbAdapter(buscarFalso({})),
+      log,
+      agora: () => new Date("2026-09-04T12:00:00Z"),
+    });
+    expect((await s.buscarFundos("verde")).data[0]).toMatchObject({
+      cnpj: "00017024000153",
+      name: "VERDE FIC FIM",
+    });
+    expect((await s.buscarFundos("00.017.024")).data).toHaveLength(1);
+    expect((await s.fundo("00017024000153")).data).toMatchObject({
+      aum: "1214792.63",
+      status: "Em Funcionamento Normal",
+    });
+    const h = await s.historicoDeFundo("00017024000153", { from: "2026-09-01" });
+    expect(h.data.points.map((p) => p.nav)).toEqual(["44.6", "45", "44.1"]);
+    expect(h.meta).toMatchObject({
+      source: "cvm-fundos",
+      license: "ODbL-1.0",
+      stale: false,
+    });
+    await expect(s.historicoDeFundo("99999999000199", {})).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(s.fundo("99999999000199")).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("ultimos meses", () => {
+    expect(ultimosMeses("2026-02-10", 3)).toEqual(["202512", "202601", "202602"]);
   });
 });

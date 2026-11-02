@@ -10,6 +10,46 @@ import { linhasDoZip } from "./zip.js";
 
 export const CVM_LICENSE = "ODbL-1.0";
 const BASE = "https://dados.cvm.gov.br/dados/CIA_ABERTA";
+const BASE_FI = "https://dados.cvm.gov.br/dados/FI";
+
+export interface ClasseDeFundo {
+  cnpj: string;
+  name: string;
+  classType: string | null;
+  classification: string | null;
+  anbimaClass: string | null;
+  status: string | null;
+  aum: string | null;
+  aumDate: string | null;
+}
+
+export interface CotaDiaria {
+  cnpj: string;
+  date: string;
+  nav: string;
+  aum: string;
+  inflows: string | null;
+  outflows: string | null;
+  holders: number | null;
+  totalPortfolio: string | null;
+}
+
+export interface ArquivoDeCotas extends ArquivoBaixado {
+  sourceRef: string;
+  cotas: () => AsyncGenerator<CotaDiaria>;
+  /** Linhas descartadas por valor fora da escala (ver `cabeNoNumeric`). */
+  descartadas: () => number;
+}
+
+/**
+ * numeric(20,6) guarda ate 10^14. O informe diario tem linhas com cota ou
+ * patrimonio acima disso (erro de escala da fonte: patrimonio de quatrilhoes).
+ * Gravar exigiria afrouxar a coluna por causa de dado errado; a linha e
+ * descartada e contada.
+ */
+export function cabeNoNumeric(...valores: (string | null)[]): boolean {
+  return valores.every((v) => v === null || Math.abs(Number(v)) < 1e14);
+}
 
 export interface Companhia {
   cnpj: string;
@@ -158,6 +198,39 @@ export class CvmAdapter {
     return saida;
   }
 
+  /**
+   * Classes de fundo do registro da CVM (RCVM 175). So `registro_classe.csv`:
+   * e a classe que o informe diario identifica.
+   */
+  async cadastroDeFundos(): Promise<{
+    arquivo: ArquivoBaixado;
+    classes: () => AsyncGenerator<ClasseDeFundo>;
+  } | null> {
+    const arquivo = await baixarParaArquivo(
+      this.buscar,
+      `${BASE_FI}/CAD/DADOS/registro_fundo_classe.zip`,
+    );
+    if (!arquivo) return null;
+    return { arquivo, classes: () => lerClasses(arquivo.caminho) };
+  }
+
+  /** Informe diario de um mes (AAAAMM). `null` se o mes ainda nao foi publicado. */
+  async informeDiario(aaaamm: string): Promise<ArquivoDeCotas | null> {
+    const nome = `inf_diario_fi_${aaaamm}.zip`;
+    const arquivo = await baixarParaArquivo(
+      this.buscar,
+      `${BASE_FI}/DOC/INF_DIARIO/DADOS/${nome}`,
+    );
+    if (!arquivo) return null;
+    const contagem = { descartadas: 0 };
+    return {
+      ...arquivo,
+      sourceRef: nome,
+      cotas: () => lerCotas(arquivo.caminho, contagem),
+      descartadas: () => contagem.descartadas,
+    };
+  }
+
   /** DFP (anual) ou ITR (trimestral) de um ano. `null` se o ano nao existe. */
   async demonstracoes(
     tipo: "DFP" | "ITR",
@@ -176,6 +249,14 @@ export class CvmAdapter {
       composicao: () => lerComposicao(arquivo.caminho),
     };
   }
+}
+
+/** Decimal da CVM ("44.636723400000") sem zeros a direita; vazio vira null. */
+function decimalOuNulo(v: string): string | null {
+  if (v === "") return null;
+  return /^-?\d+(\.\d+)?$/.test(v)
+    ? v.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "")
+    : null;
 }
 
 function tentarCnpj(valor: string): string | null {
@@ -254,6 +335,79 @@ async function* lerComposicao(caminho: string): AsyncGenerator<ComposicaoDeCapit
       total: n("QT_ACAO_TOTAL_CAP_INTEGR"),
       treasuryTotal: n("QT_ACAO_TOTAL_TESOURO"),
       version: Number(c("VERSAO")),
+    };
+  }
+}
+
+async function* lerClasses(caminho: string): AsyncGenerator<ClasseDeFundo> {
+  let ler: ReturnType<typeof leitorDeColunas> | null = null;
+  for await (const { linha } of linhasDoZip(
+    caminho,
+    (n) => n === "registro_classe.csv",
+  )) {
+    if (!ler) {
+      ler = leitorDeColunas(linha);
+      continue;
+    }
+    if (linha.trim() === "") continue;
+    const c = ler(linha);
+    const cnpj = tentarCnpj(c("CNPJ_Classe"));
+    if (!cnpj || !c("Denominacao_Social")) continue;
+    yield {
+      cnpj,
+      name: c("Denominacao_Social"),
+      classType: c("Tipo_Classe") || null,
+      classification: c("Classificacao") || null,
+      anbimaClass: c("Classificacao_Anbima") || null,
+      status: c("Situacao") || null,
+      aum: cabeNoNumeric(decimalOuNulo(c("Patrimonio_Liquido")))
+        ? decimalOuNulo(c("Patrimonio_Liquido"))
+        : null,
+      aumDate: c("Data_Patrimonio_Liquido") || null,
+    };
+  }
+}
+
+/**
+ * Cotas do informe diario. So a linha da classe (ID_SUBCLASSE vazio): a
+ * subclasse repetiria o mesmo CNPJ e data, e a chave da tabela e (cnpj, data).
+ */
+async function* lerCotas(
+  caminho: string,
+  contagem: { descartadas: number },
+): AsyncGenerator<CotaDiaria> {
+  let ler: ReturnType<typeof leitorDeColunas> | null = null;
+  for await (const { linha } of linhasDoZip(caminho, (n) => n.endsWith(".csv"))) {
+    if (!ler) {
+      ler = leitorDeColunas(linha);
+      continue;
+    }
+    if (linha.trim() === "") continue;
+    const c = ler(linha);
+    if (ler.tem("ID_SUBCLASSE") && c("ID_SUBCLASSE") !== "") continue;
+    const cnpj = tentarCnpj(
+      ler.tem("CNPJ_FUNDO_CLASSE") ? c("CNPJ_FUNDO_CLASSE") : c("CNPJ_FUNDO"),
+    );
+    const nav = decimalOuNulo(c("VL_QUOTA"));
+    const aum = decimalOuNulo(c("VL_PATRIM_LIQ"));
+    if (!cnpj || nav === null || aum === null || Number(nav) <= 0) continue;
+    const cotistas = c("NR_COTST");
+    const inflows = decimalOuNulo(c("CAPTC_DIA"));
+    const outflows = decimalOuNulo(c("RESG_DIA"));
+    const totalPortfolio = decimalOuNulo(c("VL_TOTAL"));
+    if (!cabeNoNumeric(nav, aum, inflows, outflows, totalPortfolio)) {
+      contagem.descartadas++;
+      continue;
+    }
+    yield {
+      cnpj,
+      date: c("DT_COMPTC"),
+      nav,
+      aum,
+      inflows,
+      outflows,
+      holders: cotistas === "" ? null : Number(cotistas),
+      totalPortfolio,
     };
   }
 }

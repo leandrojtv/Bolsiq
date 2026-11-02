@@ -1,7 +1,16 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import type { Messaging } from "@bolsiq/messaging";
+import type { StreamRegistrado } from "./stream/rota.js";
+
+declare module "fastify" {
+  interface FastifyInstance {
+    stream: StreamRegistrado;
+  }
+}
 import { buildOpenApi, BolsiqError, type ErrorCode } from "@bolsiq/contracts";
 import type { Env } from "./config.js";
 import { rotas } from "./routes/specs.js";
+import { registrarStream } from "./stream/rota.js";
 
 export interface AppDeps {
   env: Env;
@@ -19,6 +28,14 @@ export interface AppDeps {
    * documento OpenAPI.
    */
   apenasHealth?: boolean;
+  /**
+   * Conexão com o NATS, quando já existe.
+   *
+   * Opcional: a rota `/v1/stream` é registrada de qualquer forma, e o repasse
+   * é ligado depois por `app.stream.ligar(messaging)`. O serviço sobe o HTTP
+   * antes de conectar ao barramento, para o health responder com o NATS fora.
+   */
+  messaging?: Messaging;
 }
 
 /**
@@ -130,6 +147,16 @@ export async function criarApp(deps: AppDeps): Promise<FastifyInstance> {
   );
 
   app.get("/v1/openapi.json", () => documento);
+
+  const stream = await registrarStream(app);
+  app.decorate("stream", stream);
+  app.addHook("onClose", async () => {
+    await stream.parar();
+  });
+
+  if (deps.messaging) {
+    stream.ligar(deps.messaging);
+  }
 
   return app;
 }

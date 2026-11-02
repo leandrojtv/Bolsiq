@@ -23,6 +23,7 @@ export const Env = z.object({
   PORT: z.coerce.number().int().positive().max(65535).default(3001),
   HOST: z.string().default("0.0.0.0"),
   DATABASE_URL: z.string().url(),
+  NATS_URL: z.string().default("nats://localhost:4222"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
   SERVICE_VERSION: z.string().default("0.0.0"),
 });

@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    include: ["src/**/*.test.ts"],
+    exclude: ["src/integration/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "json"],
@@ -14,6 +16,10 @@ export default defineConfig({
         "src/server.ts",
         "src/worker.ts",
         "src/openapi-generate.ts",
+        // A rota do WebSocket precisa de socket e de NATS: coberta pelo
+        // teste de integração.
+        "src/stream/rota.ts",
+        "src/integration/**",
       ],
       thresholds: {
         lines: 80,

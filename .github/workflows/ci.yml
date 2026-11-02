@@ -162,6 +162,7 @@ jobs:
       monorepo: ${{ steps.monorepo.outputs.existe }}
       deployables: ${{ steps.monorepo.outputs.deployables }}
       compose_ci: ${{ steps.monorepo.outputs.compose_ci }}
+      web_app: ${{ steps.monorepo.outputs.web_app }}
       web: ${{ steps.filtro.outputs.web }}
       services: ${{ steps.filtro.outputs.services }}
       db: ${{ steps.filtro.outputs.db }}
@@ -196,6 +197,17 @@ jobs:
             echo "compose_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "compose_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # O e2e roda Playwright contra o apps/web. Sem o app, o job falharia
+          # em `pnpm --filter @bolsiq/web` com "No projects matched" — e o
+          # filtro `contracts` basta para acioná-lo, então isso aconteceria em
+          # qualquer PR que tocasse packages/contracts.
+          if [[ -f apps/web/package.json ]]; then
+            echo "web_app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "web_app=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=apps/web ainda não existe::O job e2e é pulado até o front existir."
           fi
 
       - uses: dorny/paths-filter@v3
@@ -340,7 +352,17 @@ jobs:
           docker pull timescale/timescaledb-ha:pg17 &
           docker pull nats:2-alpine &
           wait
-      - run: pnpm turbo run test:integration --filter="...[origin/${{ github.base_ref || 'develop' }}]"
+      # --concurrency=1 porque cada suíte sobe os próprios Postgres e NATS, e
+      # uma delas derruba o broker de propósito. Em paralelo elas competem por
+      # recurso sem nenhum ganho de tempo real.
+      #
+      # As variáveis do Docker e do testcontainers chegam à tarefa por
+      # `passThroughEnv` em turbo.json: o Turborepo filtra o ambiente, e sem
+      # declará-las o testcontainers tenta 127.0.0.1 e recebe ECONNREFUSED.
+      - run: >-
+          pnpm turbo run test:integration
+          --concurrency=1
+          --filter="...[origin/${{ github.base_ref || 'develop' }}]"
         env:
           TESTCONTAINERS_RYUK_DISABLED: "true"
 
@@ -550,6 +572,7 @@ jobs:
     if: >-
       always() &&
       needs.changes.outputs.compose_ci == 'true' &&
+      needs.changes.outputs.web_app == 'true' &&
       needs.smoke.result == 'success' &&
       (needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true')
     steps:
@@ -632,6 +655,19 @@ jobs:
     needs: changes
     steps:
       - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-node-pnpm
+        if: needs.changes.outputs.monorepo == 'true'
+
+      - name: docs/events.md em dia com os schemas
+        if: needs.changes.outputs.monorepo == 'true'
+        run: |
+          set -euo pipefail
+          # O catálogo de eventos gera a documentação. Mudar um schema sem
+          # regerar deixaria docs/events.md descrevendo um contrato que não
+          # existe mais — e documentação errada é pior que documentação
+          # faltando, porque é acreditada.
+          pnpm --filter @bolsiq/contracts run docs:events:check
 
       - name: Código de serviço exige documentação
         if: github.event_name == 'pull_request'

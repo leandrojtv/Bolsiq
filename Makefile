@@ -89,7 +89,9 @@ test:
 ## test-integration: testes de integração (Testcontainers)
 test-integration:
 	$(call exige_monorepo)
-	$(PNPM) turbo run test:integration
+	@# --concurrency=1: cada suíte sobe os próprios Postgres e NATS, e uma
+	@# delas derruba o broker de propósito. Paralelizar só disputa recurso.
+	$(PNPM) turbo run test:integration --concurrency=1
 
 ## test-e2e: Playwright contra o compose
 test-e2e:
@@ -123,6 +125,56 @@ db-reset:
 # ---------------------------------------------------------------------------
 # Smoke
 # ---------------------------------------------------------------------------
+
+## docs-events: regera docs/events.md a partir dos schemas
+docs-events:
+	$(call exige_monorepo)
+	$(PNPM) --filter @bolsiq/contracts run docs:events
+
+## docs-events-check: confere se docs/events.md está em dia com os schemas
+docs-events-check:
+	$(call exige_monorepo)
+	$(PNPM) --filter @bolsiq/contracts run docs:events:check
+
+## build-image: constroi a imagem do market-data
+build-image:
+	docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
+
+## build-image-clean: constroi sem cache, como o CI faz
+build-image-clean:
+	@# O CI parte de um checkout limpo. Construir com cache local pode passar
+	@# por motivo errado — já passou, quando o node_modules da máquina entrava
+	@# no contexto e levava o turbo de carona.
+	docker build --no-cache -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
+
+# ---------------------------------------------------------------------------
+# Ambiente local completo — para testar na mão
+# ---------------------------------------------------------------------------
+
+## dev-up: constroi a imagem e sobe tudo (Postgres, NATS, api, worker) na 8000
+dev-up: build-image
+	IMAGE_TAG=$${IMAGE_TAG:-local} docker compose -f $(COMPOSE_CI) up -d --wait --wait-timeout 180
+	@echo
+	@echo "  API      http://localhost:8000/v1/health"
+	@echo "  OpenAPI  http://localhost:8000/v1/openapi.json"
+	@echo "  Stream   ws://localhost:8000/v1/stream"
+	@echo "  Página   infra/dev/teste-stream.html  (abra no navegador)"
+	@echo
+	@echo "  Publicar cotação:  make dev-cotacao TICKER=PETR4 PRECO=38.42"
+
+## dev-down: derruba o ambiente local e apaga os volumes
+dev-down:
+	docker compose -f $(COMPOSE_CI) down -v
+
+## dev-logs: acompanha os logs do market-data
+dev-logs:
+	docker compose -f $(COMPOSE_CI) logs -f --tail 50 market-data market-data-worker
+
+## dev-cotacao: publica uma cotação no outbox (TICKER=, PRECO=, VARIACAO=)
+dev-cotacao:
+	@test -n "$(TICKER)" || { echo "uso: make dev-cotacao TICKER=PETR4 PRECO=38.42"; exit 1; }
+	@docker compose -f $(COMPOSE_CI) exec -T postgres psql -U bolsiq -d bolsiq -v ON_ERROR_STOP=1 -c 		"INSERT INTO market_data.outbox (id, event_name, payload, occurred_at, producer) VALUES (gen_random_uuid()::text, 'marketdata.quote.updated.v1', jsonb_build_object('ticker', '$(TICKER)', 'price', '$(or $(PRECO),38.42)', 'change', '$(or $(VARIACAO),0.10)', 'ts', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"')), now(), 'dev');"
+	@echo "cotação de $(TICKER) no outbox; o publisher a envia em até 1s"
 
 ## smoke: bate nos endpoints de health via Kong
 smoke:

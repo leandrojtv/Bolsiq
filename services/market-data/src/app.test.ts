@@ -115,4 +115,21 @@ describe("app", () => {
 
     await worker.close();
   });
+
+  it("registra /v1/stream mesmo sem messaging, com o repasse desligado", async () => {
+    // Regressão: o server.ts sobe o HTTP antes de conectar ao NATS. Com a rota
+    // condicionada ao messaging, o /v1/stream respondia 404 no serviço real
+    // enquanto o teste de integração passava, porque lá o app já nasce com a
+    // conexão.
+    const semNats = await criarApp({
+      env,
+      verificarBanco: () => Promise.resolve(true),
+    });
+    await semNats.ready();
+
+    expect(semNats.hasRoute({ method: "GET", url: "/v1/stream" })).toBe(true);
+    expect(semNats.stream.ligado()).toBe(false);
+
+    await semNats.close();
+  });
 });

@@ -1,0 +1,41 @@
+# Sem este arquivo, `COPY . .` leva o node_modules da máquina para dentro da
+# imagem. Isso faz o build local passar por motivo errado — o turbo e as
+# dependências vêm de carona — enquanto no CI, que parte de um checkout limpo,
+# o mesmo Dockerfile falha. Foi exatamente o que aconteceu.
+#
+# Com este arquivo, o contexto do build é o mesmo nos dois lugares.
+
+node_modules
+**/node_modules
+
+# Artefatos de build e de teste
+dist
+**/dist
+coverage
+**/coverage
+.turbo
+**/.turbo
+*.tsbuildinfo
+**/*.tsbuildinfo
+**/openapi.json
+**/playwright-report
+**/test-results
+
+# Histórico e metadados
+.git
+.github
+.gitignore
+.dockerignore
+
+# Ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Nada disso entra numa imagem de serviço
+docs
+infra/github
+lychee.toml
+.gitleaks.toml
+*.md
+!packages/*/README.md

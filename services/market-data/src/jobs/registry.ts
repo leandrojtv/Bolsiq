@@ -79,6 +79,15 @@ export const jobs: JobDefinition[] = [
     expireInMinutes: 120,
   },
   {
+    name: "outbox-publish",
+    description:
+      "Publica o outbox no NATS. Normalmente roda no loop do worker; aqui fica disponível para execução sob demanda",
+    cron: null,
+    retryLimit: 3,
+    retryDelaySeconds: 10,
+    expireInMinutes: 10,
+  },
+  {
     name: "ajuste-proventos",
     description: "Recalcula adj_close quando entra evento novo",
     cron: null,

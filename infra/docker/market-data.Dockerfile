@@ -10,23 +10,42 @@ RUN corepack enable
 WORKDIR /repo
 
 # ---------------------------------------------------------------------------
-# Dependências — camada separada para o cache sobreviver a mudança de código
+# Poda do monorepo
+#
+# `turbo prune` monta um workspace mínimo com só o que o market-data alcança,
+# e separa os package.json (out/json) do código (out/full). Isso dá a camada de
+# dependências em cache sem precisar listar cada package.json à mão.
+#
+# A lista à mão era um erro esperando a hora: acrescentar um pacote ao
+# workspace e esquecer a linha de COPY aqui produz um build que falha com
+# "Cannot find module", longe da causa. Aconteceu com @bolsiq/messaging.
+# ---------------------------------------------------------------------------
+FROM base AS pruner
+COPY . .
+# `pnpm dlx` porque este estágio não tem node_modules: o turbo do workspace só
+# existe depois do install, que acontece no estágio seguinte, e o install
+# precisa do resultado da poda. O major acompanha o `turbo` do package.json.
+RUN pnpm dlx turbo@2 prune @bolsiq/market-data --docker
+
+# ---------------------------------------------------------------------------
+# Dependências — camada separada, invalidada só quando um manifesto muda
 # ---------------------------------------------------------------------------
 FROM base AS deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY packages/config/package.json packages/config/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/domain/package.json packages/domain/
-COPY packages/db-core/package.json packages/db-core/
-COPY services/market-data/package.json services/market-data/
+COPY --from=pruner /repo/out/json/ ./
+COPY --from=pruner /repo/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=pruner /repo/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+# --ignore-scripts: o build só precisa compilar TypeScript. Sem isso, o ssh2
+# (dependência transitiva do testcontainers, que é só de teste) tenta compilar
+# módulo nativo e enche o log de erros de gyp a cada build — erros toleráveis,
+# mas que parecem falha para quem lê o log depois.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --ignore-scripts
 
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
 FROM deps AS build
-COPY . .
+COPY --from=pruner /repo/out/full/ ./
 RUN pnpm turbo run build --filter=@bolsiq/market-data...
 # Separa só o que o serviço precisa em runtime, com as dependências de
 # workspace já resolvidas.

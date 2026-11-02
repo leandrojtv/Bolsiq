@@ -228,8 +228,12 @@ check-links:
 check-secrets:
 	docker run --rm -v "$(CURDIR)":/repo zricethezav/gitleaks:latest detect --source=/repo --config=/repo/.gitleaks.toml --verbose
 
+## check-deps: vulnerabilidades HIGH e CRITICAL nas dependencias (Trivy, como o CI)
+check-deps:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo aquasec/trivy:latest fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --quiet .
+
 ## check: todas as verificações que já funcionam sem o monorepo
-check: check-workflows check-actions check-links check-secrets
+check: check-workflows check-actions check-links check-secrets check-deps
 
 .PHONY: help up down logs install lint format typecheck test test-integration \
         test-e2e ci db-generate db-migrate db-reset smoke gh-protect \

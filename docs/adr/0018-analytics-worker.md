@@ -49,10 +49,11 @@ chamar quando existir.
 - O recálculo do universo depois de cada `daily.closed` faz cinco chamadas
   HTTP por ticker (cerca de 2.200 papéis). Aceitável no volume atual; com mais
   carga, um endpoint em lote no `/v1` resolve.
-- `analytics.indicators.updated` ainda não é emitido: o analytics não tem
-  outbox próprio. Os alertas fundamentalistas continuam sem gatilho.
+- ~~`analytics.indicators.updated` ainda não é emitido~~: resolvido com o
+  outbox no schema `analytics` (o publisher de `@bolsiq/messaging` aceita a
+  tabela de qualquer schema).
 
 ## Pendências
 
-1. Outbox no schema `analytics` e emissão de `analytics.indicators.updated`.
+1. ~~Outbox no schema `analytics` e emissão de `analytics.indicators.updated`~~: feito.
 2. Endpoint em lote no `/v1` para o recálculo do universo.

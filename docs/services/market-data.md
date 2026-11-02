@@ -20,7 +20,7 @@ mercado chama este serviço.
 | Endpoints `/admin/jobs`                            | pronto, com `ADMIN_TOKEN`                                                                  |
 | Produtor de eventos via outbox                     | pronto: quote.updated, daily.closed, dividend.announced, statement.published, asset.listed |
 | Carga histórica                                    | pronto: `make backfill FROM=2024`, cerca de 8 minutos                                      |
-| Informe diário de fundos (`cvm-fundos`)            | **não implementado**: job registrado sem efeito, nenhuma tela o consome                    |
+| Fundos (`cvm-fundos`)                              | pronto: cadastro das classes e informe diário; `/v1/funds`                                 |
 | Autenticação, planos e medição                     | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md)                    |
 
 ## Papéis: `ROLE`
@@ -148,15 +148,15 @@ nomeado continua correto.
 Cada job tem manipulador em `jobs/handlers.ts`. O `backfill.ts` chama os
 mesmos manipuladores, em ordem: COTAHIST anual, cadastro, DFP e ITR, SGS.
 
-| Job                  | O que faz                                                                | Eventos                                    |
-| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
-| `b3-cotahist-diario` | pregão do dia; 404 da B3 (feriado) encerra como `sem_pregao`, não falha  | `quote.updated` por papel, `daily.closed`  |
-| `b3-cotahist-anual`  | ano inteiro (`{"ano": 2024}`), sem evento de preço                       | `asset.listed` para papel novo             |
-| `cvm-cadastro`       | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                   | nenhum                                     |
-| `cvm-dfp`, `cvm-itr` | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual | `statement.published` por companhia e data |
-| `bcb-sgs`            | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                    | nenhum                                     |
-| `cvm-fundos`         | sem efeito nesta versão                                                  | —                                          |
-| `ajuste-proventos`   | sem efeito: o ajuste é calculado na leitura de `/v1/history`             | —                                          |
+| Job                  | O que faz                                                                                    | Eventos                                    |
+| -------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `b3-cotahist-diario` | pregão do dia; 404 da B3 (feriado) encerra como `sem_pregao`, não falha                      | `quote.updated` por papel, `daily.closed`  |
+| `b3-cotahist-anual`  | ano inteiro (`{"ano": 2024}`), sem evento de preço                                           | `asset.listed` para papel novo             |
+| `cvm-cadastro`       | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                       | nenhum                                     |
+| `cvm-dfp`, `cvm-itr` | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                     | `statement.published` por companhia e data |
+| `bcb-sgs`            | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                        | nenhum                                     |
+| `cvm-fundos`         | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia) | nenhum                                     |
+| `ajuste-proventos`   | sem efeito: o ajuste é calculado na leitura de `/v1/history`                                 | —                                          |
 
 O feriado continua fora da agenda das 19:30, mas não gera falha: o download
 devolve 404 e o job termina como `sem_pregao`.
@@ -247,6 +247,9 @@ make test-integration
 | GET    | `/v1/dividends/{ticker}`    | brapi                          | dividendo, JCP, desdobramento, grupamento           |
 | GET    | `/v1/fundamentals/{ticker}` | CVM DFP/ITR                    | `period=annual\|quarterly`; consolidado se houver   |
 | GET    | `/v1/macro/{serie}`         | SGS; IBOV pela brapi ou BOVA11 | `cdi`, `selic`, `ipca`, `igpm`, `ibov`              |
+| GET    | `/v1/funds?q=`              | CVM (registro de classes)      | por nome ou CNPJ, até 20                            |
+| GET    | `/v1/funds/{cnpj}`          | CVM (registro de classes)      | CNPJ com ou sem pontuação                           |
+| GET    | `/v1/funds/{cnpj}/history`  | CVM (informe diário)           | cota, patrimônio e cotistas por dia                 |
 | GET    | `/admin/jobs`               | pg-boss                        | `Authorization: Bearer $ADMIN_TOKEN`                |
 | POST   | `/admin/jobs/{name}`        | pg-boss                        | corpo opcional `{"data": {"ano": 2024}}`            |
 
@@ -271,3 +274,20 @@ OpenAPI — é isso que impede os dois de divergirem, e o que o check `contract`
 do CI compara com `oasdiff`.
 
 Contrato para o cliente: [guia-do-cliente.md](../api/guia-do-cliente.md).
+
+## Fundos
+
+O informe diário da CVM identifica pela **classe** (RCVM 175), em
+`CNPJ_FUNDO_CLASSE`; é ela que vira item do comparador. Fundo não tem ticker: o
+CNPJ é o identificador.
+
+- **Cadastro**: `registro_fundo_classe.zip`, arquivo `registro_classe.csv`,
+  cerca de 37 mil classes, em `market_data.funds`.
+- **Cotas**: `inf_diario_fi_AAAAMM.zip`, cerca de 500 mil linhas por mês, em
+  `fund_daily`. Só a linha da classe: a de subclasse repete CNPJ e data.
+- **Profundidade**: o job diário carrega o mês corrente e o anterior; o
+  backfill carrega 13 meses (`FUNDOS_MESES` amplia). Um mês leva cerca de 1,5
+  minuto. Fundo fora da janela carregada não tem histórico no comparador.
+- **Valor fora da escala**: o informe tem linhas com patrimônio acima de 10^14
+  (erro de escala da fonte). `numeric(20,6)` não guarda, e a carga do mês caía
+  inteira. A linha é descartada e contada no log (`descartadas`).

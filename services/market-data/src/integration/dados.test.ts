@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { GenericContainer, type StartedTestContainer } from "testcontainers";
+import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { eq } from "drizzle-orm";
@@ -50,6 +50,11 @@ beforeAll(async () => {
       POSTGRES_DB: "bolsiq",
     })
     .withExposedPorts(5432)
+    // A imagem sobe um Postgres temporario para o init e reinicia: a porta
+    // abre antes de o banco aceitar conexao ("the database system is
+    // starting up"). O temporario so escuta no socket, entao o pg_isready
+    // por TCP so passa no servidor definitivo.
+    .withWaitStrategy(Wait.forSuccessfulCommand("pg_isready -h 127.0.0.1 -p 5432"))
     .withStartupTimeout(120_000)
     .start();
   const url = `postgres://bolsiq:bolsiq@${HOST}:${container.getMappedPort(5432)}/bolsiq`;

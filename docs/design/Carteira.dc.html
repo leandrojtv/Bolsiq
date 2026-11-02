@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Bolsiq — Carteira</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F14}
+a{color:#8FB3FF;text-decoration:none}a:hover{color:#C2D5FF}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0B0F14; color: #E7EBF0; font-family: Inter, system-ui, sans-serif; font-size: 14px; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<nav aria-label="Navegação principal" style="flex: 1 1 220px; max-width: 100%; background: #0F141B; border-right: 1px solid #1E2631; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 20px">
+<div style="width: 30px; height: 30px; border-radius: 8px; background: #6C9CFF; display: flex; align-items: center; justify-content: center; color: #0B0F14; font-weight: 700; font-size: 16px">B</div>
+<span style="font-size: 18px; font-weight: 700; letter-spacing: -0.02em">Bolsiq</span>
+</div>
+<a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>Ativos</a>
+<a href="Comparador.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v18M16 3v18M3 8h5M16 16h5"></path></svg>Comparar</a>
+<a href="Screener.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg>Screener</a>
+<a href="Carteira.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; background: #18202B; color: #E7EBF0; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Carteiras</a>
+<a href="Alertas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg>Alertas</a>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: center">
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Carteiras</h1>
+<label for="carteira" style="position: absolute; left: -9999px">Carteira</label>
+<select id="carteira" style="height: 40px; padding: 0 12px; border-radius: 10px; background: #121821; border: 1px solid #2B3542; color: #E7EBF0; font: inherit; font-weight: 600"><option>Principal</option><option>Dividendos</option><option>Nova carteira…</option></select>
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<button type="button" style="height: 44px; padding: 0 16px; border-radius: 10px; background: #121821; border: 1px solid #2B3542; color: #E7EBF0; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"></path><path d="M4 21h16"></path></svg>Importar CSV ou extrato B3</button>
+<button type="button" style="height: 44px; padding: 0 16px; border-radius: 10px; background: #6C9CFF; border: 0; color: #0B0F14; font: inherit; font-weight: 700; cursor: pointer">+ Transação</button>
+</div>
+</div>
+
+<section aria-label="Resumo" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="5">
+<div style="background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+<span style="font-size: 12px; color: #9BA6B4">{{k.k}}</span>
+<span style="font-size: 22px; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; color: {{k.color}}">{{k.v}}</span>
+<span style="font-size: 12px; color: #9BA6B4">{{k.sub}}</span>
+</div>
+</sc-for>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<section aria-label="Rentabilidade" style="flex: 999 1 560px; min-width: 0; background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600">Rentabilidade <span style="color: #9BA6B4; font-weight: 400">TWR diário</span></h2>
+<div style="display: flex; gap: 14px; font-size: 12px; color: #AEB8C5; flex-wrap: wrap">
+<span style="display: inline-flex; align-items: center; gap: 6px"><span style="width: 14px; height: 3px; background: #6C9CFF"></span>Carteira</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="14" height="4" aria-hidden="true"><line x1="0" y1="2" x2="14" y2="2" stroke="#8A95A3" stroke-width="2" stroke-dasharray="4 3"></line></svg>CDI</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="14" height="4" aria-hidden="true"><line x1="0" y1="2" x2="14" y2="2" stroke="#F5C46B" stroke-width="2" stroke-dasharray="1 3"></line></svg>IPCA+6%</span>
+<span style="display: inline-flex; align-items: center; gap: 6px"><svg width="14" height="4" aria-hidden="true"><line x1="0" y1="2" x2="14" y2="2" stroke="#C9A7FF" stroke-width="2" stroke-dasharray="8 3"></line></svg>IBOV</span>
+</div>
+</div>
+<svg viewBox="0 0 1000 260" preserveAspectRatio="none" role="img" aria-label="Rentabilidade da carteira comparada a CDI, IPCA mais 6 por cento e Ibovespa" style="width: 100%; height: 260px; display: block">
+<line x1="0" y1="65" x2="1000" y2="65" stroke="#1E2631"></line><line x1="0" y1="130" x2="1000" y2="130" stroke="#1E2631"></line><line x1="0" y1="195" x2="1000" y2="195" stroke="#1E2631"></line>
+<polyline points="{{area}}" fill="#16223A" stroke="none"></polyline>
+<polyline points="{{cdi}}" fill="none" stroke="#8A95A3" stroke-width="1.6" stroke-dasharray="6 4"></polyline>
+<polyline points="{{ipca}}" fill="none" stroke="#F5C46B" stroke-width="1.6" stroke-dasharray="2 4"></polyline>
+<polyline points="{{ibov}}" fill="none" stroke="#C9A7FF" stroke-width="1.6" stroke-dasharray="12 4"></polyline>
+<polyline points="{{port}}" fill="none" stroke="#6C9CFF" stroke-width="2.6"></polyline>
+</svg>
+<div style="display: flex; justify-content: space-between; font-size: 12px; color: #9BA6B4"><span>nov/2025</span><span>fev/2026</span><span>mai/2026</span><span>ago/2026</span><span>nov/2026</span></div>
+</section>
+
+<section aria-label="Alocação" style="flex: 1 1 320px; min-width: 0; background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600">Alocação</h2>
+<div role="group" aria-label="Agrupar por" style="display: flex; gap: 4px; background: #0F141B; padding: 4px; border-radius: 10px">
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="3"><button type="button" onClick="{{g.pick}}" aria-pressed="{{g.on}}" style="height: 30px; padding: 0 10px; border-radius: 6px; border: 0; background: {{g.bg}}; color: {{g.fg}}; font: inherit; font-weight: 600; cursor: pointer">{{g.label}}</button></sc-for>
+</div>
+</div>
+<div style="display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px">
+<sc-for list="{{alloc}}" as="a"><div style="width: {{a.w}}; background: {{a.color}}"></div></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px">
+<sc-for list="{{alloc}}" as="a" hint-placeholder-count="4">
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="display: inline-flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 3px; background: {{a.color}}"></span>{{a.label}}</span><span style="font-family: 'JetBrains Mono', monospace; color: #AEB8C5">{{a.w}}</span></div>
+</sc-for>
+</div>
+</section>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<section aria-label="Posições" style="flex: 999 1 620px; min-width: 0; background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600">Posições</h2>
+<div style="overflow-x: auto">
+<table style="width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px">
+<thead><tr style="color: #9BA6B4">
+<th scope="col" style="padding: 8px; text-align: left; font-weight: 500">Ativo</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Qtd.</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Preço médio</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Custo</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Atual</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Não realizado</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Realizado</th>
+<th scope="col" style="padding: 8px; text-align: right; font-weight: 500">Proventos</th>
+</tr></thead>
+<tbody>
+<sc-for list="{{positions}}" as="p" hint-placeholder-count="4">
+<tr style="border-top: 1px solid #1E2631">
+<td style="padding: 10px 8px"><a href="Main.dc.html" style="display: flex; flex-direction: column; gap: 3px; color: #E7EBF0"><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600">{{p.t}}</span><sc-if value="{{p.event}}" hint-placeholder-val="{{ false }}"><span style="font-size: 11px; color: #8FB3FF">{{p.event}}</span></sc-if></a></td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{p.q}}</td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{p.pm}}</td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{p.cost}}</td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{p.now}}</td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace; color: {{p.urColor}}">{{p.ur}}</td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{p.r}}</td>
+<td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{p.div}}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</section>
+
+<section aria-label="Proventos recebidos" style="flex: 1 1 320px; min-width: 0; background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 style="margin: 0; font-size: 16px; font-weight: 600">Proventos por mês</h2><span style="font-size: 12px; color: #9BA6B4">12 meses</span></div>
+<div style="display: flex; align-items: flex-end; gap: 6px; height: 150px">
+<sc-for list="{{months}}" as="m" hint-placeholder-count="12">
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; justify-content: flex-end; height: 150px"><div style="width: 100%; height: {{m.h}}; background: #4FD1C5; border-radius: 3px 3px 0 0"></div><span style="font-size: 10px; color: #9BA6B4">{{m.l}}</span></div>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: #9BA6B4">Dividendos e JCP lançados automaticamente a partir dos eventos corporativos.</span>
+</section>
+</div>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { group: 'Classe' }; }
+  renderVals() {
+    var s = this.state, self = this;
+    var seed = 5; function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    function line(d, v) { var x = 100, out = []; for (var i = 0; i < 50; i++) { x = x * (1 + d + (rnd() - 0.5) * v); out.push(x); } return out; }
+    function y(v) { return 260 - ((v - 90) / 40) * 260; }
+    function pts(a) { return a.map(function (v, i) { return (i * 1000 / 49).toFixed(1) + ',' + y(v).toFixed(1); }).join(' '); }
+    var port = line(0.0036, 0.02), cdi = line(0.0021, 0), ipca = line(0.0019, 0.001), ibov = line(0.002, 0.03);
+    var area = '0,260 ' + pts(port) + ' 1000,260';
+    var A = {
+      Classe: [['Ações', '62%', '#6C9CFF'], ['FIIs', '24%', '#4FD1C5'], ['BDRs', '9%', '#C9A7FF'], ['Caixa', '5%', '#8A95A3']],
+      Setor: [['Petróleo e gás', '28%', '#6C9CFF'], ['Mineração', '18%', '#F5C46B'], ['Logística (FII)', '24%', '#4FD1C5'], ['Outros', '30%', '#8A95A3']],
+      Ativo: [['PETR4', '28%', '#6C9CFF'], ['HGLG11', '24%', '#4FD1C5'], ['VALE3', '18%', '#F5C46B'], ['Outros', '30%', '#8A95A3']]
+    };
+    var groups = ['Classe', 'Setor', 'Ativo'].map(function (g) { var on = s.group === g; return { label: g, on: on ? 'true' : 'false', bg: on ? '#233049' : 'transparent', fg: on ? '#C2D5FF' : '#AEB8C5', pick: function () { self.setState({ group: g }); } }; });
+    var months = ['dez', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov'].map(function (l) { return { l: l, h: Math.round(20 + rnd() * 110) + 'px' }; });
+    return {
+      port: pts(port), cdi: pts(cdi), ipca: pts(ipca), ibov: pts(ibov), area: area,
+      groups: groups, alloc: A[s.group].map(function (a) { return { label: a[0], w: a[1], color: a[2] }; }), months: months,
+      kpis: [
+        { k: 'Patrimônio', v: 'R$ [00.000,00]', sub: 'atualizado no fechamento', color: '#E7EBF0' },
+        { k: 'Rentabilidade 12m (TWR)', v: '▲ [x,x%]', sub: 'CDI no período: [x,x%]', color: '#3DD68C' },
+        { k: 'Não realizado', v: 'R$ [0.000,00]', sub: 'sobre o custo', color: '#3DD68C' },
+        { k: 'Realizado', v: 'R$ 532,80', sub: 'vendas no ano', color: '#E7EBF0' },
+        { k: 'Proventos 12m', v: 'R$ 321,00', sub: 'dividendos e JCP', color: '#E7EBF0' }
+      ],
+      positions: [
+        { t: 'PETR4', event: 'Desdobramento 1:2 aplicado', q: '180', pm: 'R$ 18,03', cost: 'R$ 3.244,80', now: 'R$ [0.000,00]', ur: '▲ [x,x%]', urColor: '#3DD68C', r: 'R$ 350,80', div: 'R$ 201,00' },
+        { t: 'VALE3', event: '', q: '50', pm: 'R$ 61,26', cost: 'R$ 3.063,00', now: 'R$ [0.000,00]', ur: '▼ [x,x%]', urColor: '#FF8A5B', r: 'R$ 182,00', div: 'R$ 120,00' },
+        { t: 'HGLG11', event: '', q: '[qtd]', pm: 'R$ [000,00]', cost: 'R$ [0.000,00]', now: 'R$ [0.000,00]', ur: '▲ [x,x%]', urColor: '#3DD68C', r: 'R$ 0,00', div: 'R$ [000,00]' },
+        { t: 'Caixa', event: '', q: '-', pm: '-', cost: 'R$ [000,00]', now: 'R$ [000,00]', ur: '-', urColor: '#9BA6B4', r: '-', div: '-' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

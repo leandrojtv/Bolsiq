@@ -24,11 +24,13 @@ export const marketData = pgSchema("market_data");
 /**
  * `numeric` com escala folgada para valor monetário (regra 5 do CLAUDE.md).
  *
- * O Drizzle mapeia `numeric` para `string` em TypeScript, e é isso que
- * queremos: devolver `number` faria o valor passar por ponto flutuante na
- * saída do banco, desfazendo a razão de ser do `numeric`.
+ * `mode: "string"` é explícito de propósito. É também o padrão do Drizzle, mas
+ * declarar deixa a garantia no tipo em vez de depender de um padrão: devolver
+ * `number` faria o valor passar por ponto flutuante na saída do banco,
+ * desfazendo a razão de ser do `numeric`.
  */
-const money = (nome: string) => numeric(nome, { precision: 20, scale: 6 });
+const money = (nome: string) =>
+  numeric(nome, { precision: 20, scale: 6, mode: "string" });
 
 /** Timestamp sempre com fuso, sempre gravado em UTC (regra 5). */
 const utc = (nome: string) => timestamp(nome, { withTimezone: true, mode: "string" });

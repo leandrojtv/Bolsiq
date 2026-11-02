@@ -10,6 +10,8 @@ describe("lista do BFF", () => {
     ["dividends/PETR4", VALIDADE.dividends],
     ["fundamentals/PETR4", VALIDADE.fundamentals],
     ["macro/cdi", VALIDADE.macro],
+    ["funds", VALIDADE.assets],
+    ["funds/00017024000153/history", VALIDADE.history],
   ])("repassa %s", (caminho, validade) => {
     expect(validadeDe(caminho)).toBe(validade);
   });

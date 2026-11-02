@@ -45,6 +45,9 @@ const PERMITIDOS: [RegExp, number][] = [
   [/^dividends\/[A-Za-z0-9]{4,12}$/, VALIDADE.dividends],
   [/^fundamentals\/[A-Za-z0-9]{4,12}$/, VALIDADE.fundamentals],
   [/^macro\/[a-z]{2,8}$/, VALIDADE.macro],
+  [/^funds$/, VALIDADE.assets],
+  [/^funds\/\d{14}$/, VALIDADE.assets],
+  [/^funds\/\d{14}\/history$/, VALIDADE.history],
 ];
 
 /** Validade do caminho, ou `null` se o BFF nao repassa (admin, por exemplo). */

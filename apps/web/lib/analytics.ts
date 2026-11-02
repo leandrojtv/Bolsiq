@@ -22,7 +22,7 @@ export interface Indicadores {
 }
 
 let db: Db | undefined;
-function banco(): Db {
+export function banco(): Db {
   db ??= criarDb(criarPool({ url: env.DATABASE_URL, maxConnections: 4 }));
   return db;
 }
@@ -58,4 +58,30 @@ export async function indicadoresDe(ticker: string): Promise<Indicadores | null>
     preco_bazin: l.preco_bazin,
     margem_bazin: num(l.margem_bazin),
   };
+}
+
+/** Ultima linha de indicadores de cada ticker, para a tabela do comparador. */
+export async function indicadoresCompletos(
+  tickers: string[],
+): Promise<Map<string, Record<string, number | null>>> {
+  const saida = new Map<string, Record<string, number | null>>();
+  for (const t of tickers) {
+    const [l] = await banco()
+      .select()
+      .from(indicators)
+      .where(eq(indicators.ticker, t))
+      .orderBy(desc(indicators.reference_date))
+      .limit(1);
+    if (!l) continue;
+    saida.set(
+      t,
+      Object.fromEntries(
+        Object.entries(l).map(([k, v]) => [
+          k,
+          typeof v === "string" && /^-?\d/.test(v) ? Number(v) : null,
+        ]),
+      ),
+    );
+  }
+  return saida;
 }

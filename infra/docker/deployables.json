@@ -18,6 +18,12 @@
       "context": ".",
       "dockerfile": "infra/docker/analytics-worker.Dockerfile",
       "filter": "@bolsiq/analytics-worker"
+    },
+    {
+      "name": "web",
+      "context": ".",
+      "dockerfile": "infra/docker/web.Dockerfile",
+      "filter": "@bolsiq/web"
     }
   ]
 }

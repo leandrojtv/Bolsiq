@@ -600,12 +600,17 @@ jobs:
         run: |
           for tar in /tmp/imagens/*.tar; do docker load -i "$tar"; done
           docker compose -f infra/docker/compose.ci.yml up -d --wait --wait-timeout 180
+      - name: Dados de exemplo
+        # Banco vazio no CI; o backfill real baixa centenas de MB.
+        run: |
+          docker compose -f infra/docker/compose.ci.yml exec -T postgres \
+            psql -U bolsiq -d bolsiq -v ON_ERROR_STOP=1 -f - < infra/docker/seed-e2e.sql
       - name: Playwright
         run: |
           pnpm --filter @bolsiq/web exec playwright install --with-deps chromium
-          pnpm --filter @bolsiq/web run test:e2e
+          pnpm --filter @bolsiq/web exec playwright test --project=e2e
         env:
-          BASE_URL: http://localhost:8000
+          BASE_URL: http://localhost:3000
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -366,3 +366,24 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: "Notificações" })).toBeTruthy();
   });
 });
+
+describe("AppShell com busca propria", () => {
+  it("Ctrl+K foca o campo indicado e o topo some no celular", () => {
+    const { container } = render(
+      <AppShell
+        nav={navegacaoPadrao("/ativo")}
+        search={<input id="minha-busca" aria-label="Busca" />}
+        searchInputId="minha-busca"
+        hideHeaderOnMobile
+      >
+        x
+      </AppShell>,
+    );
+    act(() => {
+      fireEvent.keyDown(window, { key: "K", metaKey: true });
+    });
+    expect(document.activeElement?.id).toBe("minha-busca");
+    expect(container.querySelector("header")?.className).toMatch(/\bhidden\b/);
+    expect(screen.queryByRole("search")).toBeNull();
+  });
+});

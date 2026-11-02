@@ -141,6 +141,7 @@ build-image:
 	docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
 	docker build -f infra/docker/alerts-worker.Dockerfile -t bolsiq-alerts-worker:$${IMAGE_TAG:-local} .
 	docker build -f infra/docker/analytics-worker.Dockerfile -t bolsiq-analytics-worker:$${IMAGE_TAG:-local} .
+	docker build -f infra/docker/web.Dockerfile -t bolsiq-web:$${IMAGE_TAG:-local} .
 
 ## build-image-clean: constroi sem cache, como o CI faz
 build-image-clean:
@@ -157,6 +158,7 @@ build-image-clean:
 dev-up: build-image
 	IMAGE_TAG=$${IMAGE_TAG:-local} docker compose -f $(COMPOSE_CI) up -d --wait --wait-timeout 180
 	@echo
+	@echo "  App      http://localhost:3000"
 	@echo "  API      http://localhost:8000/v1/health"
 	@echo "  Swagger  http://localhost:8000/docs"
 	@echo "  OpenAPI  http://localhost:8000/v1/openapi.json"

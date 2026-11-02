@@ -7,6 +7,7 @@ anterior como `substituído por`.
 | ADR | Título | Status |
 | --- | --- | --- |
 | [0006](0006-jobs-no-proprio-servico.md) | Jobs no próprio serviço, com pg-boss e `ROLE` | aceito |
+| [0007](0007-gateway-e-planos.md) | Gateway, chaves de API e planos | **proposto** |
 | [0014](0014-fluxo-de-branches-e-cicd.md) | Fluxo de branches e CI/CD | aceito |
 
 ## Sobre a numeração começar em 0014
@@ -28,9 +29,8 @@ são difíceis de reverter depois:
 | 0003 | Fastify com Zod e OpenAPI gerado dos schemas |
 | 0004 | Postgres 17 com TimescaleDB, um banco por serviço |
 | 0005 | Drizzle ORM com migrations versionadas |
-| 0007 | NATS JetStream com publicação via outbox |
-| 0008 | Kong OSS como gateway; chaves, rate limit e medição de uso |
-| 0009 | Cache read-through no market-data como estratégia de ingestão |
+| 0009 | NATS JetStream com publicação via outbox |
+| 0008 | Cache read-through no market-data como estratégia de ingestão |
 | 0010 | Proveniência obrigatória em todo dado de mercado |
 | 0011 | `numeric` para moeda e `timestamptz` para data |
 | 0012 | Next.js App Router como UI e BFF |

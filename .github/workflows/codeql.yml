@@ -1,0 +1,56 @@
+name: CodeQL
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Toda segunda, 04:00 UTC (01:00 em America/Sao_Paulo).
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analisar:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["javascript-typescript", "actions"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Há código desta linguagem?
+        id: tem_codigo
+        env:
+          LINGUAGEM: ${{ matrix.language }}
+        run: |
+          set -euo pipefail
+          if [[ "$LINGUAGEM" == "actions" ]]; then
+            # Sempre há workflows a analisar.
+            echo "sim=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -n "$(find . -path ./node_modules -prune -o \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' \) -print -quit)" ]]; then
+            echo "sim=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sim=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Sem código TypeScript ainda::Análise pulada até o monorepo existir."
+          fi
+
+      - uses: github/codeql-action/init@v3
+        if: steps.tem_codigo.outputs.sim == 'true'
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v3
+        if: steps.tem_codigo.outputs.sim == 'true'
+        with:
+          category: "/language:${{ matrix.language }}"

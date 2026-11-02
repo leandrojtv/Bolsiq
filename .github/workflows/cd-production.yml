@@ -1,0 +1,184 @@
+name: CD produção
+
+# Disparado pela tag vX.Y.Z criada pelo release-please no merge em main.
+# NÃO reconstrói nada: promove as mesmas imagens que já rodaram em staging.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+concurrency:
+  group: cd-producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolver:
+    name: resolve a imagem de staging
+    runs-on: ubuntu-latest
+    outputs:
+      source_tag: ${{ steps.achar.outputs.source_tag }}
+      deployables: ${{ steps.ler.outputs.deployables }}
+      tem_imagens: ${{ steps.ler.outputs.tem_imagens }}
+      tag_anterior: ${{ steps.anterior.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: ler
+        run: |
+          set -euo pipefail
+          lista=$(jq -c '.deployables' infra/docker/deployables.json)
+          echo "deployables=$lista" >> "$GITHUB_OUTPUT"
+          [[ "$lista" == "[]" ]] && echo "tem_imagens=false" >> "$GITHUB_OUTPUT" || echo "tem_imagens=true" >> "$GITHUB_OUTPUT"
+
+      - id: anterior
+        name: Tag anterior, para rollback
+        run: |
+          set -euo pipefail
+          atual="${GITHUB_REF_NAME}"
+          anterior=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${atual}$" | head -1 || true)
+          echo "tag=${anterior:-}" >> "$GITHUB_OUTPUT"
+          echo "Tag atual: $atual / anterior: ${anterior:-nenhuma}"
+
+      - id: achar
+        name: Encontra o sha-<commit> já publicado
+        if: steps.ler.outputs.tem_imagens == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # A tag aponta para um commit de main; as imagens foram construídas em
+          # develop, com outro sha. Então caminhamos o histórico da tag até achar
+          # o commit mais recente que tem imagem publicada no GHCR. Isso garante
+          # a promoção da MESMA imagem validada em staging, sem rebuild.
+          primeiro=$(jq -r '.deployables[0].name' infra/docker/deployables.json)
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          imagem="ghcr.io/${repo_lower}-${primeiro}"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+          encontrado=""
+          for commit in $(git rev-list --max-count=50 "${GITHUB_REF_NAME}"); do
+            if docker manifest inspect "${imagem}:sha-${commit}" >/dev/null 2>&1; then
+              encontrado="sha-${commit}"
+              echo "Imagem encontrada para o commit $commit"
+              break
+            fi
+          done
+
+          if [[ -z "$encontrado" ]]; then
+            {
+              echo "## Nenhuma imagem de staging encontrada"
+              echo
+              echo "Percorri os 50 commits anteriores a \`${GITHUB_REF_NAME}\` e nenhum tem imagem \`sha-<commit>\` no GHCR."
+              echo
+              echo "Isso quase sempre significa que a release foi cortada de um ponto que nunca passou por \`develop\`, ou que o CD de staging falhou."
+              echo
+              echo "Promoção abortada: produção não recebe imagem não validada em staging."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "source_tag=$encontrado" >> "$GITHUB_OUTPUT"
+
+  promover:
+    name: promove ${{ matrix.deployable.name }}
+    runs-on: ubuntu-latest
+    needs: resolver
+    if: needs.resolver.outputs.tem_imagens == 'true'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        deployable: ${{ fromJSON(needs.resolver.outputs.deployables) }}
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retag sem rebuild
+        env:
+          SOURCE_TAG: ${{ needs.resolver.outputs.source_tag }}
+          NOME: ${{ matrix.deployable.name }}
+        run: |
+          set -euo pipefail
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          imagem="ghcr.io/${repo_lower}-${NOME}"
+          # imagetools create copia o manifesto: o digest é idêntico, nada é
+          # reconstruído, e a imagem em produção é bit a bit a de staging.
+          docker buildx imagetools create \
+            --tag "${imagem}:${GITHUB_REF_NAME}" \
+            --tag "${imagem}:production" \
+            "${imagem}:${SOURCE_TAG}"
+          echo "Promovido ${imagem}:${SOURCE_TAG} -> ${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-producao:
+    name: deploy produção
+    needs: [resolver, promover]
+    if: needs.resolver.outputs.tem_imagens == 'true'
+    # A aprovação manual vem da regra de proteção do environment `production`
+    # (required reviewers), configurada no repositório — não existe no YAML.
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production
+      image_tag: ${{ github.ref_name }}
+      compose_file: infra/docker/compose.prod.yml
+      run_migrations: true
+      smoke: true
+    secrets: inherit
+
+  rollback:
+    name: rollback automático
+    needs: [resolver, deploy-producao]
+    if: failure() && needs.resolver.outputs.tag_anterior != ''
+    # Usa o environment `production-rollback`: mesmos secrets de produção, mas
+    # SEM required reviewers. Se o rollback esperasse aprovação, a produção
+    # ficaria quebrada enquanto alguém acorda para clicar em aprovar.
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: production-rollback
+      image_tag: ${{ needs.resolver.outputs.tag_anterior }}
+      compose_file: infra/docker/compose.prod.yml
+      run_migrations: false
+      smoke: true
+    secrets: inherit
+
+  aviso-rollback:
+    name: aviso de rollback
+    runs-on: ubuntu-latest
+    needs: [resolver, deploy-producao, rollback]
+    if: always() && needs.rollback.result != 'skipped'
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Abre issue registrando o rollback
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          ANTERIOR: ${{ needs.resolver.outputs.tag_anterior }}
+          RESULTADO: ${{ needs.rollback.result }}
+        run: |
+          set -euo pipefail
+          corpo=$(cat <<TXT
+          O deploy da tag \`$TAG\` falhou no smoke e o rollback automático foi disparado.
+
+          - Tag que falhou: \`$TAG\`
+          - Tag restaurada: \`$ANTERIOR\`
+          - Resultado do rollback: \`$RESULTADO\`
+          - Execução: $GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID
+
+          Siga \`docs/runbooks/rollback.md\`. **As migrations não foram revertidas** —
+          confira se o schema aplicado por \`$TAG\` é compatível com \`$ANTERIOR\`.
+          TXT
+          )
+          gh issue create --repo "$REPO" \
+            --title "rollback de produção: $TAG revertida para $ANTERIOR" \
+            --label "tipo:bug,incidente" \
+            --body "$corpo"

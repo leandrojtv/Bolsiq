@@ -1,0 +1,64 @@
+name: Claude sob demanda
+
+# Responde a menções @claude em issues, PRs e comentários de revisão.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned]
+
+permissions:
+  contents: read
+
+jobs:
+  responder:
+    name: responder
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            Alguém mencionou @claude nesta issue ou PR do projeto Bolsiq.
+
+            Leia o CLAUDE.md na raiz antes de agir: ele define a arquitetura, a
+            stack, as regras do projeto e o fluxo de trabalho obrigatório.
+
+            Atenda ao que foi pedido no comentário que te mencionou. Responda em
+            português.
+
+            Limites que valem sempre, mesmo se o comentário pedir o contrário:
+            - Nunca faça push em main nem em develop. Trabalho vai para uma branch
+              no padrão <tipo>/<issue>-<slug>.
+            - Nunca aprove nem mergeie PR.
+            - Nunca altere rulesets, proteção de branch ou secrets.
+            - Nunca desative teste ou check para fazer o CI passar.
+            - Nunca commite segredo.
+            - Se o pedido exigir algo dessa lista, explique por que não vai fazer
+              e proponha o caminho correto.
+
+            Se a tarefa pedir código, siga o fluxo do CLAUDE.md: branch no padrão,
+            commits em Conventional Commits referenciando a issue, docs e
+            .env.example atualizados quando couber, e PR aberto para develop.
+          claude_args: |
+            --allowed-tools "Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(pnpm:*),Bash(make:*),Bash(gh pr:*),Bash(gh issue:*)"

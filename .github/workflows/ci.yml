@@ -1,0 +1,686 @@
+name: CI
+
+# Checks de PR. O job final `ci-ok` é o ÚNICO marcado como obrigatório nas
+# rulesets (infra/github/rulesets/), para permitir acrescentar ou remover jobs
+# sem mexer na proteção das branches.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled, edited]
+  merge_group:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  TURBO_TELEMETRY_DISABLED: "1"
+  DO_NOT_TRACK: "1"
+
+jobs:
+  # 1. Metadados do PR: título, nome da branch, base permitida e tamanho.
+  pr-meta:
+    name: pr-meta
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Título em Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          padrao='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: .{1,100}$'
+          if [[ ! "$PR_TITLE" =~ $padrao ]]; then
+            {
+              echo "## Título do PR fora do padrão"
+              echo
+              echo "Recebido: \`$PR_TITLE\`"
+              echo
+              echo "Esperado: \`tipo(escopo opcional): descrição\`, conforme Conventional Commits."
+              echo
+              echo "Tipos aceitos: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert."
+              echo
+              echo "Exemplo: \`feat(market-data): adiciona adapter CVM\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Título fora do padrão::$PR_TITLE"
+            exit 1
+          fi
+          echo "Título ok: $PR_TITLE"
+
+      - name: Nome da branch e base permitida
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+
+          # Branches de automação (release-please, Renovate) não seguem o padrão
+          # <tipo>/<issue>-<slug> e são isentas da validação de nome.
+          if [[ "$HEAD_REF" =~ ^(release-please--|renovate/) ]]; then
+            echo "Branch de automação ($HEAD_REF), validação de nome dispensada."
+          elif [[ "$HEAD_REF" =~ ^release/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Branch de release ok: $HEAD_REF"
+          elif [[ "$HEAD_REF" =~ ^(feature|fix|hotfix|chore|docs|refactor|test)/([0-9]+)-([a-z0-9]+(-[a-z0-9]+)*)$ ]]; then
+            slug="${BASH_REMATCH[3]}"
+            if (( ${#slug} > 50 )); then
+              echo "::error title=Slug muito longo::O slug tem ${#slug} caracteres; o limite é 50."
+              exit 1
+            fi
+            echo "Branch ok: $HEAD_REF (slug com ${#slug} caracteres)"
+          else
+            {
+              echo "## Nome de branch fora do padrão"
+              echo
+              echo "Recebido: \`$HEAD_REF\`"
+              echo
+              echo "Esperado um destes formatos:"
+              echo
+              echo '- `<tipo>/<issue>-<slug>` com tipo em feature, fix, hotfix, chore, docs, refactor, test'
+              echo '- `release/vX.Y.Z`'
+              echo
+              echo "O slug é kebab-case (minúsculas, números e hífen), com até 50 caracteres."
+              echo
+              echo 'Exemplo: `feature/12-adapter-cvm`'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Nome de branch inválido::$HEAD_REF"
+            exit 1
+          fi
+
+          # Origem permitida por base. O GitHub não expressa isso em rulesets,
+          # então a regra vive aqui e entra como obrigatória através do ci-ok.
+          case "$BASE_REF" in
+            main)
+              if [[ ! "$HEAD_REF" =~ ^(release/|hotfix/|release-please--) ]]; then
+                {
+                  echo "## Origem não permitida para main"
+                  echo
+                  echo "\`main\` é produção e só recebe merge de \`release/*\` e \`hotfix/*\`."
+                  echo
+                  echo "Branch de origem: \`$HEAD_REF\`"
+                  echo
+                  echo "Para levar trabalho a produção, abra o PR contra \`develop\` e depois corte uma \`release/vX.Y.Z\`."
+                } >> "$GITHUB_STEP_SUMMARY"
+                echo "::error title=Origem não permitida para main::$HEAD_REF -> main"
+                exit 1
+              fi
+              ;;
+            develop)
+              if [[ ! "$HEAD_REF" =~ ^(feature/|fix/|hotfix/|chore/|docs/|refactor/|test/|release/|renovate/|release-please--) ]]; then
+                echo "::error title=Origem não permitida para develop::$HEAD_REF -> develop"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::warning title=Base incomum::PR contra '$BASE_REF'. O fluxo previsto usa main e develop."
+              ;;
+          esac
+          echo "Origem $HEAD_REF -> $BASE_REF permitida."
+
+      - name: Label de tamanho
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          ADDITIONS: ${{ github.event.pull_request.additions }}
+          DELETIONS: ${{ github.event.pull_request.deletions }}
+        run: |
+          set -euo pipefail
+          total=$(( ADDITIONS + DELETIONS ))
+          if   (( total < 10 ));  then tamanho="XS"
+          elif (( total < 50 ));  then tamanho="S"
+          elif (( total < 200 )); then tamanho="M"
+          elif (( total < 600 )); then tamanho="L"
+          else                         tamanho="XL"
+          fi
+          echo "Linhas alteradas: $total -> size:$tamanho" >> "$GITHUB_STEP_SUMMARY"
+
+          # Remove labels de tamanho anteriores antes de aplicar o novo.
+          for antigo in XS S M L XL; do
+            if [[ "$antigo" != "$tamanho" ]]; then
+              gh api -X DELETE "repos/$REPO/issues/$PR/labels/size:$antigo" >/dev/null 2>&1 || true
+            fi
+          done
+          gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=size:$tamanho" >/dev/null
+
+          if (( total > 600 )); then
+            echo "::warning title=PR grande::$total linhas alteradas. PRs acima de 600 linhas são difíceis de revisar; considere fatiar em PRs menores."
+          fi
+
+  # Detecta o que mudou para rodar só o necessário.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      monorepo: ${{ steps.monorepo.outputs.existe }}
+      deployables: ${{ steps.monorepo.outputs.deployables }}
+      compose_ci: ${{ steps.monorepo.outputs.compose_ci }}
+      web: ${{ steps.filtro.outputs.web }}
+      services: ${{ steps.filtro.outputs.services }}
+      db: ${{ steps.filtro.outputs.db }}
+      contracts: ${{ steps.filtro.outputs.contracts }}
+      docker: ${{ steps.filtro.outputs.docker }}
+      docs: ${{ steps.filtro.outputs.docs }}
+      code: ${{ steps.filtro.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: O monorepo já existe?
+        id: monorepo
+        run: |
+          set -euo pipefail
+          if [[ -f pnpm-workspace.yaml ]]; then
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Monorepo ainda não existe::pnpm-workspace.yaml não encontrado. Os jobs que dependem do código (lint, typecheck, unit, integration, migrations, contract, build, smoke, e2e) são pulados; ci-ok trata 'skipped' como sucesso."
+          fi
+
+          if [[ -f infra/docker/deployables.json ]]; then
+            jq -c '.deployables' infra/docker/deployables.json > /tmp/deployables.json
+          else
+            echo '[]' > /tmp/deployables.json
+          fi
+          echo "deployables=$(cat /tmp/deployables.json)" >> "$GITHUB_OUTPUT"
+
+          if [[ -f infra/docker/compose.ci.yml ]]; then
+            echo "compose_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "compose_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: dorny/paths-filter@v3
+        id: filtro
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/ui/**'
+            services:
+              - 'services/**'
+            db:
+              - 'packages/db-core/**'
+              - '**/migrations/**'
+              - '**/drizzle.config.ts'
+            contracts:
+              - 'packages/contracts/**'
+              - 'services/*/src/**/routes/**'
+              - 'services/*/src/**/schemas/**'
+            docker:
+              - 'infra/docker/**'
+              - '**/Dockerfile'
+            docs:
+              - 'docs/**'
+              - '*.md'
+            code:
+              - 'apps/**'
+              - 'services/**'
+              - 'packages/**'
+
+  # 2. Lint, formatação e tipos.
+  lint:
+    name: lint + format
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.monorepo == 'true'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-node-pnpm
+      - run: pnpm turbo run lint --filter="...[origin/${{ github.base_ref || 'develop' }}]"
+      - name: Prettier
+        run: pnpm prettier --check .
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.monorepo == 'true'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-node-pnpm
+      - run: pnpm turbo run typecheck --filter="...[origin/${{ github.base_ref || 'develop' }}]"
+
+  # 3. Testes unitários com cobertura. O limite por pacote fica no vitest.config
+  # de cada pacote (coverage.thresholds), não aqui — assim cada pacote define o
+  # seu piso e o CI só obedece.
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.monorepo == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Vitest com cobertura
+        run: pnpm turbo run test:unit --filter="...[origin/${{ github.base_ref || 'develop' }}]"
+      - name: Resumo de cobertura no PR
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          marcador="<!-- cobertura-bolsiq -->"
+          {
+            echo "$marcador"
+            echo "## Cobertura de testes"
+            echo
+            echo "| Pacote | Linhas | Branches | Funções | Statements |"
+            echo "| --- | --- | --- | --- | --- |"
+            encontrou=0
+            while IFS= read -r arquivo; do
+              encontrou=1
+              pacote=$(echo "$arquivo" | sed -E 's#^\./##; s#/coverage/coverage-summary\.json$##')
+              jq -r --arg p "$pacote" '
+                .total | "| \($p) | \(.lines.pct)% | \(.branches.pct)% | \(.functions.pct)% | \(.statements.pct)% |"
+              ' "$arquivo"
+            done < <(find . -path ./node_modules -prune -o -name coverage-summary.json -print)
+            if [[ "$encontrou" -eq 0 ]]; then
+              echo "| — | — | — | — | — |"
+              echo
+              echo "_Nenhum relatório de cobertura gerado nesta execução._"
+            fi
+          } > /tmp/cobertura.md
+          cat /tmp/cobertura.md >> "$GITHUB_STEP_SUMMARY"
+          existente=$(gh pr view "$PR" --json comments \
+            --jq '.comments[] | select(.body | contains("<!-- cobertura-bolsiq -->")) | .id' | head -1 || true)
+          if [[ -n "$existente" ]]; then
+            gh pr comment "$PR" --edit-last --body-file /tmp/cobertura.md
+          else
+            gh pr comment "$PR" --body-file /tmp/cobertura.md
+          fi
+
+  # 4. Integração com dependências reais via Testcontainers.
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      needs.changes.outputs.monorepo == 'true' &&
+      (needs.changes.outputs.services == 'true' ||
+       needs.changes.outputs.db == 'true' ||
+       needs.changes.outputs.docker == 'true')
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Pré-baixa as imagens dos containers de teste
+        run: |
+          docker pull timescale/timescaledb-ha:pg17 &
+          docker pull nats:2-alpine &
+          wait
+      - run: pnpm turbo run test:integration --filter="...[origin/${{ github.base_ref || 'develop' }}]"
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "true"
+
+  # 5. Migrations num banco limpo + checagem de drift contra o schema do Drizzle.
+  migrations:
+    name: migrations
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.monorepo == 'true' && needs.changes.outputs.db == 'true'
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: bolsiq_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/bolsiq_ci
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Aplica todas as migrations do zero
+        run: pnpm turbo run db:migrate
+      - name: Confere ausência de drift
+        run: |
+          set -euo pipefail
+          # Se o schema do Drizzle divergir das migrations, o generate produz
+          # arquivo novo. Qualquer arquivo novo aqui significa drift.
+          pnpm turbo run db:generate
+          if [[ -n "$(git status --porcelain)" ]]; then
+            {
+              echo "## Drift entre o schema do Drizzle e as migrations"
+              echo
+              echo 'O `db:generate` produziu arquivos novos, ou seja, o schema TypeScript não corresponde às migrations versionadas.'
+              echo
+              echo "Arquivos:"
+              echo '```'
+              git status --porcelain
+              echo '```'
+              echo
+              echo 'Rode `make db-generate`, revise a migration gerada e commite junto.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            git --no-pager diff
+            exit 1
+          fi
+          echo "Sem drift."
+
+  # 6. Contrato público /v1: nenhuma quebra sem label aprovada.
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      needs.changes.outputs.monorepo == 'true' &&
+      (needs.changes.outputs.contracts == 'true' || needs.changes.outputs.services == 'true')
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Gera o OpenAPI desta branch
+        run: |
+          pnpm turbo run openapi:generate
+          mkdir -p /tmp/openapi/head
+          find . -path ./node_modules -prune -o -name 'openapi.json' -print \
+            -exec cp --parents {} /tmp/openapi/head \;
+      - name: Gera o OpenAPI da base
+        run: |
+          set -euo pipefail
+          git worktree add /tmp/base "origin/${{ github.base_ref }}"
+          cd /tmp/base
+          if [[ -f pnpm-workspace.yaml ]]; then
+            pnpm install --frozen-lockfile
+            pnpm turbo run openapi:generate || true
+            mkdir -p /tmp/openapi/base
+            find . -path ./node_modules -prune -o -name 'openapi.json' -print \
+              -exec cp --parents {} /tmp/openapi/base \;
+          fi
+      - name: oasdiff — quebra de contrato
+        env:
+          TEM_LABEL_BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+        run: |
+          set -euo pipefail
+          falhou=0
+          while IFS= read -r head_spec; do
+            relativo="${head_spec#/tmp/openapi/head/}"
+            base_spec="/tmp/openapi/base/$relativo"
+            if [[ ! -f "$base_spec" ]]; then
+              echo "::notice::Spec nova, sem equivalente na base: $relativo"
+              continue
+            fi
+            echo "### $relativo" >> "$GITHUB_STEP_SUMMARY"
+            if ! docker run --rm \
+                -v /tmp/openapi:/specs \
+                tufin/oasdiff:latest breaking \
+                "/specs/base/$relativo" "/specs/head/$relativo" \
+                --fail-on ERR 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"; then
+              falhou=1
+            fi
+          done < <(find /tmp/openapi/head -name 'openapi.json' 2>/dev/null)
+
+          if [[ "$falhou" -eq 1 ]]; then
+            if [[ "$TEM_LABEL_BREAKING" == "true" ]]; then
+              echo "::warning title=Breaking change aceita::A label 'breaking-change' está aplicada; a quebra de contrato foi autorizada. Garanta a nota de migração em docs/."
+            else
+              {
+                echo
+                echo "## Quebra de contrato em /v1"
+                echo
+                echo "Esta mudança quebra o contrato público. Como a API será vendida, isso rompe clientes externos."
+                echo
+                echo "Se a quebra for intencional, aplique a label \`breaking-change\` e escreva a nota de migração em \`docs/\`."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          fi
+
+  # 7. Build das imagens afetadas. Sem push em PR.
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.monorepo == 'true' && needs.changes.outputs.deployables != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        deployable: ${{ fromJSON(needs.changes.outputs.deployables) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.deployable.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.deployable.context }}
+          file: ${{ matrix.deployable.dockerfile }}
+          push: false
+          load: true
+          tags: ${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}
+          cache-from: type=gha,scope=${{ matrix.deployable.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.deployable.name }}
+      - name: Exporta a imagem para os jobs seguintes
+        run: |
+          mkdir -p /tmp/imagens
+          docker save "${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}" \
+            -o "/tmp/imagens/${{ matrix.deployable.name }}.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: imagem-${{ matrix.deployable.name }}
+          path: /tmp/imagens/${{ matrix.deployable.name }}.tar
+          retention-days: 1
+
+  # 8. Sobe o compose com as imagens recém-construídas e bate nos /health via Kong.
+  smoke:
+    name: smoke
+    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: needs.changes.outputs.compose_ci == 'true' && needs.build.result == 'success'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: imagem-*
+          path: /tmp/imagens
+          merge-multiple: true
+      - name: Carrega as imagens
+        run: |
+          for tar in /tmp/imagens/*.tar; do docker load -i "$tar"; done
+          docker image ls
+      - name: Sobe o compose
+        env:
+          IMAGE_TAG: pr-${{ github.event.pull_request.number || github.run_id }}
+        run: docker compose -f infra/docker/compose.ci.yml up -d --wait --wait-timeout 180
+      - name: Todos os containers healthy
+        run: |
+          set -euo pipefail
+          docker compose -f infra/docker/compose.ci.yml ps
+          naoHealthy=$(docker compose -f infra/docker/compose.ci.yml ps --format json \
+            | jq -r 'select(.Health != "" and .Health != "healthy") | .Service')
+          if [[ -n "$naoHealthy" ]]; then
+            echo "::error title=Containers não healthy::$naoHealthy"
+            exit 1
+          fi
+      - name: curl nos endpoints de health via Kong
+        run: bash infra/docker/smoke.sh http://localhost:8000
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose -f infra/docker/compose.ci.yml logs --tail 200
+      - name: Derruba o compose
+        if: always()
+        run: docker compose -f infra/docker/compose.ci.yml down -v
+
+  # 9. E2E só quando o front ou os contratos mudam.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    needs: [changes, smoke]
+    if: >-
+      always() &&
+      needs.changes.outputs.compose_ci == 'true' &&
+      needs.smoke.result == 'success' &&
+      (needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true')
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: imagem-*
+          path: /tmp/imagens
+          merge-multiple: true
+      - name: Carrega as imagens e sobe o compose
+        env:
+          IMAGE_TAG: pr-${{ github.event.pull_request.number || github.run_id }}
+        run: |
+          for tar in /tmp/imagens/*.tar; do docker load -i "$tar"; done
+          docker compose -f infra/docker/compose.ci.yml up -d --wait --wait-timeout 180
+      - name: Playwright
+        run: |
+          pnpm --filter @bolsiq/web exec playwright install --with-deps chromium
+          pnpm --filter @bolsiq/web run test:e2e
+        env:
+          BASE_URL: http://localhost:8000
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+      - name: Derruba o compose
+        if: always()
+        run: docker compose -f infra/docker/compose.ci.yml down -v
+
+  # 10. Segurança: segredos e vulnerabilidades. CodeQL fica em codeql.yml.
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    needs: changes
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks — segredos no código e no histórico
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trivy — dependências
+        if: needs.changes.outputs.monorepo == 'true'
+        uses: aquasecurity/trivy-action@v0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Trivy — imagens construídas
+        if: needs.changes.outputs.deployables != '[]'
+        run: |
+          set -euo pipefail
+          echo "As imagens são varridas no job de build do CD antes do push para o GHCR."
+
+  # 11. Código de serviço mudou? Então docs/ mudou também, ou há label no-docs.
+  docs-check:
+    name: docs-check
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Código de serviço exige documentação
+        if: github.event_name == 'pull_request'
+        env:
+          MUDOU_CODIGO: ${{ needs.changes.outputs.code }}
+          MUDOU_DOCS: ${{ needs.changes.outputs.docs }}
+          TEM_LABEL_NO_DOCS: ${{ contains(github.event.pull_request.labels.*.name, 'no-docs') }}
+        run: |
+          set -euo pipefail
+          if [[ "$MUDOU_CODIGO" == "true" && "$MUDOU_DOCS" != "true" ]]; then
+            if [[ "$TEM_LABEL_NO_DOCS" == "true" ]]; then
+              echo "::warning title=Sem documentação::Label 'no-docs' aplicada. A justificativa precisa estar escrita no corpo do PR."
+            else
+              {
+                echo "## Documentação não acompanhou o código"
+                echo
+                echo 'Houve mudança em `apps/`, `services/` ou `packages/` sem nenhuma alteração em `docs/` ou em arquivos Markdown.'
+                echo
+                echo "Pela regra 2 do CLAUDE.md, decisão de arquitetura nova vira ADR em \`docs/adr\`."
+                echo
+                echo 'Se a mudança realmente não pede documentação, aplique a label `no-docs` e explique o motivo no corpo do PR.'
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::error title=Documentação faltando::Atualize docs/ ou aplique a label no-docs."
+              exit 1
+            fi
+          else
+            echo "Checagem de documentação ok."
+          fi
+
+      - name: Links quebrados no Markdown
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress
+            --exclude-path node_modules
+            --exclude '^https://github\.com/leandrojtv/Bolsiq/(discussions|pull|issues)'
+            './**/*.md'
+          fail: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Portão único exigido pelas rulesets.
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - pr-meta
+      - changes
+      - lint
+      - typecheck
+      - unit
+      - integration
+      - migrations
+      - contract
+      - build
+      - smoke
+      - e2e
+      - security
+      - docs-check
+    steps:
+      - name: Consolida o resultado dos jobs
+        env:
+          RESULTADOS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "## Resultado do CI" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | Resultado |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "$RESULTADOS" | jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' >> "$GITHUB_STEP_SUMMARY"
+
+          # 'skipped' é sucesso: significa que o job não se aplica a este diff.
+          ruins=$(echo "$RESULTADOS" | jq -r '
+            to_entries[]
+            | select(.value.result == "failure" or .value.result == "cancelled")
+            | .key')
+
+          if [[ -n "$ruins" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Jobs com falha: $ruins" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=CI reprovado::Jobs com falha: $(echo "$ruins" | tr '\n' ' ')"
+            exit 1
+          fi
+          echo "Todos os checks aplicáveis passaram."

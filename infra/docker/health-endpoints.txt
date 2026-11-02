@@ -1,0 +1,6 @@
+# Endpoints de health verificados pelo smoke.sh, através do Kong.
+# Um por linha, caminho relativo à base. Acrescente conforme os serviços nascerem.
+#
+# /status                      # status do próprio Kong
+# /v1/health                   # market-data via Kong
+# /api/health                  # BFF do Next.js via Kong

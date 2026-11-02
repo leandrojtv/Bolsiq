@@ -1,0 +1,33 @@
+name: setup-node-pnpm
+description: Instala Node 22, pnpm e restaura os caches do pnpm e do Turborepo.
+
+inputs:
+  install:
+    description: Rodar pnpm install --frozen-lockfile.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: pnpm
+      uses: pnpm/action-setup@v4
+
+    - name: Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Cache do Turborepo
+      uses: actions/cache@v4
+      with:
+        path: .turbo
+        key: turbo-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          turbo-${{ runner.os }}-
+
+    - name: Dependências
+      if: inputs.install == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile

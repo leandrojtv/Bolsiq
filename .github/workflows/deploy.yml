@@ -1,0 +1,140 @@
+name: deploy (reutilizável)
+
+# Workflow reutilizável de deploy. Hoje usa SSH + docker compose.
+# Toda a mecânica de entrega está isolada aqui: trocar para Kubernetes depois
+# significa reescrever só este arquivo, sem tocar em cd-develop nem cd-production.
+#
+# Os secrets NÃO são declarados em workflow_call de propósito. O job abaixo
+# declara `environment:`, e é isso que faz SSH_HOST, SSH_KEY e ENV_FILE
+# resolverem para os secrets do environment (staging ou production). Quem chama
+# usa `secrets: inherit`. Se os secrets fossem passados pelo chamador, viriam do
+# escopo do repositório e os valores por ambiente seriam ignorados.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Environment do GitHub (staging ou production).
+        required: true
+        type: string
+      image_tag:
+        description: Tag das imagens a subir (sha-<commit> ou vX.Y.Z).
+        required: true
+        type: string
+      compose_file:
+        description: Caminho do compose a usar no host.
+        required: false
+        type: string
+        default: infra/docker/compose.prod.yml
+      run_migrations:
+        description: Rodar as migrations como passo único antes dos serviços.
+        required: false
+        type: boolean
+        default: true
+      smoke:
+        description: Rodar o smoke test depois do deploy.
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      deployed_tag:
+        description: Tag efetivamente publicada.
+        value: ${{ jobs.deploy.outputs.deployed_tag }}
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    name: deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    outputs:
+      deployed_tag: ${{ inputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configura a chave SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          {
+            printf 'Host alvo\n'
+            printf '  HostName %s\n' "$SSH_HOST"
+            printf '  Port %s\n' "$SSH_PORT"
+            printf '  User %s\n' "$SSH_USER"
+            printf '  IdentityFile ~/.ssh/id_deploy\n'
+            printf '  StrictHostKeyChecking yes\n'
+            printf '  BatchMode yes\n'
+          } >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          ssh alvo "echo conexão ok; docker --version"
+
+      - name: Envia compose e scripts para o host
+        run: |
+          set -euo pipefail
+          ssh alvo "mkdir -p ~/bolsiq"
+          scp "${{ inputs.compose_file }}" alvo:~/bolsiq/compose.yml
+          scp infra/docker/smoke.sh alvo:~/bolsiq/smoke.sh
+          if [[ -d infra/kong ]]; then
+            ssh alvo "mkdir -p ~/bolsiq/infra/kong"
+            scp -r infra/kong/. alvo:~/bolsiq/infra/kong/
+          fi
+
+      - name: Injeta o .env do ambiente
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          # O .env nunca passa por arquivo versionado: vem do secret do environment.
+          printf '%s\n' "$ENV_FILE" | ssh alvo "umask 077 && cat > ~/bolsiq/.env"
+          ssh alvo "umask 077 && printf 'IMAGE_TAG=%s\n' '$IMAGE_TAG' >> ~/bolsiq/.env"
+
+      - name: Autentica o host no GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" \
+            | ssh alvo "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+
+      - name: Baixa as imagens
+        run: ssh alvo "cd ~/bolsiq && docker compose pull --quiet"
+
+      - name: Migrations
+        if: inputs.run_migrations
+        run: |
+          set -euo pipefail
+          # Passo único e isolado: nenhum serviço sobe antes do schema estar pronto.
+          ssh alvo "cd ~/bolsiq && docker compose run --rm migrate"
+
+      - name: Sobe os serviços
+        run: |
+          set -euo pipefail
+          ssh alvo "cd ~/bolsiq && docker compose up -d --wait --wait-timeout 300 --remove-orphans"
+          ssh alvo "cd ~/bolsiq && docker compose ps"
+
+      - name: Smoke pós-deploy
+        if: inputs.smoke
+        run: ssh alvo "cd ~/bolsiq && bash smoke.sh http://localhost:8000"
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: ssh alvo "cd ~/bolsiq && docker compose logs --tail 200" || true
+
+      - name: Limpa a chave
+        if: always()
+        run: rm -f ~/.ssh/id_deploy ~/.ssh/config

@@ -1,0 +1,79 @@
+name: revisão do Claude
+
+# Revisão automática de todo PR para develop e main.
+# O Claude COMENTA; não aprova. A aprovação segue sendo humana, exigida pelas
+# rulesets de main via CODEOWNERS.
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  revisar:
+    name: revisar
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          track_progress: true
+          prompt: |
+            Você está revisando um PR do projeto Bolsiq. Leia o CLAUDE.md na raiz
+            antes de qualquer coisa: ele define a arquitetura, a stack e as regras
+            que esta revisão deve cobrar.
+
+            Revise o diff do PR e comente, em português, apenas o que for concreto
+            e acionável. Foque nesta ordem:
+
+            1. Segurança. Segredo em código ou em teste, log de dado sensível,
+               SQL montado por concatenação, falta de validação Zod na borda,
+               endpoint público sem autenticação ou sem rate limit, dependência
+               nova com risco.
+            2. Regressão e correção. Lógica que quebra comportamento existente,
+               condição de corrida, tratamento de erro ausente, migration
+               destrutiva ou não reversível, quebra de contrato em /v1.
+            3. Regras do projeto que o CI não consegue checar sozinho:
+               - valor monetário em numeric, nunca float;
+               - data em timestamptz (UTC), com exibição em America/Sao_Paulo;
+               - todo dado de mercado com proveniência (source, fetched_at,
+                 license, source_ref);
+               - nenhum serviço além do market-data acessando fonte externa;
+               - nenhum join entre schemas de serviços diferentes;
+               - segredo só por variável de ambiente, com .env.example atualizado.
+            4. Falta de teste. Caminho novo sem teste, caso de borda óbvio não
+               coberto, endpoint sem teste.
+            5. Falta de documentação. Decisão de arquitetura sem ADR em docs/adr,
+               runbook não atualizado quando o deploy ou a operação mudou.
+
+            Como comentar:
+            - Comentário inline na linha exata quando o problema tem lugar no diff.
+            - Um comentário de resumo no fim, com no máximo cinco pontos, em ordem
+              de risco.
+            - Classifique cada ponto como [bloqueante], [importante] ou [sugestão].
+            - Se não houver nada relevante, diga isso em uma linha e pare. Não
+              invente observação para parecer útil.
+            - Não comente estilo ou formatação: ESLint e Prettier já cobrem isso.
+            - Não reescreva o PR inteiro. Aponte o problema e o caminho da correção.
+
+            Você NÃO deve aprovar nem reprovar formalmente o PR, e não deve
+            mergear nada. Apenas comente.
+          claude_args: |
+            --allowed-tools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"

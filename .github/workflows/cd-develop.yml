@@ -1,0 +1,104 @@
+name: CD staging
+
+# Merge em develop publica as imagens no GHCR e atualiza o staging.
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+concurrency:
+  group: cd-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  matriz:
+    name: matriz de imagens
+    runs-on: ubuntu-latest
+    outputs:
+      deployables: ${{ steps.ler.outputs.deployables }}
+      tem_imagens: ${{ steps.ler.outputs.tem_imagens }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: ler
+        run: |
+          set -euo pipefail
+          lista=$(jq -c '.deployables' infra/docker/deployables.json)
+          echo "deployables=$lista" >> "$GITHUB_OUTPUT"
+          if [[ "$lista" == "[]" ]]; then
+            echo "tem_imagens=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Nada a publicar::infra/docker/deployables.json está vazio. Acrescente os serviços conforme forem criados."
+          else
+            echo "tem_imagens=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-push:
+    name: build e push ${{ matrix.deployable.name }}
+    runs-on: ubuntu-latest
+    needs: matriz
+    if: needs.matriz.outputs.tem_imagens == 'true'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        deployable: ${{ fromJSON(needs.matriz.outputs.deployables) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.deployable.context }}
+          file: ${{ matrix.deployable.dockerfile }}
+          push: false
+          load: true
+          tags: ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.deployable.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.deployable.name }}
+
+      - name: Trivy na imagem antes de publicar
+        uses: aquasecurity/trivy-action@v0.33.1
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - name: Push sha-<commit> e develop
+        run: |
+          set -euo pipefail
+          origem="ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}"
+          docker push "$origem"
+          docker tag "$origem" "ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:develop"
+          docker push "ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:develop"
+
+  deploy-staging:
+    name: deploy staging
+    needs: [matriz, build-push]
+    if: needs.matriz.outputs.tem_imagens == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: staging
+      image_tag: sha-${{ github.sha }}
+      compose_file: infra/docker/compose.prod.yml
+      run_migrations: true
+      smoke: true
+    # inherit para que os secrets do environment staging sejam resolvidos
+    # dentro do workflow chamado, que é quem declara o environment.
+    secrets: inherit

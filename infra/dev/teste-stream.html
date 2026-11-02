@@ -13,7 +13,11 @@
         --alta: #2ecc71;
         --baixa: #e74c3c;
         --acento: #5b9dff;
-        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          sans-serif;
       }
       body {
         margin: 0;
@@ -124,7 +128,9 @@
   <body>
     <h1>Bolsiq — teste local</h1>
     <div class="sub">
-      <span class="estado"><span class="bolinha" id="luz"></span><span id="estado">desconectado</span></span>
+      <span class="estado"
+        ><span class="bolinha" id="luz"></span><span id="estado">desconectado</span></span
+      >
       &nbsp;·&nbsp; <code id="alvo"></code>
     </div>
 
@@ -145,9 +151,10 @@
     </div>
 
     <div class="grade" id="grade"></div>
-    <pre id="log">Clique em “Conectar e assinar”.
+    <pre id="log">
+Clique em "Conectar e assinar".
 
-Para ver cotação chegando, rode num terminal:
+Para ver cotacao chegando, rode num terminal:
   make dev-cotacao TICKER=PETR4 PRECO=38.42
 </pre>
 
@@ -157,7 +164,8 @@ Para ver cotação chegando, rode num terminal:
       let ws;
 
       function registrar(texto) {
-        $("log").textContent = `${new Date().toLocaleTimeString("pt-BR")}  ${texto}\n${$("log").textContent}`;
+        $("log").textContent =
+          `${new Date().toLocaleTimeString("pt-BR")}  ${texto}\n${$("log").textContent}`;
       }
 
       function desenhar() {
@@ -172,7 +180,9 @@ Para ver cotação chegando, rode num terminal:
       }
 
       function conectar() {
-        const base = $("url").value.trim().replace(/^https?:\/\//, "");
+        const base = $("url")
+          .value.trim()
+          .replace(/^https?:\/\//, "");
         const tickers = $("tickers")
           .value.split(",")
           .map((t) => t.trim().toUpperCase())
@@ -204,13 +214,15 @@ Para ver cotação chegando, rode num terminal:
           registrar("conexão fechada");
         };
 
-        ws.onerror = () => registrar("erro de WebSocket — o serviço está no ar?");
+        ws.onerror = () => registrar("erro de WebSocket: o servico esta no ar?");
       }
 
       $("conectar").onclick = conectar;
       $("limpar").onclick = () => ($("log").textContent = "");
       $("health").onclick = async () => {
-        const base = $("url").value.trim().replace(/^https?:\/\//, "");
+        const base = $("url")
+          .value.trim()
+          .replace(/^https?:\/\//, "");
         try {
           const r = await fetch(`http://${base}/v1/health`);
           registrar(`GET /v1/health → ${r.status} ${JSON.stringify(await r.json())}`);

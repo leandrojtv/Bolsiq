@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { performance } from "node:perf_hooks";
 import { IndiceDeRegras } from "./indice.js";
 import { avaliarCotacao } from "./avaliador.js";
 import { Regra } from "./regras.js";
@@ -71,22 +70,17 @@ describe("10 mil regras ativas", () => {
     i.carregar(regras);
     expect(i.tamanho).toBe(10_000);
 
+    // Propriedade estrutural, nao tempo de parede: medir milissegundos em
+    // runner compartilhado e intermitente. A latencia real fica no teste de
+    // integracao.
     const agora = new Date();
-    const tempos: number[] = [];
-    for (let q = 0; q < 5000; q++) {
-      const ticker = `TK${String(q % 2000).padStart(4, "0")}`;
-      const t0 = performance.now();
-      avaliarCotacao(
-        i.candidatas(COTACAO, ticker),
-        { ticker, price: "41.00", change: "1.00" },
-        agora,
-      );
-      tempos.push(performance.now() - t0);
+    for (let q = 0; q < 2000; q++) {
+      const ticker = `TK${String(q).padStart(4, "0")}`;
+      const candidatas = i.candidatas(COTACAO, ticker);
+      expect(candidatas).toHaveLength(5);
+      expect(candidatas.every((c) => c.ticker === ticker)).toBe(true);
+      avaliarCotacao(candidatas, { ticker, price: "41.00", change: "1.00" }, agora);
     }
-
-    tempos.sort((a, b) => a - b);
-    const p99 = tempos[Math.floor(tempos.length * 0.99)] ?? Infinity;
-    // Meta generosa para CI lento; o valor medido localmente fica muito abaixo.
-    expect(p99).toBeLessThan(5);
+    expect(i.candidatas(COTACAO, "XXXX3")).toHaveLength(0);
   });
 });

@@ -16,19 +16,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "test:unit": "vitest run --coverage",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@bolsiq/contracts": "workspace:*",
+    "@bolsiq/db-core": "workspace:*",
+    "@bolsiq/messaging": "workspace:*",
     "decimal.js": "^10.4.3",
-    "zod": "^3.24.1",
-    "drizzle-orm": "^0.45.4"
+    "drizzle-orm": "^0.45.4",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@bolsiq/config": "workspace:*",
     "@vitest/coverage-v8": "^2.1.8",
+    "drizzle-kit": "^0.31.11",
+    "testcontainers": "^10.16.0",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8",
-    "drizzle-kit": "^0.31.11"
+    "vitest": "^2.1.8"
   }
 }

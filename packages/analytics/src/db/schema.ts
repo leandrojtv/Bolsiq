@@ -8,7 +8,10 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { tabelasDeConsumidor } from "@bolsiq/db-core";
 
 /**
  * Schema proprio do analytics.
@@ -163,5 +166,15 @@ export const recalc_queue = analytics.table(
     tentativas: integer("tentativas").notNull().default(0),
     bytes_lidos: bigint("bytes_lidos", { mode: "number" }),
   },
-  (t) => [index("recalc_queue_pendente_idx").on(t.enfileirado_em)],
+  (t) => [
+    index("recalc_queue_pendente_idx").on(t.enfileirado_em),
+    // Um pendente por ticker: 700 statement.published e um daily.closed no
+    // mesmo minuto viram um recalculo por papel, nao dois mil.
+    uniqueIndex("recalc_queue_ticker_pendente_uq")
+      .on(t.ticker)
+      .where(sql`processado_em IS NULL`),
+  ],
 );
+
+/** Idempotencia e dead-letter do consumidor de eventos do analytics. */
+export const { processedEvents, deadLetter } = tabelasDeConsumidor("analytics");

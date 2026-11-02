@@ -72,7 +72,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.deployable.name }}
 
       - name: Trivy na imagem antes de publicar
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.33.1
         with:
           image-ref: ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}
           severity: HIGH,CRITICAL

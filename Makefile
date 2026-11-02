@@ -157,6 +157,10 @@ gh-status:
 check-workflows:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo rhysd/actionlint:latest -color
 
+## check-actions: confere que toda action referenciada existe
+check-actions:
+	bash infra/github/check-actions.sh
+
 ## check-links: procura links quebrados no Markdown
 check-links:
 	docker run --rm -v "$(CURDIR)":/input lycheeverse/lychee --no-progress --exclude-path node_modules './**/*.md'
@@ -166,9 +170,9 @@ check-secrets:
 	docker run --rm -v "$(CURDIR)":/repo zricethezav/gitleaks:latest detect --source=/repo --verbose
 
 ## check: todas as verificações que já funcionam sem o monorepo
-check: check-workflows check-links check-secrets
+check: check-workflows check-actions check-links check-secrets
 
 .PHONY: help up down logs install lint format typecheck test test-integration \
         test-e2e ci db-generate db-migrate db-reset smoke gh-protect \
-        gh-protect-dry gh-protect-solo gh-status check-workflows check-links \
-        check-secrets check
+        gh-protect-dry gh-protect-solo gh-status check-workflows check-actions \
+        check-links check-secrets check

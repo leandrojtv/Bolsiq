@@ -170,9 +170,10 @@ A maior parte não precisa do GitHub:
 
 ```bash
 make check-workflows   # actionlint + shellcheck nos workflows
+make check-actions     # confere que toda action referenciada existe
 make check-links       # links quebrados no Markdown
 make check-secrets     # gitleaks
-make check             # os três
+make check             # os quatro
 
 make lint              # ESLint + Prettier
 make typecheck         # tsc
@@ -189,6 +190,12 @@ Para executar os workflows de verdade localmente, com
 ```bash
 act pull_request -W .github/workflows/ci.yml --container-architecture linux/amd64
 ```
+
+`make check-actions` existe por um motivo concreto: o actionlint valida sintaxe
+e contexto, mas não verifica se a versão da action existe. Uma referência como
+`aquasecurity/trivy-action@0.33.1` (a tag real é `v0.33.1`) passa no lint e só
+falha no runner, com `unable to resolve action` — e derruba o job inteiro no
+setup, antes de qualquer passo rodar.
 
 O `act` não reproduz fielmente `environment`, OIDC, cache `type=gha` nem
 `workflow_call` com `secrets: inherit`. Serve para depurar a lógica dos jobs,

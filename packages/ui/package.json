@@ -1,0 +1,78 @@
+{
+  "name": "@bolsiq/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fonts": {
+      "types": "./dist/fonts.d.ts",
+      "default": "./dist/fonts.js"
+    },
+    "./tokens.css": "./tokens.css",
+    "./preset.css": "./preset.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src stories .storybook tests && node scripts/checar-tokens.mjs",
+    "test:unit": "vitest run --coverage",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build -o storybook-static --quiet",
+    "test:visual": "playwright test"
+  },
+  "dependencies": {
+    "@radix-ui/react-select": "2.4.1",
+    "@radix-ui/react-slot": "1.5.0",
+    "@radix-ui/react-switch": "1.4.1",
+    "@radix-ui/react-tabs": "1.2.1",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.59.0",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@bolsiq/config": "workspace:*",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@playwright/test": "1.64.1",
+    "@storybook/addon-a11y": "10.6.2",
+    "@storybook/react-vite": "10.6.2",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "6.1.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "jsdom": "30.1.3",
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "storybook": "10.6.2",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5.7.2",
+    "vite": "8.3.4",
+    "vitest": "^2.1.8"
+  },
+  "peerDependencies": {
+    "next": ">=15",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  }
+}

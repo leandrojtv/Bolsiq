@@ -10,3 +10,9 @@ docs/events.md
 
 # Design de referencia exportado do canvas: arquivo de origem, nao codigo.
 docs/design/
+
+# Hex escrito como na tabela de docs/design/README.md; o Prettier o poria em minusculas.
+packages/ui/tokens.css
+**/storybook-static/**
+**/test-results/**
+**/playwright-report/**

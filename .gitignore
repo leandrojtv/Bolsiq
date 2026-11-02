@@ -42,3 +42,8 @@ coverage/
 
 # Gerado pelo openapi:generate; o check `contract` do CI gera os dois lados
 openapi.json
+
+# Saidas do Storybook e da regressao visual
+storybook-static/
+test-results/
+playwright-report/

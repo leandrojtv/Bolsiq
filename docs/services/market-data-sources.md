@@ -16,6 +16,8 @@ redistribuição e mapeamento de campos.
 | CVM — informe diário de fundos | NAV, patrimônio, aplicações, resgates, cotistas | ZIP mensal de CSV        | diária (arquivo mensal)   | ODbL                      | Sim, com atribuição e share-alike |
 | B3 — COTAHIST                  | Preços históricos de todo o universo            | largura fixa, 245 bytes  | anual e diário            | Termos de Uso da B3       | **Não**                           |
 | BCB — SGS                      | Selic, CDI, IPCA, IGP-M                         | JSON (API)               | diária e mensal           | aberta (confirmar termos) | Sim, com atribuição               |
+| CVM — FCA                      | Ligação ticker → CNPJ                           | ZIP de CSVs, latin1, `;` | anual, com reapresentação | ODbL                      | Sim, com atribuição e share-alike |
+| brapi                          | Cotação corrente e proventos                    | JSON (API)               | por consulta              | termos da brapi           | Verificar no contrato do plano    |
 
 ---
 
@@ -48,8 +50,15 @@ não os papéis negociados. A ligação CNPJ → ticker tem de vir de outra font
 isso é uma lacuna a resolver antes do comparador funcionar: uma companhia tem N
 tickers (ON, PN, UNT), e o COTAHIST traz ticker e ISIN, mas não CNPJ.
 
-Caminho provável: usar o ISIN do COTAHIST, cujos caracteres 5 a 9 identificam a
-empresa, ou a tabela de emissores da B3. Fica como pendência explícita.
+**Resolvido pelo FCA.** O Formulário Cadastral
+(`DOC/FCA/DADOS/fca_cia_aberta_{ANO}.zip`, arquivo `_valor_mobiliario_`) lista
+cada valor mobiliário da companhia com `CNPJ_Companhia` e `Codigo_Negociacao`.
+O job `cvm-cadastro` cruza os dois arquivos e preenche `cnpj`, `cvm_code` e
+setor dos papéis que o COTAHIST criou. Em 2026: 520 tickers no FCA, 382 ligados
+a papéis negociados no universo; FIIs e ETFs não estão no FCA de companhias.
+
+`CD_CVM` vem sem zeros à esquerda no cadastro (`9512`) e com seis dígitos no
+DFP (`009512`). O adapter normaliza para seis.
 
 ---
 
@@ -299,6 +308,40 @@ Chave natural: `(series_code, date)`.
 
 ---
 
+## 6. brapi — cotação corrente e proventos
+
+- **URL:** `https://brapi.dev/api/quote/{ticker}` (`?dividends=true` para
+  proventos, `?range=&interval=1d` para série)
+- **Formato:** JSON; preço como `number`, convertido para string decimal na
+  borda do adapter, sem aritmética de ponto flutuante
+- **Autenticação:** `Authorization: Bearer $BRAPI_TOKEN`. Sem token, só os
+  tickers de demonstração (PETR4, VALE3, ITUB4, MGLU3); os demais respondem 401
+- **Atraso:** cotação com atraso de cerca de 15 minutos no plano gratuito
+- **Licença:** termos de uso da brapi; o dado de origem é da B3
+
+### Mapeamento de proventos para `dividends`
+
+| Campo da brapi           | Coluna            | Observação                                                         |
+| ------------------------ | ----------------- | ------------------------------------------------------------------ |
+| `label`                  | `kind`            | DIVIDENDO, JCP, RENDIMENTO, BONIFICACAO, DESDOBRAMENTO, GRUPAMENTO |
+| `exDate` ou data-com + 1 | `ex_date`         | `exDate` vem nulo em parte dos registros                           |
+| `rate`                   | `value_per_share` | dinheiro: dividendo e JCP                                          |
+| `factor`                 | `factor`          | multiplicador de ações: 2 em "2 para 1", 1.1 em bonificação de 10% |
+| `completeFactor`         | `ratio`           | texto como publicado                                               |
+
+Conferido em ITUB4, MGLU3 e VALE3: `factor` já é o multiplicador, inclusive na
+bonificação. Rótulos fora da lista (por exemplo `CIS RED CAP`) são ignorados.
+
+Datas da brapi vêm em UTC às 03:00, que é meia-noite em São Paulo. O adapter
+converte no fuso de São Paulo antes de cortar a data.
+
+### IBOV
+
+O índice não tem fonte aberta: o SGS parou a série 7 (Ibovespa) em 2019, e a
+brapi exige token para `^BVSP`. Com token, `/v1/macro/ibov` usa a brapi; sem,
+usa o fechamento do BOVA11 do COTAHIST, com a unidade dizendo que é
+aproximação. Para benchmark de retorno, a diferença é a taxa do ETF.
+
 ## Licenças e redistribuição
 
 O projeto pretende vender o `market-data` como API pública. Isso transforma a
@@ -375,10 +418,9 @@ pública.
 
 ## Pendências
 
-1. **Ligação CNPJ → ticker.** O cadastro da CVM não traz ticker; o COTAHIST não
-   traz CNPJ. Sem resolver, o comparador não cruza fundamento com preço.
-2. **Fonte de proventos.** `adj_close` precisa de desdobramento, bonificação e
-   dividendo. Não definida.
+1. ~~Ligação CNPJ → ticker~~: resolvida pelo FCA (seção 1).
+2. ~~Fonte de proventos~~: brapi (seção 6). Sem token, só os tickers de
+   demonstração; com token, o universo.
 3. **Licença da B3.** Decisão de negócio, não técnica, e bloqueia o núcleo do
    produto.
 4. **Share-alike da ODbL.** Pergunta jurídica, melhor respondida antes do

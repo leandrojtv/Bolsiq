@@ -13,7 +13,9 @@ anterior como `substituído por`.
 | [0010](0010-better-auth.md)              | Better Auth para autenticacao                   | **proposto** |
 | [0011](0011-rls.md)                      | Row Level Security como segunda barreira        | aceito       |
 | [0012](0012-alerts-worker.md)            | Processo e imagem dedicados para o alerts       | aceito       |
+| [0013](0013-cache-read-through.md)       | Read-through, com carga em lote para arquivo    | aceito       |
 | [0014](0014-fluxo-de-branches-e-cicd.md) | Fluxo de branches e CI/CD                       | aceito       |
+| [0018](0018-analytics-worker.md)         | Processo dedicado para o recálculo do analytics | aceito       |
 
 ## Números reservados
 
@@ -22,14 +24,13 @@ Os números abaixo ficam reservados para quando cada uma for escrita. A mais
 urgente é a 0004: um banco por serviço com schemas separados no mesmo cluster é
 fácil de escrever e difícil de desfazer depois que houver dado em produção.
 
-| Número | Decisão a documentar                                          |
-| ------ | ------------------------------------------------------------- |
-| 0001   | Monorepo com pnpm workspaces e Turborepo                      |
-| 0002   | TypeScript estrito em todo o repositório                      |
-| 0003   | Fastify com Zod e OpenAPI gerado dos schemas                  |
-| 0004   | Postgres 17 com TimescaleDB, um banco por serviço             |
-| 0005   | Drizzle ORM com migrations versionadas                        |
-| 0013   | Cache read-through no market-data como estratégia de ingestão |
-| 0015   | Proveniência obrigatória em todo dado de mercado              |
-| 0016   | `numeric` para moeda e `timestamptz` para data                |
-| 0017   | Next.js App Router como UI e BFF                              |
+| Número | Decisão a documentar                              |
+| ------ | ------------------------------------------------- |
+| 0001   | Monorepo com pnpm workspaces e Turborepo          |
+| 0002   | TypeScript estrito em todo o repositório          |
+| 0003   | Fastify com Zod e OpenAPI gerado dos schemas      |
+| 0004   | Postgres 17 com TimescaleDB, um banco por serviço |
+| 0005   | Drizzle ORM com migrations versionadas            |
+| 0015   | Proveniência obrigatória em todo dado de mercado  |
+| 0016   | `numeric` para moeda e `timestamptz` para data    |
+| 0017   | Next.js App Router como UI e BFF                  |

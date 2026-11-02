@@ -2,10 +2,10 @@
 
 Autenticação, limites, erros e exemplos de uso da API pública do Bolsiq.
 
-> **Especificação, não documentação.** A API ainda não foi implementada. Este
-> documento define o contrato que a implementação deve cumprir — nomes de
-> header, códigos de erro, formato da chave — para que o cliente não precise ser
-> reescrito depois. Enquanto não houver serviço, os exemplos não respondem.
+> **Parte implementada, parte especificação.** Os endpoints de dados abaixo
+> existem e respondem. Chave, planos, limites e `/v1/me/usage` dependem do
+> gateway ([ADR 0007](../adr/0007-gateway-e-planos.md)) e ainda são contrato a
+> cumprir: hoje nenhuma chave é exigida.
 >
 > Uma parte ainda pode mudar: a revogação de chave tem efeito imediato ou com
 > atraso, conforme a decisão pendente no [ADR 0007](../adr/0007-gateway-e-planos.md).
@@ -20,6 +20,39 @@ Versão no caminho. Mudança incompatível em `/v1` não acontece: quando for
 necessária, nasce `/v2`, e `/v1` continua. Campo novo e endpoint novo são
 compatíveis e podem aparecer em `/v1` sem aviso — seu código deve ignorar campo
 que não conhece.
+
+## Endpoints de dados
+
+| Endpoint                                                    | O que devolve                               |
+| ----------------------------------------------------------- | ------------------------------------------- |
+| `GET /v1/assets?q=petro&type=stock`                         | busca por ticker e nome, até 20             |
+| `GET /v1/assets/PETR4`                                      | cadastro do ativo                           |
+| `GET /v1/quotes/PETR4,VALE3`                                | cotação corrente com atraso, até 20 tickers |
+| `GET /v1/history/PETR4?interval=1d&from=&to=&adjusted=true` | OHLCV diário, semanal ou mensal             |
+| `GET /v1/dividends/PETR4?from=&to=`                         | proventos e eventos societários             |
+| `GET /v1/fundamentals/PETR4?period=annual`                  | contas do DFP ou do ITR (`quarterly`)       |
+| `GET /v1/macro/cdi?from=&to=`                               | `cdi`, `selic`, `ipca`, `igpm`, `ibov`      |
+
+Toda resposta tem a forma `{ "data": ..., "meta": { ... } }`:
+
+```json
+{
+  "meta": {
+    "source": "brapi",
+    "fetched_at": "2026-11-02T19:40:07.861Z",
+    "license": "brapi.dev, termos de uso; dado da B3 com atraso",
+    "stale": false,
+    "delay_minutes": 15
+  }
+}
+```
+
+- `license` diz o que você pode fazer com o dado. Preço da B3 não é
+  redistribuível; dado da CVM é ODbL.
+- `stale: true` significa que a fonte falhou e o valor é o último conhecido, ou
+  que o pregão mais recente ainda não foi carregado.
+- Valores monetários são **strings decimais** (`"52.71"`), nunca `number`.
+- Datas sem hora em `YYYY-MM-DD`; instantes em ISO 8601 UTC.
 
 ## Autenticação
 
@@ -167,7 +200,7 @@ curl -sH "X-API-Key: $BOLSIQ_API_KEY" \
 
 # Várias, respeitando o limite de tickers do plano
 curl -sH "X-API-Key: $BOLSIQ_API_KEY" \
-  "https://api.bolsiq.com/v1/quotes?tickers=PETR4,VALE3,ITUB4" | jq .
+  "https://api.bolsiq.com/v1/quotes/PETR4,VALE3,ITUB4" | jq .
 
 # Ver os headers de limite
 curl -sD - -o /dev/null -H "X-API-Key: $BOLSIQ_API_KEY" \

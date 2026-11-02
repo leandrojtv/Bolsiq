@@ -1,0 +1,107 @@
+# ESQUELETO. Vale para staging e produção; o que muda entre os dois é o .env,
+# injetado pelo workflow deploy.yml a partir do secret ENV_FILE do environment.
+#
+# Está comentado de propósito: nenhum dos serviços existe ainda. À medida que
+# cada um nascer, descomente o bloco correspondente e acrescente a entrada em
+# infra/docker/deployables.json — é essa lista que liga o build e o deploy.
+#
+# Todas as imagens vêm do GHCR pela tag ${IMAGE_TAG}, nunca construídas no host:
+# produção roda exatamente o bit que passou por staging.
+
+name: bolsiq
+
+services:
+  # Único serviço já utilizável: o Postgres com TimescaleDB.
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      POSTGRES_DB: ${POSTGRES_DB:-bolsiq}
+    volumes:
+      - postgres-data:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
+  # migrate:
+  #   image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
+  #   command: ["pnpm", "db:migrate"]
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL:?}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   restart: "no"
+  #   networks: [interna]
+
+  # market-data:
+  #   image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL:?}
+  #     NATS_URL: nats://nats:4222
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     nats: { condition: service_healthy }
+  #   healthcheck:
+  #     test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #   networks: [interna]
+
+  # web:
+  #   image: ghcr.io/leandrojtv/bolsiq-web:${IMAGE_TAG:?}
+  #   restart: unless-stopped
+  #   environment:
+  #     MARKET_DATA_URL: http://market-data:3001
+  #   depends_on:
+  #     market-data: { condition: service_healthy }
+  #   networks: [interna]
+
+  # kong:
+  #   image: kong:3-ubuntu
+  #   restart: unless-stopped
+  #   environment:
+  #     KONG_DATABASE: "off"
+  #     KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+  #     KONG_PROXY_LISTEN: 0.0.0.0:8000
+  #     KONG_ADMIN_LISTEN: 127.0.0.1:8001
+  #   volumes:
+  #     - ./infra/kong:/kong:ro
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     market-data: { condition: service_healthy }
+  #   healthcheck:
+  #     test: ["CMD", "kong", "health"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #   networks: [interna]
+
+volumes:
+  postgres-data:
+  nats-data:
+
+networks:
+  interna:

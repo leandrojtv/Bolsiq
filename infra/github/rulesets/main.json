@@ -1,0 +1,40 @@
+{
+  "_nota": "Proteção de main (produção). Chaves começando com _ são comentários e são removidas pelo apply-rulesets.sh antes de chamar a API.",
+  "_nota_linear": "required_linear_history foi deliberadamente OMITIDO. O CLAUDE.md pede histórico linear em main, mas também pede merge commit para release/* e hotfix/* para preservar o histórico da release. As duas coisas são incompatíveis: histórico linear proíbe merge commit. A decisão está registrada no ADR 0014 — vence o merge commit, porque rastrear o que entrou em cada release vale mais do que a linha reta.",
+  "_nota_origem": "A restrição de origem (só release/* e hotfix/* podem abrir PR para main) NÃO existe em rulesets do GitHub. Ela é aplicada pelo check pr-meta do ci.yml, que entra como obrigatório através do ci-ok.",
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/main"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "require_code_owner_review": true,
+        "dismiss_stale_reviews_on_push": true,
+        "require_last_push_approval": true,
+        "required_review_thread_resolution": true,
+        "allowed_merge_methods": ["merge"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          { "context": "ci-ok" }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}

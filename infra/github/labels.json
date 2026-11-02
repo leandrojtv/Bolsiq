@@ -1,0 +1,29 @@
+[
+  { "name": "tipo:feature",        "color": "0E8A16", "description": "Funcionalidade nova" },
+  { "name": "tipo:bug",            "color": "D73A4A", "description": "Comportamento incorreto" },
+  { "name": "tipo:debito-tecnico", "color": "FBCA04", "description": "Débito técnico ou refatoração" },
+  { "name": "incidente",           "color": "B60205", "description": "Incidente em produção" },
+
+  { "name": "area:market-data",    "color": "1D76DB", "description": "Serviço market-data" },
+  { "name": "area:web",            "color": "5319E7", "description": "Front-end e BFF" },
+  { "name": "area:contracts",      "color": "0052CC", "description": "Pacote contracts" },
+  { "name": "area:db",             "color": "006B75", "description": "Banco, schema e migrations" },
+  { "name": "area:domain",         "color": "0366D6", "description": "Pacote domain" },
+  { "name": "area:infra",          "color": "444444", "description": "Infra, CI/CD e Docker" },
+  { "name": "area:docs",           "color": "C5DEF5", "description": "Documentação" },
+
+  { "name": "size:XS",             "color": "E6F4EA", "description": "Menos de 10 linhas alteradas" },
+  { "name": "size:S",              "color": "C6E6C6", "description": "10 a 49 linhas alteradas" },
+  { "name": "size:M",              "color": "FEF2C0", "description": "50 a 199 linhas alteradas" },
+  { "name": "size:L",              "color": "F9D0C4", "description": "200 a 599 linhas alteradas" },
+  { "name": "size:XL",             "color": "E99695", "description": "600 linhas ou mais; considere fatiar" },
+
+  { "name": "breaking-change",     "color": "B60205", "description": "Quebra o contrato público /v1; autoriza o check contract a passar" },
+  { "name": "no-docs",             "color": "D4C5F9", "description": "Dispensa alteração em docs/; a justificativa fica no corpo do PR" },
+  { "name": "back-merge",          "color": "BFDADC", "description": "PR automático de back-merge de main para develop" },
+  { "name": "adr",                 "color": "5319E7", "description": "Contém decisão de arquitetura" },
+  { "name": "migrations",          "color": "006B75", "description": "Contém migration" },
+  { "name": "dependencies",        "color": "0366D6", "description": "Atualização de dependências" },
+  { "name": "security",            "color": "B60205", "description": "Segurança" },
+  { "name": "autorelease: pending","color": "EDEDED", "description": "Usada pelo release-please" }
+]

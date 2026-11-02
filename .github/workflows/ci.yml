@@ -340,7 +340,17 @@ jobs:
           docker pull timescale/timescaledb-ha:pg17 &
           docker pull nats:2-alpine &
           wait
-      - run: pnpm turbo run test:integration --filter="...[origin/${{ github.base_ref || 'develop' }}]"
+      # --concurrency=1 porque cada suíte sobe os próprios Postgres e NATS, e
+      # uma delas derruba o broker de propósito. Em paralelo elas competem por
+      # recurso sem nenhum ganho de tempo real.
+      #
+      # As variáveis do Docker e do testcontainers chegam à tarefa por
+      # `passThroughEnv` em turbo.json: o Turborepo filtra o ambiente, e sem
+      # declará-las o testcontainers tenta 127.0.0.1 e recebe ECONNREFUSED.
+      - run: >-
+          pnpm turbo run test:integration
+          --concurrency=1
+          --filter="...[origin/${{ github.base_ref || 'develop' }}]"
         env:
           TESTCONTAINERS_RYUK_DISABLED: "true"
 
@@ -632,6 +642,19 @@ jobs:
     needs: changes
     steps:
       - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-node-pnpm
+        if: needs.changes.outputs.monorepo == 'true'
+
+      - name: docs/events.md em dia com os schemas
+        if: needs.changes.outputs.monorepo == 'true'
+        run: |
+          set -euo pipefail
+          # O catálogo de eventos gera a documentação. Mudar um schema sem
+          # regerar deixaria docs/events.md descrevendo um contrato que não
+          # existe mais — e documentação errada é pior que documentação
+          # faltando, porque é acreditada.
+          pnpm --filter @bolsiq/contracts run docs:events:check
 
       - name: Código de serviço exige documentação
         if: github.event_name == 'pull_request'

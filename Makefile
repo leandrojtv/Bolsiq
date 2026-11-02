@@ -89,7 +89,9 @@ test:
 ## test-integration: testes de integração (Testcontainers)
 test-integration:
 	$(call exige_monorepo)
-	$(PNPM) turbo run test:integration
+	@# --concurrency=1: cada suíte sobe os próprios Postgres e NATS, e uma
+	@# delas derruba o broker de propósito. Paralelizar só disputa recurso.
+	$(PNPM) turbo run test:integration --concurrency=1
 
 ## test-e2e: Playwright contra o compose
 test-e2e:
@@ -123,6 +125,16 @@ db-reset:
 # ---------------------------------------------------------------------------
 # Smoke
 # ---------------------------------------------------------------------------
+
+## docs-events: regera docs/events.md a partir dos schemas
+docs-events:
+	$(call exige_monorepo)
+	$(PNPM) --filter @bolsiq/contracts run docs:events
+
+## docs-events-check: confere se docs/events.md está em dia com os schemas
+docs-events-check:
+	$(call exige_monorepo)
+	$(PNPM) --filter @bolsiq/contracts run docs:events:check
 
 ## smoke: bate nos endpoints de health via Kong
 smoke:

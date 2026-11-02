@@ -15,7 +15,9 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
-    "test:unit": "vitest run --coverage"
+    "test:unit": "vitest run --coverage",
+    "docs:events": "tsx scripts/gerar-docs-eventos.ts",
+    "docs:events:check": "tsx scripts/gerar-docs-eventos.ts --check"
   },
   "dependencies": {
     "zod": "^3.24.1",
@@ -25,6 +27,7 @@
     "@bolsiq/config": "workspace:*",
     "@vitest/coverage-v8": "^2.1.8",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "tsx": "^4.19.2"
   }
 }

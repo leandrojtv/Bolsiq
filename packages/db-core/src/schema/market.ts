@@ -200,6 +200,100 @@ export const macroSeries = marketData.table(
 );
 
 // ---------------------------------------------------------------------------
+// Cotação corrente (read-through da brapi)
+// ---------------------------------------------------------------------------
+
+/**
+ * Última cotação conhecida de cada ticker, com atraso.
+ *
+ * Uma linha por ticker, sobrescrita a cada leitura da fonte. É o cache do
+ * read-through: `fetched_at` decide se a leitura seguinte vai à fonte. O
+ * histórico diário continua em `quotes_daily`, que vem do COTAHIST.
+ */
+export const liveQuotes = marketData.table("live_quotes", {
+  ticker: text("ticker").primaryKey(),
+  price: money("price").notNull(),
+  change: money("change").notNull(),
+  changePercent: money("change_percent").notNull(),
+  previousClose: money("previous_close"),
+  open: money("open"),
+  high: money("high"),
+  low: money("low"),
+  volume: bigint("volume", { mode: "bigint" }),
+  /** Instante da cotação na fonte, não o da leitura. */
+  quotedAt: utc("quoted_at").notNull(),
+
+  source: text("source").notNull(),
+  fetchedAt: utc("fetched_at").notNull(),
+  license: text("license").notNull(),
+  sourceRef: text("source_ref").notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Proventos e eventos societários
+// ---------------------------------------------------------------------------
+
+/**
+ * Proventos (dividendo, JCP) e eventos que mudam a quantidade de ações
+ * (desdobramento, grupamento, bonificação).
+ *
+ * `ex_date` é o primeiro pregão sem direito. É a data que o ajuste de preço
+ * usa: o fechamento da véspera é o último com o provento embutido.
+ */
+export const dividends = marketData.table(
+  "dividends",
+  {
+    ticker: text("ticker").notNull(),
+    exDate: date("ex_date").notNull(),
+    kind: text("kind").notNull(),
+    /** Valor por ação; nulo em desdobramento e grupamento. */
+    valuePerShare: money("value_per_share"),
+    /** Multiplicador de ações: 2 em desdobramento 1:2, 0.01 em grupamento 100:1. */
+    factor: money("factor"),
+    /** Razão como publicada, ex. "2 para 1". */
+    ratio: text("ratio"),
+    paymentDate: date("payment_date"),
+    approvedOn: date("approved_on"),
+
+    source: text("source").notNull(),
+    fetchedAt: utc("fetched_at").notNull(),
+    license: text("license").notNull(),
+    sourceRef: text("source_ref").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.ticker, t.exDate, t.kind] })],
+);
+
+// ---------------------------------------------------------------------------
+// Ações em circulação
+// ---------------------------------------------------------------------------
+
+/**
+ * Composição do capital, do arquivo `composicao_capital` do DFP/ITR.
+ *
+ * Gravada como a fonte publica, sem correção: a CVM tem companhias que
+ * informam em milhares e outras em unidades no mesmo arquivo, e corrigir por
+ * palpite transformaria inconsistência da fonte em dado afirmado.
+ */
+export const shareCounts = marketData.table(
+  "share_counts",
+  {
+    cnpj: text("cnpj").notNull(),
+    referenceDate: date("reference_date").notNull(),
+    common: bigint("common", { mode: "bigint" }).notNull(),
+    preferred: bigint("preferred", { mode: "bigint" }).notNull(),
+    total: bigint("total", { mode: "bigint" }).notNull(),
+    treasuryTotal: bigint("treasury_total", { mode: "bigint" }).notNull(),
+    version: integer("version").notNull(),
+
+    source: text("source").notNull(),
+    fetchedAt: utc("fetched_at").notNull(),
+    license: text("license").notNull(),
+    sourceRef: text("source_ref").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cnpj, t.referenceDate] })],
+);
+
+// ---------------------------------------------------------------------------
 // Idempotência de carga
 // ---------------------------------------------------------------------------
 

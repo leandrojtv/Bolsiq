@@ -8,7 +8,14 @@ describe("especificação das rotas", () => {
       expect(rota.response).toBeDefined();
       expect(rota.summary).not.toBe("");
       expect(rota.tags.length).toBeGreaterThan(0);
-      expect(rota.path.startsWith("/v1")).toBe(true);
+      // Fora de /v1 so o /admin, e sempre com o token de administracao.
+      expect(rota.path.startsWith("/v1") || rota.auth === "admin").toBe(true);
+    }
+  });
+
+  it("toda rota /admin exige o token de administracao", () => {
+    for (const rota of rotas.filter((r) => r.path.startsWith("/admin"))) {
+      expect(rota.auth).toBe("admin");
     }
   });
 

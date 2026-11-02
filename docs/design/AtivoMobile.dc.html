@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Bolsiq — PETR4 no celular</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F14}
+a{color:#8FB3FF;text-decoration:none}a:hover{color:#C2D5FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #0B0F14; color: #E7EBF0; font-family: Inter, system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box">
+
+<header style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px">
+<a href="Main.dc.html" aria-label="Voltar" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #E7EBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg></a>
+<span style="font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 16px">PETR4</span>
+<div style="display: flex">
+<button type="button" aria-label="Adicionar à watchlist" style="width: 44px; height: 44px; border: 0; background: transparent; color: #E7EBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"></path></svg></button>
+<a href="Alertas.dc.html" aria-label="Criar alerta" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #E7EBF0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg></a>
+</div>
+</header>
+
+<div style="flex: 1; overflow: hidden; padding: 0 16px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="color: #AEB8C5">Petrobras PN · Ação</span>
+<span style="font-size: 34px; font-weight: 600; font-family: 'JetBrains Mono', monospace">R$ 37,42</span>
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+<span style="font-weight: 600; color: #3DD68C; font-family: 'JetBrains Mono', monospace">▲ +0,86 (+2,35%)</span>
+<span style="font-size: 11px; padding: 3px 8px; border-radius: 6px; background: #2A2113; color: #F5C46B">Atraso 15 min</span>
+</div>
+</div>
+
+<div role="group" aria-label="Período" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; background: #0F141B; padding: 4px; border-radius: 10px">
+<sc-for list="{{periods}}" as="p" hint-placeholder-count="5"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="height: 36px; border-radius: 8px; border: 0; background: {{p.bg}}; color: {{p.fg}}; font: inherit; font-weight: 600">{{p.label}}</button></sc-for>
+</div>
+
+<svg viewBox="0 0 358 200" role="img" aria-label="Gráfico de preço de PETR4" style="width: 358px; height: 200px; display: block">
+<line x1="0" y1="50" x2="358" y2="50" stroke="#1E2631"></line><line x1="0" y1="100" x2="358" y2="100" stroke="#1E2631"></line><line x1="0" y1="150" x2="358" y2="150" stroke="#1E2631"></line>
+<polyline points="{{area}}" fill="#16301F" stroke="none"></polyline>
+<polyline points="{{line}}" fill="none" stroke="#3DD68C" stroke-width="2.2"></polyline>
+</svg>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{ind}}" as="i" hint-placeholder-count="6">
+<div style="background: #121821; border: 1px solid #1E2631; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 11px; color: #9BA6B4">{{i.k}}</span><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600">{{i.v}}</span></div>
+</sc-for>
+</div>
+
+<div style="background: #121821; border: 1px solid #1E2631; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; justify-content: space-between"><span>Preço justo Graham</span><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600">R$ 52,80</span></div>
+<div style="height: 6px; border-radius: 3px; background: #0F141B; overflow: hidden"><div style="width: 71%; height: 6px; background: #3DD68C"></div></div>
+<div style="display: flex; justify-content: space-between; font-size: 12px"><span style="color: #9BA6B4">Teto Bazin (6%) R$ 41,30</span><span style="color: #3DD68C">margem +41,1%</span></div>
+</div>
+</div>
+
+<nav aria-label="Navegação principal" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-top: 1px solid #1E2631; background: #0F141B; padding: 6px 4px 18px">
+<a href="Main.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 48px; justify-content: center; color: #C2D5FF; font-size: 11px; font-weight: 600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>Ativos</a>
+<a href="Comparador.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 48px; justify-content: center; color: #9BA6B4; font-size: 11px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v18M16 3v18M3 8h5M16 16h5"></path></svg>Comparar</a>
+<a href="Screener.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 48px; justify-content: center; color: #9BA6B4; font-size: 11px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg>Screener</a>
+<a href="Carteira.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 48px; justify-content: center; color: #9BA6B4; font-size: 11px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Carteira</a>
+<a href="Alertas.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 48px; justify-content: center; color: #9BA6B4; font-size: 11px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg>Alertas</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { period: '6M' }; }
+  renderVals() {
+    var s = this.state, self = this;
+    var seed = 7; function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    var v = 33.2, arr = []; for (var i = 0; i < 60; i++) { v = v + (rnd() - 0.45) * 0.9; arr.push(v); }
+    function y(x) { return 200 - ((x - 32) / 8) * 200; }
+    var pts = arr.map(function (x, i) { return (i * 358 / 59).toFixed(1) + ',' + y(x).toFixed(1); }).join(' ');
+    var periods = ['1M', '6M', '1A', '5A', 'Máx'].map(function (p) { var on = s.period === p; return { label: p, on: on ? 'true' : 'false', bg: on ? '#233049' : 'transparent', fg: on ? '#C2D5FF' : '#AEB8C5', pick: function () { self.setState({ period: p }); } }; });
+    return { line: pts, area: '0,200 ' + pts + ' 358,200', periods: periods,
+      ind: [{ k: 'P/L', v: '[x,x]' }, { k: 'P/VP', v: '[x,x]' }, { k: 'DY 12m', v: '[x,x%]' }, { k: 'ROE', v: '10,07%' }, { k: 'Mg. líq.', v: '7,54%' }, { k: 'DL/EBITDA', v: '1,73' }] };
+  }
+}
+</script>
+</body>
+</html>

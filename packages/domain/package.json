@@ -18,7 +18,8 @@
     "test:unit": "vitest run --coverage"
   },
   "dependencies": {
-    "@bolsiq/contracts": "workspace:*"
+    "@bolsiq/contracts": "workspace:*",
+    "decimal.js": "^10.4.3"
   },
   "devDependencies": {
     "@bolsiq/config": "workspace:*",

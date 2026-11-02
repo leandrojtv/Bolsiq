@@ -22,6 +22,13 @@
       "when": 1793584450996,
       "tag": "0002_eventos",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793646766639,
+      "tag": "0003_dados_de_mercado",
+      "breakpoints": true
     }
   ]
 }

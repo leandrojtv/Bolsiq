@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Bolsiq — PETR4</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0F14}
+a{color:#8FB3FF;text-decoration:none}a:hover{color:#C2D5FF}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #0B0F14; color: #E7EBF0; font-family: Inter, system-ui, sans-serif; font-size: 14px; display: flex; flex-wrap: wrap; align-items: stretch">
+
+<nav aria-label="Navegação principal" style="flex: 1 1 220px; max-width: 100%; background: #0F141B; border-right: 1px solid #1E2631; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 4px 10px 20px">
+<div style="width: 30px; height: 30px; border-radius: 8px; background: #6C9CFF; display: flex; align-items: center; justify-content: center; color: #0B0F14; font-weight: 700; font-size: 16px">B</div>
+<span style="font-size: 18px; font-weight: 700; letter-spacing: -0.02em">Bolsiq</span>
+</div>
+<a href="Main.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; background: #18202B; color: #E7EBF0; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>Ativos</a>
+<a href="Comparador.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v18M16 3v18M3 8h5M16 16h5"></path></svg>Comparar</a>
+<a href="Screener.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg>Screener</a>
+<a href="Carteira.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>Carteiras</a>
+<a href="Alertas.dc.html" style="display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: 8px; color: #AEB8C5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg>Alertas</a>
+<div style="margin-top: 24px; padding: 0 12px; font-size: 12px; color: #8A95A3; font-weight: 600; letter-spacing: 0.04em">WATCHLIST</div>
+<sc-for list="{{watch}}" as="w" hint-placeholder-count="5">
+<a href="Main.dc.html" style="display: flex; justify-content: space-between; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 8px; color: #E7EBF0; font-family: 'JetBrains Mono', monospace; font-size: 13px"><span>{{w.t}}</span><span style="color: {{w.color}}">{{w.v}}</span></a>
+</sc-for>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+<label for="busca" style="position: absolute; left: -9999px">Buscar ativo</label>
+<div style="flex: 1 1 320px; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 14px; background: #121821; border: 1px solid #232C38; border-radius: 10px">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A95A3" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+<input id="busca" type="search" placeholder="Buscar ação, FII, BDR, ETF ou fundo" style="flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: #E7EBF0; font: inherit">
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #9BA6B4; border: 1px solid #2B3542; border-radius: 6px; padding: 2px 6px">Ctrl K</span>
+</div>
+<button type="button" aria-label="Notificações" style="position: relative; width: 44px; height: 44px; border-radius: 10px; background: #121821; border: 1px solid #232C38; color: #E7EBF0; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21a2 2 0 0 0 4 0"></path></svg><span style="position: absolute; top: 6px; right: 6px; min-width: 16px; height: 16px; border-radius: 8px; background: #FF8A5B; color: #1A0E08; font-size: 10px; font-weight: 700; line-height: 16px">3</span></button>
+<div style="width: 44px; height: 44px; border-radius: 22px; background: #233049; color: #C2D5FF; display: flex; align-items: center; justify-content: center; font-weight: 600">LB</div>
+</div>
+
+<section aria-label="Cabeçalho do ativo" style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 20px; align-items: flex-end">
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+<h1 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; font-family: 'JetBrains Mono', monospace">PETR4</h1>
+<span style="font-size: 16px; color: #AEB8C5">Petrobras PN</span>
+<span style="font-size: 12px; padding: 4px 8px; border-radius: 6px; background: #18202B; color: #AEB8C5">Ação</span>
+<span style="font-size: 12px; padding: 4px 8px; border-radius: 6px; background: #18202B; color: #AEB8C5">Petróleo, gás e biocombustíveis</span>
+</div>
+<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap">
+<span style="font-size: 40px; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums">R$ 37,42</span>
+<span style="font-size: 18px; font-weight: 600; color: #3DD68C; font-family: 'JetBrains Mono', monospace">▲ +0,86 (+2,35%)</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9BA6B4">
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: #2A2113; color: #F5C46B"><span style="width: 6px; height: 6px; border-radius: 3px; background: #F5C46B"></span>Atraso de 15 min</span>
+<span>Fonte: B3 via brapi · atualizado 14:52</span>
+</div>
+</div>
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<button type="button" style="height: 44px; padding: 0 16px; border-radius: 10px; background: #121821; border: 1px solid #2B3542; color: #E7EBF0; font: inherit; font-weight: 600; cursor: pointer">+ Watchlist</button>
+<a href="Comparador.dc.html" style="display: inline-flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 10px; background: #121821; border: 1px solid #2B3542; color: #E7EBF0; font-weight: 600; box-sizing: border-box">Comparar</a>
+<a href="Alertas.dc.html" style="display: inline-flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 10px; background: #6C9CFF; color: #0B0F14; font-weight: 700; box-sizing: border-box">Criar alerta</a>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+
+<section aria-label="Gráfico de preço" style="flex: 999 1 620px; min-width: 0; background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center">
+<div role="group" aria-label="Período" style="display: flex; gap: 4px; background: #0F141B; padding: 4px; border-radius: 10px">
+<sc-for list="{{periods}}" as="p" hint-placeholder-count="5">
+<button type="button" onClick="{{p.pick}}" aria-pressed="{{p.on}}" style="min-width: 44px; height: 36px; padding: 0 10px; border-radius: 8px; border: 0; background: {{p.bg}}; color: {{p.fg}}; font: inherit; font-weight: 600; cursor: pointer">{{p.label}}</button>
+</sc-for>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px">
+<sc-for list="{{toggles}}" as="t" hint-placeholder-count="4">
+<button type="button" onClick="{{t.pick}}" aria-pressed="{{t.on}}" style="height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid {{t.border}}; background: transparent; color: {{t.fg}}; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px"><span style="width: 10px; height: 3px; border-radius: 2px; background: {{t.swatch}}"></span>{{t.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="display: flex; gap: 16px; font-size: 12px; color: #9BA6B4; font-family: 'JetBrains Mono', monospace; flex-wrap: wrap">
+<span>A <b style="color: #E7EBF0">36,61</b></span><span>Máx <b style="color: #E7EBF0">37,58</b></span><span>Mín <b style="color: #E7EBF0">36,40</b></span><span>F <b style="color: #E7EBF0">37,42</b></span><span>Vol <b style="color: #E7EBF0">48,2 mi</b></span>
+</div>
+<div style="display: flex; gap: 8px">
+<svg viewBox="0 0 1000 320" preserveAspectRatio="none" role="img" aria-label="Candles diários de PETR4 com médias móveis" style="flex: 1; min-width: 0; height: 320px; display: block">
+<line x1="0" y1="64" x2="1000" y2="64" stroke="#1E2631"></line>
+<line x1="0" y1="128" x2="1000" y2="128" stroke="#1E2631"></line>
+<line x1="0" y1="192" x2="1000" y2="192" stroke="#1E2631"></line>
+<line x1="0" y1="256" x2="1000" y2="256" stroke="#1E2631"></line>
+<sc-for list="{{candles}}" as="c">
+<line x1="{{c.cx}}" x2="{{c.cx}}" y1="{{c.hy}}" y2="{{c.ly}}" stroke="{{c.color}}" stroke-width="1.2"></line>
+<rect x="{{c.x}}" y="{{c.by}}" width="{{c.w}}" height="{{c.bh}}" fill="{{c.color}}"></rect>
+</sc-for>
+<sc-if value="{{showMa20}}" hint-placeholder-val="{{ true }}"><polyline points="{{ma20}}" fill="none" stroke="#6C9CFF" stroke-width="2"></polyline></sc-if>
+<sc-if value="{{showMa50}}" hint-placeholder-val="{{ true }}"><polyline points="{{ma50}}" fill="none" stroke="#F5C46B" stroke-width="2"></polyline></sc-if>
+</svg>
+<div aria-hidden="true" style="width: 56px; display: flex; flex-direction: column; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9BA6B4; padding: 2px 0">
+<span>40,00</span><span>38,00</span><span>36,00</span><span>34,00</span><span>32,00</span>
+</div>
+</div>
+<svg viewBox="0 0 1000 70" preserveAspectRatio="none" aria-hidden="true" style="width: calc(100% - 64px); height: 70px; display: block">
+<sc-for list="{{candles}}" as="c"><rect x="{{c.x}}" y="{{c.vy}}" width="{{c.w}}" height="{{c.vh}}" fill="{{c.vcolor}}"></rect></sc-for>
+</svg>
+<sc-if value="{{showRsi}}" hint-placeholder-val="{{ false }}">
+<div style="border-top: 1px solid #1E2631; padding-top: 8px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; color: #9BA6B4">IFR (14) <b style="color: #C9A7FF; font-family: 'JetBrains Mono', monospace">58,3</b></span>
+<svg viewBox="0 0 1000 80" preserveAspectRatio="none" aria-hidden="true" style="width: calc(100% - 64px); height: 80px; display: block"><rect x="0" y="24" width="1000" height="32" fill="#18202B"></rect><polyline points="{{rsi}}" fill="none" stroke="#C9A7FF" stroke-width="2"></polyline></svg>
+</div>
+</sc-if>
+<div style="display: flex; justify-content: space-between; font-size: 12px; color: #9BA6B4; flex-wrap: wrap; gap: 8px">
+<span>Interval: <b style="color: #E7EBF0">Diário</b> · Semanal · Mensal</span>
+<label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #6C9CFF">Ajustado por proventos</label>
+</div>
+</section>
+
+<aside aria-label="Indicadores" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<section style="background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #AEB8C5">Indicadores</h2>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{indicators}}" as="i" hint-placeholder-count="8">
+<div style="background: #0F141B; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 12px; color: #9BA6B4">{{i.k}}</span>
+<span style="font-size: 18px; font-weight: 600; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums">{{i.v}}</span>
+</div>
+</sc-for>
+</div>
+</section>
+<section style="background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+<h2 style="margin: 0; font-size: 14px; font-weight: 600; color: #AEB8C5">Preço justo</h2>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between"><span>Graham</span><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600">R$ 52,80</span></div>
+<div style="height: 8px; border-radius: 4px; background: #0F141B; overflow: hidden"><div style="width: 71%; height: 8px; background: #3DD68C"></div></div>
+<span style="font-size: 12px; color: #3DD68C">Margem de segurança +41,1%</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between"><span>Bazin (6%)</span><span style="font-family: 'JetBrains Mono', monospace; font-weight: 600">R$ 41,30</span></div>
+<div style="height: 8px; border-radius: 4px; background: #0F141B; overflow: hidden"><div style="width: 90%; height: 8px; background: #3DD68C"></div></div>
+<span style="font-size: 12px; color: #3DD68C">Margem de segurança +10,4%</span>
+</div>
+<p style="margin: 0; font-size: 12px; color: #9BA6B4; line-height: 1.5">Critérios publicados pelos autores dos métodos. Não é recomendação.</p>
+</section>
+</aside>
+</div>
+
+<section aria-label="Detalhes" style="background: #121821; border: 1px solid #1E2631; border-radius: 14px; padding: 0 16px 16px">
+<div role="tablist" style="display: flex; gap: 4px; border-bottom: 1px solid #1E2631; overflow-x: auto">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+<button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 48px; padding: 0 14px; border: 0; border-bottom: 2px solid {{t.line}}; background: transparent; color: {{t.fg}}; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap">{{t.label}}</button>
+</sc-for>
+</div>
+<sc-if value="{{tabProventos}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-wrap: wrap; gap: 24px; padding-top: 16px">
+<div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<span style="font-size: 13px; color: #AEB8C5">Proventos por ano (R$ por ação)</span>
+<div style="display: flex; align-items: flex-end; gap: 12px; height: 160px">
+<sc-for list="{{divYears}}" as="d" hint-placeholder-count="6">
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; justify-content: flex-end; height: 160px">
+<span style="font-size: 11px; font-family: 'JetBrains Mono', monospace; color: #AEB8C5">{{d.v}}</span>
+<div style="width: 100%; max-width: 44px; height: {{d.h}}; background: #6C9CFF; border-radius: 4px 4px 0 0"></div>
+<span style="font-size: 12px; color: #9BA6B4">{{d.y}}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="flex: 1 1 360px; min-width: 0; overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px">
+<thead><tr style="color: #9BA6B4; text-align: left"><th style="padding: 8px; font-weight: 500">Tipo</th><th style="padding: 8px; font-weight: 500">Data com</th><th style="padding: 8px; font-weight: 500">Pagamento</th><th style="padding: 8px; font-weight: 500; text-align: right">Valor</th></tr></thead>
+<tbody>
+<sc-for list="{{divs}}" as="d" hint-placeholder-count="4">
+<tr style="border-top: 1px solid #1E2631"><td style="padding: 10px 8px">{{d.t}}</td><td style="padding: 10px 8px; font-family: 'JetBrains Mono', monospace">{{d.c}}</td><td style="padding: 10px 8px; font-family: 'JetBrains Mono', monospace">{{d.p}}</td><td style="padding: 10px 8px; text-align: right; font-family: 'JetBrains Mono', monospace">{{d.v}}</td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{tabDemos}}" hint-placeholder-val="{{ false }}">
+<div style="overflow-x: auto; padding-top: 16px">
+<table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; font-family: 'JetBrains Mono', monospace">
+<thead><tr style="color: #9BA6B4; text-align: right"><th style="padding: 8px; text-align: left; font-family: Inter, sans-serif; font-weight: 500">DRE (R$ bi) · DFP CVM</th><th style="padding: 8px; font-weight: 500">2024</th><th style="padding: 8px; font-weight: 500">2023</th><th style="padding: 8px; font-weight: 500">2022</th></tr></thead>
+<tbody>
+<tr style="border-top: 1px solid #1E2631; text-align: right"><td style="padding: 10px 8px; text-align: left; font-family: Inter, sans-serif">Receita líquida</td><td style="padding: 10px 8px">490,8</td><td style="padding: 10px 8px">[valor]</td><td style="padding: 10px 8px">[valor]</td></tr>
+<tr style="border-top: 1px solid #1E2631; text-align: right"><td style="padding: 10px 8px; text-align: left; font-family: Inter, sans-serif">EBITDA</td><td style="padding: 10px 8px">204,2</td><td style="padding: 10px 8px">[valor]</td><td style="padding: 10px 8px">[valor]</td></tr>
+<tr style="border-top: 1px solid #1E2631; text-align: right"><td style="padding: 10px 8px; text-align: left; font-family: Inter, sans-serif">Dívida líquida</td><td style="padding: 10px 8px">353,2</td><td style="padding: 10px 8px">[valor]</td><td style="padding: 10px 8px">[valor]</td></tr>
+<tr style="border-top: 1px solid #1E2631; text-align: right"><td style="padding: 10px 8px; text-align: left; font-family: Inter, sans-serif">Margem líquida</td><td style="padding: 10px 8px">7,54%</td><td style="padding: 10px 8px">[valor]</td><td style="padding: 10px 8px">[valor]</td></tr>
+</tbody>
+</table>
+</div>
+</sc-if>
+<sc-if value="{{tabOutros}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; padding-top: 16px; color: #9BA6B4">Conteúdo desta aba: resumo da empresa, CNPJ, segmento de listagem e links de RI.</p>
+</sc-if>
+</section>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { period: '6M', ma20: true, ma50: true, rsi: false, tab: 'Proventos' }; }
+  renderVals() {
+    var s = this.state, self = this;
+    var seed = 7; function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    var n = 80, price = 33.2, data = [];
+    for (var i = 0; i < n; i++) { var o = price; var c = o + (rnd() - 0.45) * 0.9; var h = Math.max(o, c) + rnd() * 0.5; var l = Math.min(o, c) - rnd() * 0.5; data.push({ o: o, c: c, h: h, l: l, v: 0.3 + rnd() * 0.7 }); price = c; }
+    var lo = 32, hi = 40; function y(v) { return 320 - ((v - lo) / (hi - lo)) * 320; }
+    var step = 1000 / n, w = step * 0.62;
+    var candles = data.map(function (d, i) { var up = d.c >= d.o; var col = up ? '#3DD68C' : '#FF8A5B'; return { x: i * step + (step - w) / 2, cx: i * step + step / 2, w: w, by: y(Math.max(d.o, d.c)), bh: Math.max(1, Math.abs(y(d.o) - y(d.c))), hy: y(d.h), ly: y(d.l), color: col, vy: 70 - d.v * 66, vh: d.v * 66, vcolor: up ? '#1E5A40' : '#6B3524' }; });
+    function ma(k) { var pts = []; for (var i = k - 1; i < n; i++) { var sum = 0; for (var j = i - k + 1; j <= i; j++) sum += data[j].c; pts.push((i * step + step / 2).toFixed(1) + ',' + y(sum / k).toFixed(1)); } return pts.join(' '); }
+    var rsi = data.map(function (d, i) { return (i * step + step / 2).toFixed(1) + ',' + (80 - (0.35 + 0.3 * Math.sin(i / 6) + rnd() * 0.15) * 80).toFixed(1); }).join(' ');
+    var periods = ['1M', '6M', '1A', '5A', 'Máx'].map(function (p) { var on = s.period === p; return { label: p, on: on ? 'true' : 'false', bg: on ? '#233049' : 'transparent', fg: on ? '#C2D5FF' : '#AEB8C5', pick: function () { self.setState({ period: p }); } }; });
+    var tg = [['ma20', 'MM 20', '#6C9CFF'], ['ma50', 'MM 50', '#F5C46B'], ['rsi', 'IFR 14', '#C9A7FF']].map(function (t) { var on = s[t[0]]; return { label: t[1], swatch: t[2], on: on ? 'true' : 'false', border: on ? '#3A4A63' : '#232C38', fg: on ? '#E7EBF0' : '#9BA6B4', pick: function () { var o = {}; o[t[0]] = !s[t[0]]; self.setState(o); } }; });
+    var tabs = ['Proventos', 'Demonstrativos', 'Sobre'].map(function (t) { var on = s.tab === t; return { label: t, on: on ? 'true' : 'false', line: on ? '#6C9CFF' : 'transparent', fg: on ? '#E7EBF0' : '#9BA6B4', pick: function () { self.setState({ tab: t }); } }; });
+    var dv = [['2020', 0.9], ['2021', 3.6], ['2022', 6.3], ['2023', 4.2], ['2024', 3.3], ['2025', 2.8]];
+    return {
+      candles: candles, ma20: ma(20), ma50: ma(50), rsi: rsi, showMa20: s.ma20, showMa50: s.ma50, showRsi: s.rsi,
+      periods: periods, toggles: tg, tabs: tabs,
+      tabProventos: s.tab === 'Proventos', tabDemos: s.tab === 'Demonstrativos', tabOutros: s.tab === 'Sobre',
+      watch: [{ t: 'PETR4', v: '+2,35%', color: '#3DD68C' }, { t: 'VALE3', v: '-0,82%', color: '#FF8A5B' }, { t: 'WEGE3', v: '+0,41%', color: '#3DD68C' }, { t: 'HGLG11', v: '+0,12%', color: '#3DD68C' }, { t: 'ITUB4', v: '-0,30%', color: '#FF8A5B' }],
+      indicators: [{ k: 'P/L', v: '[x,x]' }, { k: 'P/VP', v: '[x,x]' }, { k: 'DY 12m', v: '[x,x%]' }, { k: 'EV/EBITDA', v: '[x,x]' }, { k: 'ROE', v: '10,07%' }, { k: 'Margem líq.', v: '7,54%' }, { k: 'DL/EBITDA', v: '1,73' }, { k: 'Beta', v: '[x,xx]' }],
+      divYears: dv.map(function (d) { return { y: d[0], v: d[1].toFixed(2).replace('.', ','), h: Math.round(d[1] / 6.3 * 120) + 'px' }; }),
+      divs: [{ t: 'Dividendo', c: '[dd/mm/aaaa]', p: '[dd/mm/aaaa]', v: 'R$ [0,00]' }, { t: 'JCP', c: '[dd/mm/aaaa]', p: '[dd/mm/aaaa]', v: 'R$ [0,00]' }, { t: 'Dividendo', c: '[dd/mm/aaaa]', p: '[dd/mm/aaaa]', v: 'R$ [0,00]' }]
+    };
+  }
+}
+</script>
+</body>
+</html>

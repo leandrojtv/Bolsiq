@@ -9,19 +9,53 @@ no [ADR 0009](../adr/0009-analytics-como-modulo.md).
 
 ## Estado atual
 
-| Parte                                  | Estado                                                   |
-| -------------------------------------- | -------------------------------------------------------- |
-| Formulas dos indicadores               | pronto, 85 testes, conferido contra o DFP 2024 da CVM    |
-| Schema `analytics` e migrations        | pronto, 4 tabelas, 2 hypertables                         |
-| Filtro do screener em Zod, com presets | pronto                                                   |
-| Recalculo por evento                   | **nao implementado**, depende dos eventos terem produtor |
-| Telas `/comparar` e `/screener`        | **nao implementadas**, dependem de `apps/web`            |
-| `POST /api/screener`                   | **nao implementado**, e BFF do `apps/web`                |
+| Parte                                     | Estado                                              |
+| ----------------------------------------- | --------------------------------------------------- |
+| Formulas dos indicadores                  | pronto, conferido contra o DFP 2024 da CVM          |
+| Schema `analytics` e migrations           | pronto, 6 tabelas, 2 hypertables                    |
+| Filtro do screener em Zod, com presets    | pronto                                              |
+| Execucao do screener (`executarScreener`) | pronto, testado contra Postgres real                |
+| Recalculo por evento                      | pronto, no processo `analytics-worker` (ADR 0018)   |
+| `analytics.indicators.updated`            | **nao emitido**: o analytics nao tem outbox proprio |
+| Telas `/comparar` e `/screener`           | **nao implementadas**, dependem de `apps/web`       |
+| `POST /api/screener`                      | **nao implementado**, e BFF do `apps/web`           |
 
-As telas e o endpoint ficam bloqueados porque `apps/web` nao existe. O
-recalculo por evento depende de os adapters de fonte do `market-data` existirem
-para que `marketdata.daily.closed` e `marketdata.statement.published` sejam de
-fato emitidos.
+## Recalculo
+
+O `analytics-worker` consome o stream `MARKETDATA` e enfileira em
+`analytics.recalc_queue`:
+
+| Evento                | Recalcula                          |
+| --------------------- | ---------------------------------- |
+| `asset.listed`        | o ticker novo                      |
+| `statement.published` | os tickers da companhia            |
+| `daily.closed`        | todo o universo listado no espelho |
+| `dividend.announced`  | o ticker                           |
+| `asset.delisted`      | nada; marca o espelho como fora    |
+
+O handler so enfileira, dentro da transacao da idempotencia. Um laco drena a
+fila com `FOR UPDATE SKIP LOCKED` e chama o `/v1` para cada ticker:
+`assets`, `history` (bruto e ajustado, 1 ano), `fundamentals` (anual) e
+`dividends` (6 anos). CDI e IBOV sao lidos uma vez por hora para a rodada.
+
+Acao com DFP calcula tudo, com data-base igual a do demonstrativo. FII, ETF e
+BDR, sem demonstrativo, calculam o que so depende de preco e provento:
+desempenho, dividend yield e Bazin, com data-base no ultimo pregao.
+
+Conta ausente na fonte vira indicador nulo, nao zero: banco sem resultado bruto
+fica sem margem bruta. Razao acima de 10^11 tambem vira nula, em vez de
+estourar o `numeric`.
+
+### Escala do numero de acoes
+
+O `composicao_capital` da CVM mistura unidades e milhares no mesmo arquivo, sem
+coluna que diga qual. No DFP 2025, 261 de 668 companhias informam em milhares
+(Cyrela: 366.311; Vale: 4.268.779). O `market-data` devolve o numero como a
+fonte publica; o recalculo escolhe a escala em que o P/VP fica entre 0,05 e 40. A faixa e mais estreita que o fator mil, entao no maximo uma escala passa.
+Nenhuma passando (patrimonio negativo), os indicadores por acao ficam nulos.
+
+Sem a correcao, essas 261 empresas apareciam com P/L perto de zero no topo de
+qualquer filtro de valor.
 
 ## Entradas
 

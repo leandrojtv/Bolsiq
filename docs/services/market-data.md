@@ -8,18 +8,20 @@ mercado chama este serviço.
 
 ## Estado atual
 
-A base está de pé e verificada; os adapters de fonte ainda não.
-
-| Parte                                              | Estado                                                                  |
-| -------------------------------------------------- | ----------------------------------------------------------------------- |
-| Monorepo, TypeScript estrito, Turborepo            | pronto                                                                  |
-| Schema e migrations, com 4 hypertables             | pronto, aplicado em Postgres 17 + TimescaleDB                           |
-| Fastify com `ROLE`, health e OpenAPI gerado do Zod | pronto                                                                  |
-| pg-boss com filas e agenda                         | pronto, 6 jobs agendados em `America/Sao_Paulo`                         |
-| Imagem Docker e compose                            | pronto, smoke passando                                                  |
-| Adapters CVM, B3 e BCB                             | **não implementados** — as conversões existem em `@bolsiq/domain`       |
-| Endpoints `/admin/jobs`                            | **não implementados**                                                   |
-| Autenticação, planos e medição                     | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md) |
+| Parte                                              | Estado                                                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Monorepo, TypeScript estrito, Turborepo            | pronto                                                                                     |
+| Schema e migrations, com 4 hypertables             | pronto, aplicado em Postgres 17 + TimescaleDB                                              |
+| Fastify com `ROLE`, health e OpenAPI gerado do Zod | pronto, com Swagger UI em `/docs`                                                          |
+| pg-boss com filas e agenda                         | pronto, manipuladores ligados a cada job                                                   |
+| Imagem Docker e compose                            | pronto, smoke passando                                                                     |
+| Adapters brapi, B3 COTAHIST, CVM e BCB             | pronto; brapi e SGS em read-through, COTAHIST e CVM em lote (ADR 0013)                     |
+| Endpoints de dados `/v1`                           | pronto: assets, quotes, history, dividends, fundamentals, macro                            |
+| Endpoints `/admin/jobs`                            | pronto, com `ADMIN_TOKEN`                                                                  |
+| Produtor de eventos via outbox                     | pronto: quote.updated, daily.closed, dividend.announced, statement.published, asset.listed |
+| Carga histórica                                    | pronto: `make backfill FROM=2024`, cerca de 8 minutos                                      |
+| Informe diário de fundos (`cvm-fundos`)            | **não implementado**: job registrado sem efeito, nenhuma tela o consome                    |
+| Autenticação, planos e medição                     | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md)                    |
 
 ## Papéis: `ROLE`
 
@@ -45,13 +47,20 @@ aconteceu de fato ao subir o compose pela primeira vez.
 ```
 services/market-data/
   src/
-    config.ts          ROLE e ambiente, validados por Zod
-    app.ts             aplicação Fastify (não abre porta: testável por inject)
-    server.ts          ponto de entrada; decide o que sobe conforme ROLE
-    worker.ts          pg-boss: filas e agenda
-    jobs/registry.ts   definição dos jobs, cron, retry e expiração
-    routes/specs.ts    rotas em Zod — fonte única do app e do OpenAPI
-    openapi-generate.ts
+    config.ts            ROLE e ambiente, validados por Zod
+    app.ts               aplicação Fastify (não abre porta: testável por inject)
+    server.ts            ponto de entrada; decide o que sobe conforme ROLE
+    worker.ts            pg-boss: filas, agenda e manipuladores
+    backfill.ts          carga histórica (make backfill)
+    fontes/              um adapter por fonte: brapi, b3-cotahist, cvm, bcb
+    dados/ingestao.ts    gravação em lote, com outbox na mesma transação
+    dados/servico.ts     leitura do /v1, com read-through e coalescência
+    dados/carga.ts       fetch_log: idempotência por hash do arquivo
+    jobs/registry.ts     definição dos jobs, cron, retry e expiração
+    jobs/handlers.ts     o que cada job faz (worker e backfill usam o mesmo)
+    jobs/admin.ts        /admin/jobs sobre as tabelas do pg-boss
+    routes/specs.ts      rotas em Zod — fonte única do app e do OpenAPI
+    routes/registrar.ts  registra as rotas a partir das specs
 ```
 
 Pacotes de que depende:
@@ -74,6 +83,9 @@ tabelas.
 | `financial_statements`                 | `(cvm_code, reference_date, statement_type, is_consolidated, account_code)` | não                |
 | `fund_daily`                           | `(cnpj_fundo, date)`                                                        | sim, chunk semanal |
 | `macro_series`                         | `(series_code, date)`                                                       | sim, chunk anual   |
+| `live_quotes`                          | `ticker`                                                                    | não                |
+| `dividends`                            | `(ticker, ex_date, kind)`                                                   | não                |
+| `share_counts`                         | `(cnpj, reference_date)`                                                    | não                |
 | `fetch_log`                            | `(source, source_ref, content_hash)`                                        | não                |
 | `api_plans`, `api_clients`, `api_keys` | `id`                                                                        | não                |
 | `api_usage`                            | `(key_id, ts, route)`                                                       | sim, chunk diário  |
@@ -133,12 +145,40 @@ nomeado continua correto.
 | `b3-cotahist-anual`  | sob demanda     |
 | `ajuste-proventos`   | sob demanda     |
 
-Os handlers ainda não existem: a fila, a agenda e o retry com backoff estão de
-pé, e é o que `/admin/jobs` vai consultar.
+Cada job tem manipulador em `jobs/handlers.ts`. O `backfill.ts` chama os
+mesmos manipuladores, em ordem: COTAHIST anual, cadastro, DFP e ITR, SGS.
 
-Pendência conhecida: a agenda das 19:30 em dias úteis não conhece o calendário
-de feriados da B3. Em feriado o download devolve 404, e **feriado não é erro** —
-o job precisa encerrar como "sem dado" em vez de `failed`.
+| Job                  | O que faz                                                                | Eventos                                    |
+| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
+| `b3-cotahist-diario` | pregão do dia; 404 da B3 (feriado) encerra como `sem_pregao`, não falha  | `quote.updated` por papel, `daily.closed`  |
+| `b3-cotahist-anual`  | ano inteiro (`{"ano": 2024}`), sem evento de preço                       | `asset.listed` para papel novo             |
+| `cvm-cadastro`       | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                   | nenhum                                     |
+| `cvm-dfp`, `cvm-itr` | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual | `statement.published` por companhia e data |
+| `bcb-sgs`            | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                    | nenhum                                     |
+| `cvm-fundos`         | sem efeito nesta versão                                                  | —                                          |
+| `ajuste-proventos`   | sem efeito: o ajuste é calculado na leitura de `/v1/history`             | —                                          |
+
+O feriado continua fora da agenda das 19:30, mas não gera falha: o download
+devolve 404 e o job termina como `sem_pregao`.
+
+### Idempotência da carga
+
+`fetch_log` guarda o hash de cada arquivo. Hash igual a uma carga `ok`: o
+arquivo é pulado. Carga que caiu no meio (status `processando` ou `falhou`) é
+refeita em **modo de recuperação**, que emite eventos para tudo o que está no
+arquivo e não só para o que mudou: a tentativa anterior pode ter gravado o dado
+e perdido o evento.
+
+### Duas armadilhas do ITR
+
+O ITR traz, para a mesma conta e data-base, a DRE do trimestre e a acumulada no
+ano. A chave natural não inclui o início do período, então só uma fica: vale a
+maior versão e, na mesma versão, o período mais curto (o trimestre). A regra
+está no lote em memória e no `WHERE` do upsert, para o resultado não depender
+de em qual lote cada linha caiu.
+
+O DMPL fica de fora: tem uma coluna de valor por componente do patrimônio, o
+que quebra a chave por conta, e nenhum indicador o usa.
 
 ## O que já está testado
 
@@ -160,44 +200,74 @@ assumir erraria por mil, e o número continuaria plausível.
 
 ## Rodando
 
-```bash
-make up                # Postgres + NATS
-make db-migrate        # aplica as migrations
-make test              # unitários com piso de cobertura
-```
-
-Ou o compose do CI, que é o caminho mais próximo de produção:
+Ambiente completo (Postgres, NATS, Mailpit, API, worker, alerts e analytics):
 
 ```bash
-make build-image
+make dev-up
 ```
 
-Para reproduzir o que o CI faz, que parte de um checkout limpo:
+Carga histórica desde 2024 (COTAHIST, CVM e BCB), cerca de 8 minutos:
 
 ```bash
-make build-image-clean
+make backfill FROM=2024
+```
+
+Swagger em http://localhost:8000/docs. As rotas `/admin` pedem o token do
+compose (`dev-admin-token-troque-em-producao`) no botão "Authorize".
+
+Testes:
+
+```bash
+make test
 ```
 
 ```bash
-IMAGE_TAG=local docker compose -f infra/docker/compose.ci.yml up -d --wait
+make test-integration
 ```
 
-```bash
-bash infra/docker/smoke.sh http://localhost:8000
-```
+### Variáveis
 
-Isso sobe o Postgres, aplica as migrations como passo único e sobe `api` e
-`worker` da mesma imagem.
+| Variável              | Padrão | Para quê                                                |
+| --------------------- | ------ | ------------------------------------------------------- |
+| `BRAPI_TOKEN`         | vazio  | sem token, a brapi só serve os tickers de demonstração  |
+| `BRAPI_DELAY_MINUTES` | 15     | atraso informado em `meta.delay_minutes` da cotação     |
+| `QUOTE_TTL_SECONDS`   | 60     | validade da cotação corrente no cache                   |
+| `ADMIN_TOKEN`         | vazio  | token das rotas `/admin`; sem ele, `/admin` recusa tudo |
 
 ## Endpoints
 
-| Método | Rota               | Chave | Observação                                 |
-| ------ | ------------------ | ----- | ------------------------------------------ |
-| GET    | `/v1/health`       | não   | único endpoint servido por todos os papéis |
-| GET    | `/v1/openapi.json` | não   | gerado dos schemas Zod                     |
+| Método | Rota                        | Fonte                          | Observação                                          |
+| ------ | --------------------------- | ------------------------------ | --------------------------------------------------- |
+| GET    | `/v1/health`                | —                              | anônimo; servido por todos os papéis                |
+| GET    | `/v1/openapi.json`, `/docs` | —                              | gerados dos schemas Zod                             |
+| GET    | `/v1/assets?q=&type=`       | COTAHIST + cadastro CVM        | até 20; ticker exato primeiro, depois prefixo, nome |
+| GET    | `/v1/assets/{ticker}`       | COTAHIST + cadastro CVM        |                                                     |
+| GET    | `/v1/quotes/{tickers}`      | brapi; reserva no COTAHIST     | até 20 tickers separados por vírgula                |
+| GET    | `/v1/history/{ticker}`      | COTAHIST; proventos da brapi   | `interval=1d\|1wk\|1mo`, padrão 1 ano, ajustado     |
+| GET    | `/v1/dividends/{ticker}`    | brapi                          | dividendo, JCP, desdobramento, grupamento           |
+| GET    | `/v1/fundamentals/{ticker}` | CVM DFP/ITR                    | `period=annual\|quarterly`; consolidado se houver   |
+| GET    | `/v1/macro/{serie}`         | SGS; IBOV pela brapi ou BOVA11 | `cdi`, `selic`, `ipca`, `igpm`, `ibov`              |
+| GET    | `/admin/jobs`               | pg-boss                        | `Authorization: Bearer $ADMIN_TOKEN`                |
+| POST   | `/admin/jobs/{name}`        | pg-boss                        | corpo opcional `{"data": {"ano": 2024}}`            |
 
-As rotas de dados entram conforme os adapters nascem. Toda rota nova passa por
-`routes/specs.ts`, que é a fonte única do app e do OpenAPI — é isso que impede
-os dois de divergirem, e o que o check `contract` do CI compara com `oasdiff`.
+Toda resposta de dados traz `meta`: `source`, `fetched_at`, `license`,
+`stale` e `delay_minutes`. `stale` é verdadeiro quando a fonte falhou e o valor
+é o último conhecido, ou quando o pregão esperado ainda não foi carregado.
+
+Decisões que valem para todas:
+
+- **Ajuste por proventos é calculado na leitura**, para trás: o último preço é
+  o negociado, e cada provento multiplica os anteriores por `1 - D/P`. Não há
+  coluna `adj_close` a manter em dia.
+- **IBOV sem token da brapi vem do BOVA11.** O SGS parou de publicar o
+  Ibovespa (série 7) em 2019. O ETF replica o índice e está no COTAHIST; a
+  unidade da resposta diz que é aproximação.
+- **Provento antigo não é anúncio.** `dividend.announced` só sai para data-ex
+  dos últimos 7 dias em diante: a primeira leitura da PETR4 traz 400 proventos
+  históricos, que disparariam alerta de dividendo pago há dez anos.
+
+Toda rota nova passa por `routes/specs.ts`, que é a fonte única do app e do
+OpenAPI — é isso que impede os dois de divergirem, e o que o check `contract`
+do CI compara com `oasdiff`.
 
 Contrato para o cliente: [guia-do-cliente.md](../api/guia-do-cliente.md).

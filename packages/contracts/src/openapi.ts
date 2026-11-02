@@ -18,10 +18,23 @@ export interface RouteSpec {
   tags: string[];
   /** `true` quando a rota é pública (não exige X-API-Key). */
   anonymous?: boolean;
+  /** `admin`: exige o token de administração em vez da chave de cliente. */
+  auth?: "admin";
   response: AnySchema;
   query?: AnySchema;
   params?: AnySchema;
+  body?: AnySchema;
 }
+
+/**
+ * Schemas inline, sem `$ref`.
+ *
+ * Com o padrao, o zod-to-json-schema troca a segunda ocorrencia de um mesmo
+ * schema (Money, IsoDate) por `$ref: "#/properties/..."`, relativo ao schema
+ * da resposta. No documento OpenAPI esse caminho nao existe, e o oasdiff do
+ * check `contract` recusa o arquivo.
+ */
+const OPCOES_DE_SCHEMA = { target: "openApi3", $refStrategy: "none" } as const;
 
 export interface OpenApiOptions {
   title: string;
@@ -57,7 +70,7 @@ export function buildOpenApi(
           description: "Sucesso",
           content: {
             "application/json": {
-              schema: zodToJsonSchema(route.response, { target: "openApi3" }),
+              schema: zodToJsonSchema(route.response, OPCOES_DE_SCHEMA),
             },
           },
         },
@@ -67,7 +80,19 @@ export function buildOpenApi(
     if (parameters.length > 0) {
       operation.parameters = parameters;
     }
-    if (route.anonymous !== true) {
+    if (route.body) {
+      operation.requestBody = {
+        required: false,
+        content: {
+          "application/json": {
+            schema: zodToJsonSchema(route.body, OPCOES_DE_SCHEMA),
+          },
+        },
+      };
+    }
+    if (route.auth === "admin") {
+      operation.security = [{ adminToken: [] }];
+    } else if (route.anonymous !== true) {
       operation.security = [{ apiKey: [] }];
     }
 
@@ -91,6 +116,10 @@ export function buildOpenApi(
           in: "header",
           name: "X-API-Key",
         },
+        adminToken: {
+          type: "http",
+          scheme: "bearer",
+        },
       },
     },
     paths,
@@ -103,7 +132,7 @@ function paramsToOpenApi(
 ): Record<string, unknown>[] {
   if (!schema) return [];
 
-  const json = zodToJsonSchema(schema, { target: "openApi3" }) as {
+  const json = zodToJsonSchema(schema, OPCOES_DE_SCHEMA) as {
     properties?: Record<string, unknown>;
     required?: string[];
   };

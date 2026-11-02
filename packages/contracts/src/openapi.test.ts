@@ -151,4 +151,41 @@ describe("buildOpenApi", () => {
       required: false,
     });
   });
+
+  it("rota admin usa o token de administracao e documenta o corpo", () => {
+    const doc = buildOpenApi(options, [
+      {
+        method: "post",
+        path: "/admin/jobs/{name}",
+        summary: "Dispara job",
+        tags: ["admin"],
+        auth: "admin",
+        response: z.object({ id: z.string() }),
+        params: z.object({ name: z.string() }),
+        body: z.object({ data: z.record(z.string(), z.unknown()).optional() }),
+      },
+    ]) as Record<string, any>;
+
+    const op = doc.paths["/admin/jobs/{name}"].post;
+    expect(op.security).toEqual([{ adminToken: [] }]);
+    expect(op.requestBody.content["application/json"].schema.type).toBe("object");
+    expect(doc.components.securitySchemes.adminToken).toEqual({
+      type: "http",
+      scheme: "bearer",
+    });
+  });
+
+  it("nao gera $ref relativo ao schema da resposta", () => {
+    const Valor = z.string();
+    const doc = buildOpenApi(options, [
+      {
+        method: "get",
+        path: "/x",
+        summary: "x",
+        tags: ["x"],
+        response: z.object({ a: Valor, b: Valor }),
+      },
+    ]);
+    expect(JSON.stringify(doc)).not.toContain("$ref");
+  });
 });

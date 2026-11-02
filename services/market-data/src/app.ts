@@ -1,6 +1,10 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import swagger from "@fastify/swagger";
+import swaggerUi from "@fastify/swagger-ui";
 import type { Messaging } from "@bolsiq/messaging";
 import type { StreamRegistrado } from "./stream/rota.js";
+import type { ServicoDeDados } from "./dados/servico.js";
+import { registrarRotas, type AdminDeJobs } from "./routes/registrar.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -36,6 +40,10 @@ export interface AppDeps {
    * antes de conectar ao barramento, para o health responder com o NATS fora.
    */
   messaging?: Messaging;
+  /** Leitura dos dados de mercado. Sem ele, só health, OpenAPI e stream. */
+  servico?: ServicoDeDados;
+  /** Fila de jobs para /admin/jobs. */
+  admin?: AdminDeJobs;
 }
 
 /**
@@ -147,6 +155,30 @@ export async function criarApp(deps: AppDeps): Promise<FastifyInstance> {
   );
 
   app.get("/v1/openapi.json", () => documento);
+
+  // Swagger UI em /docs, sobre o mesmo documento. O servidor relativo vem
+  // primeiro para o "Try it out" chamar esta instância, e não produção.
+  await app.register(swagger, {
+    mode: "static",
+    specification: {
+      document: {
+        ...documento,
+        servers: [
+          { url: "/", description: "esta instância" },
+          ...(documento.servers as { url: string; description: string }[]),
+        ],
+      } as never,
+    },
+  });
+  await app.register(swaggerUi, { routePrefix: "/docs" });
+
+  if (deps.servico) {
+    registrarRotas(app, {
+      servico: deps.servico,
+      ...(deps.admin ? { admin: deps.admin } : {}),
+      ...(env.ADMIN_TOKEN ? { adminToken: env.ADMIN_TOKEN } : {}),
+    });
+  }
 
   const stream = await registrarStream(app);
   app.decorate("stream", stream);

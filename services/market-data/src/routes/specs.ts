@@ -1,4 +1,25 @@
-import { HealthResponse, type RouteSpec } from "@bolsiq/contracts";
+import {
+  AssetDetailResponse,
+  AssetSearchQuery,
+  AssetSearchResponse,
+  DividendsResponse,
+  FundamentalsQuery,
+  FundamentalsResponse,
+  HealthResponse,
+  HistoryQuery,
+  HistoryResponse,
+  JobNameParam,
+  JobsResponse,
+  MacroParams,
+  MacroResponse,
+  QuotesParams,
+  QuotesResponse,
+  RangeQuery,
+  TickerParam,
+  TriggerJobBody,
+  TriggerJobResponse,
+  type RouteSpec,
+} from "@bolsiq/contracts";
 
 /**
  * Especificação das rotas, em Zod.
@@ -8,8 +29,8 @@ import { HealthResponse, type RouteSpec } from "@bolsiq/contracts";
  * `openapi-generate.ts` gera o documento a partir dela, então os dois não
  * conseguem divergir.
  *
- * As duas rotas abaixo são as únicas anônimas da API (ver
- * docs/api/guia-do-cliente.md).
+ * `/v1/health` é a única rota anônima de dados (ver
+ * docs/api/guia-do-cliente.md). `/admin` usa o token de administração.
  */
 export const rotas: RouteSpec[] = [
   {
@@ -19,5 +40,83 @@ export const rotas: RouteSpec[] = [
     tags: ["ops"],
     anonymous: true,
     response: HealthResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/assets",
+    summary: "Busca de ativos por ticker e nome (autocomplete, até 20)",
+    tags: ["assets"],
+    query: AssetSearchQuery,
+    response: AssetSearchResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/assets/{ticker}",
+    summary: "Cadastro de um ativo",
+    tags: ["assets"],
+    params: TickerParam,
+    response: AssetDetailResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/quotes/{tickers}",
+    summary: "Cotação corrente, com atraso, de até 20 tickers",
+    tags: ["quotes"],
+    params: QuotesParams,
+    response: QuotesResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/history/{ticker}",
+    summary: "Série OHLCV diária, semanal ou mensal, ajustada por proventos",
+    tags: ["quotes"],
+    params: TickerParam,
+    query: HistoryQuery,
+    response: HistoryResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/dividends/{ticker}",
+    summary: "Proventos e eventos societários",
+    tags: ["dividends"],
+    params: TickerParam,
+    query: RangeQuery,
+    response: DividendsResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/fundamentals/{ticker}",
+    summary: "Contas do DFP (anual) ou ITR (trimestral) usadas nos indicadores",
+    tags: ["fundamentals"],
+    params: TickerParam,
+    query: FundamentalsQuery,
+    response: FundamentalsResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/macro/{serie}",
+    summary: "Séries de benchmark: CDI, Selic, IPCA, IGP-M e IBOV",
+    tags: ["macro"],
+    params: MacroParams,
+    query: RangeQuery,
+    response: MacroResponse,
+  },
+  {
+    method: "get",
+    path: "/admin/jobs",
+    summary: "Jobs de carga, fila e última execução",
+    tags: ["admin"],
+    auth: "admin",
+    response: JobsResponse,
+  },
+  {
+    method: "post",
+    path: "/admin/jobs/{name}",
+    summary: "Dispara um job de carga",
+    tags: ["admin"],
+    auth: "admin",
+    params: JobNameParam,
+    body: TriggerJobBody,
+    response: TriggerJobResponse,
   },
 ];

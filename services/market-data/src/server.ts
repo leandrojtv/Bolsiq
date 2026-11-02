@@ -10,7 +10,14 @@ import {
 } from "@bolsiq/messaging";
 import { criarApp } from "./app.js";
 import { carregarEnv, consumirFila, servirApiPublica } from "./config.js";
-import { iniciarWorker, type Worker } from "./worker.js";
+import { criarServicoDeDados } from "./dados/servico.js";
+import { B3CotahistAdapter } from "./fontes/b3-cotahist.js";
+import { BcbAdapter } from "./fontes/bcb.js";
+import { BrapiAdapter } from "./fontes/brapi.js";
+import { CvmAdapter } from "./fontes/cvm.js";
+import { publicarPendentes } from "@bolsiq/messaging";
+import { adminDoPgBoss } from "./jobs/admin.js";
+import { consumir, iniciarFila, type Fila } from "./worker.js";
 
 const env = carregarEnv();
 
@@ -51,8 +58,15 @@ async function verificarBanco(): Promise<boolean> {
 
 let messaging: Messaging | undefined;
 let loopDeOutbox: LoopDePublicacao | undefined;
-let worker: Worker | undefined;
 let encerrando = false;
+
+const log = (nivel: "info" | "warn" | "error", msg: string, ctx: object = {}) =>
+  process.stderr.write(
+    `${JSON.stringify({ level: nivel, msg, svc: "market-data", ...ctx })}\n`,
+  );
+const buscar = (url: string, init?: RequestInit) => fetch(url, init);
+const brapi = new BrapiAdapter(buscar, env.BRAPI_TOKEN);
+const bcb = new BcbAdapter(buscar);
 
 /**
  * Conecta ao NATS sem bloquear a subida.
@@ -75,14 +89,41 @@ async function conectarAoNats(): Promise<Messaging | undefined> {
   }
 }
 
+const fila: Fila = await iniciarFila(env, { agendar: consumirFila(env.ROLE) });
+
 const app = await criarApp({
   env,
   verificarBanco,
   apenasHealth: !servirApiPublica(env.ROLE),
+  servico: criarServicoDeDados({
+    db,
+    brapi,
+    bcb,
+    log,
+    config: {
+      quoteTtlMs: env.QUOTE_TTL_SECONDS * 1000,
+      brapiDelayMinutes: env.BRAPI_DELAY_MINUTES,
+      brapiComToken: env.BRAPI_TOKEN !== undefined,
+    },
+  }),
+  admin: adminDoPgBoss(fila.boss, db),
 });
 
 if (consumirFila(env.ROLE)) {
-  worker = await iniciarWorker(env);
+  await consumir(
+    fila,
+    {
+      db,
+      cotahist: new B3CotahistAdapter(buscar),
+      cvm: new CvmAdapter(buscar),
+      bcb,
+      log,
+    },
+    {
+      "outbox-publish": async () =>
+        messaging ? publicarPendentes({ db, publicador: messaging }) : { sem_nats: true },
+    },
+  );
 }
 
 await app.listen({ port: env.PORT, host: env.HOST });
@@ -128,7 +169,7 @@ async function encerrar(sinal: string): Promise<void> {
   app.log.info({ sinal }, "encerrando");
   await loopDeOutbox?.parar();
   await app.close();
-  await worker?.parar();
+  await fila.parar();
   await messaging?.fechar();
   await pool.end();
   process.exit(0);

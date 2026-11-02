@@ -1,5 +1,5 @@
 {
-  "_comentario": "Artefatos public\u00e1veis. Cada entrada gera uma imagem no GHCR e entra na matriz dos jobs `build` do CI e `build-push` do CD.",
+  "_comentario": "Artefatos publicáveis. Cada entrada gera uma imagem no GHCR e entra na matriz dos jobs `build` do CI e `build-push` do CD.",
   "deployables": [
     {
       "name": "market-data",
@@ -12,6 +12,12 @@
       "context": ".",
       "dockerfile": "infra/docker/alerts-worker.Dockerfile",
       "filter": "@bolsiq/alerts-worker"
+    },
+    {
+      "name": "analytics-worker",
+      "context": ".",
+      "dockerfile": "infra/docker/analytics-worker.Dockerfile",
+      "filter": "@bolsiq/analytics-worker"
     }
   ]
 }

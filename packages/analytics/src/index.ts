@@ -5,3 +5,7 @@ export * from "./precoJusto.js";
 export * from "./desempenho.js";
 export * from "./indicadores.js";
 export * from "./screener.js";
+export * from "./recalculo.js";
+export * from "./executarScreener.js";
+export * from "./worker.js";
+export * from "./db/schema.js";

@@ -20,6 +20,14 @@ export default defineConfig({
         // teste de integração.
         "src/stream/rota.ts",
         "src/integration/**",
+        "src/testes/**",
+        "src/backfill.ts",
+        // Leem e escrevem no Postgres: cobertos por src/integration/dados.test.ts.
+        "src/dados/carga.ts",
+        "src/dados/ingestao.ts",
+        "src/dados/servico.ts",
+        "src/jobs/admin.ts",
+        "src/jobs/handlers.ts",
       ],
       thresholds: {
         lines: 80,

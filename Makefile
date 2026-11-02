@@ -163,7 +163,7 @@ check-actions:
 
 ## check-links: procura links quebrados no Markdown
 check-links:
-	docker run --rm -v "$(CURDIR)":/input lycheeverse/lychee --no-progress --exclude-path node_modules './**/*.md'
+	docker run --rm -v "$(CURDIR)":/input -w /input lycheeverse/lychee --no-progress --config lychee.toml './**/*.md'
 
 ## check-secrets: procura segredos no código e no histórico
 check-secrets:

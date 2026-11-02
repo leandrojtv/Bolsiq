@@ -43,6 +43,8 @@ const TEXTOS = [
   "series-2",
   "series-3",
   "series-4",
+  "series-5",
+  "series-6",
 ];
 
 const PARES: [string, string][] = [

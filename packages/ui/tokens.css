@@ -46,6 +46,9 @@
   --series-2: #F5C46B;
   --series-3: #C9A7FF;
   --series-4: #4FD1C5;
+  /* Derivados: o comparador vai ate 6 ativos e a tabela do README tem 4. */
+  --series-5: #F78FB3;
+  --series-6: #9AD45F;
 
   /* Benchmarks: tracejado CDI 6-4, IPCA 2-4, IBOV 12-4 */
   --benchmark: #8A95A3;

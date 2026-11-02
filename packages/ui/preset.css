@@ -45,6 +45,8 @@
   --color-series-3-soft: var(--series-3-soft);
   --color-series-3-strong: var(--series-3-strong);
   --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
   --color-benchmark: var(--benchmark);
   --color-link: var(--link);
   --color-link-hover: var(--link-hover);

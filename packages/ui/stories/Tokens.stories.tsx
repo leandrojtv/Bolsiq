@@ -35,6 +35,8 @@ const CORES: { grupo: string; tokens: string[] }[] = [
       "series-3-soft",
       "series-3-strong",
       "series-4",
+      "series-5",
+      "series-6",
       "benchmark",
     ],
   },

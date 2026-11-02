@@ -1,0 +1,66 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "timezone": "America/Sao_Paulo",
+  "schedule": ["* 0-6 * * 1"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore(deps): ",
+  "baseBranches": ["develop"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-6 * * 1"]
+  },
+  "postUpdateOptions": ["pnpmDedupe"],
+  "packageRules": [
+    {
+      "description": "Patch e minor agrupados num único PR semanal",
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "dependências (patch e minor)",
+      "groupSlug": "patch-minor"
+    },
+    {
+      "description": "Major sempre isolado, para avaliar quebra uma a uma",
+      "matchUpdateTypes": ["major"],
+      "groupName": null,
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "breaking-change"]
+    },
+    {
+      "description": "Automerge de patch em devDependencies quando o CI fecha verde",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Node fica preso na linha 22 LTS (regra do CLAUDE.md)",
+      "matchPackageNames": ["node", "@types/node"],
+      "allowedVersions": "<23"
+    },
+    {
+      "description": "Postgres fica preso na linha 17",
+      "matchPackageNames": ["postgres", "timescale/timescaledb", "timescale/timescaledb-ha"],
+      "allowedVersions": "/^17/"
+    },
+    {
+      "description": "Actions do GitHub agrupadas",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "matchUpdateTypes": ["patch", "minor"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"],
+    "schedule": ["at any time"]
+  },
+  "osvVulnerabilityAlerts": true
+}

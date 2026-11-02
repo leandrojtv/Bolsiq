@@ -1,0 +1,60 @@
+# Labels automáticos por área. Usado por actions/labeler@v5 (sintaxe v5).
+# Referência: https://github.com/actions/labeler
+
+"area:market-data":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/market-data/**"
+
+"area:web":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/web/**"
+          - "packages/ui/**"
+
+"area:contracts":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/contracts/**"
+
+"area:db":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/db-core/**"
+          - "**/migrations/**"
+          - "**/drizzle.config.ts"
+
+"area:domain":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/domain/**"
+
+"area:infra":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infra/**"
+          - ".github/workflows/**"
+          - "Makefile"
+          - "compose*.yml"
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "**/*.md"
+
+"adr":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/adr/**"
+
+"migrations":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/migrations/**"
+
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "pnpm-lock.yaml"
+          - "**/package.json"

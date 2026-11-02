@@ -8,11 +8,14 @@ anterior como `substituído por`.
 | ---------------------------------------- | --------------------------------------------- | ------------ |
 | [0006](0006-jobs-no-proprio-servico.md)  | Jobs no próprio serviço, com pg-boss e `ROLE` | aceito       |
 | [0007](0007-gateway-e-planos.md)         | Gateway, chaves de API e planos               | **proposto** |
+| [0008](0008-outbox-e-jetstream.md)       | Outbox no Postgres com NATS JetStream         | aceito       |
+| [0010](0010-better-auth.md)              | Better Auth para autenticação                 | **proposto** |
+| [0011](0011-rls.md)                      | Row Level Security como segunda barreira      | aceito       |
 | [0014](0014-fluxo-de-branches-e-cicd.md) | Fluxo de branches e CI/CD                     | aceito       |
 
-## Sobre a numeração começar em 0006
+## Sobre os números que faltam
 
-Não há 0001 a 0005, nem 0008 a 0013. O `CLAUDE.md` já traz um conjunto de
+Não há 0001 a 0005, nem 0009, 0012 e 0013. O `CLAUDE.md` já traz um conjunto de
 decisões tomadas — Postgres 17 com TimescaleDB por serviço, NATS JetStream com
 outbox, Drizzle, pnpm com Turborepo, Fastify com Zod, monorepo com fronteira
 explícita entre módulos — e nenhuma delas tem ADR.

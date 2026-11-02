@@ -8,6 +8,8 @@ export interface LinhaDoScreener {
   kind: string;
   sector: string | null;
   reference_date: string;
+  /** Fechamento usado no calculo dos indicadores. */
+  preco: string | null;
   indicadores: Partial<Record<IndicadorFiltravel, number | null>>;
 }
 
@@ -78,6 +80,7 @@ export async function executarScreener(
       ORDER BY ticker, reference_date DESC
     )
     SELECT i.ticker, m.name, m.kind, m.sector, i.reference_date::text AS reference_date,
+           i.preco::text AS preco,
            ${colunas}, count(*) OVER ()::int AS total
     FROM ultimos i
     JOIN analytics.assets_mirror m ON m.ticker = i.ticker
@@ -92,6 +95,7 @@ export async function executarScreener(
     kind: row.kind as string,
     sector: (row.sector as string | null) ?? null,
     reference_date: row.reference_date as string,
+    preco: (row.preco as string | null) ?? null,
     indicadores: Object.fromEntries(
       IndicadorFiltravel.options.map((n) => [n, (row[n] as number | null) ?? null]),
     ),

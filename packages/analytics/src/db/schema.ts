@@ -11,7 +11,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { tabelasDeConsumidor } from "@bolsiq/db-core";
+import { tabelaDeOutbox, tabelasDeConsumidor } from "@bolsiq/db-core";
 
 /**
  * Schema proprio do analytics.
@@ -43,6 +43,8 @@ export const indicators = analytics.table(
     reference_date: date("reference_date").notNull(),
     kind: text("kind").notNull(),
 
+    /** Fechamento usado no calculo. Mostrado no screener sem ir ao /v1. */
+    preco: money("preco"),
     lpa: money("lpa"),
     vpa: money("vpa"),
     ebitda: money("ebitda"),
@@ -178,3 +180,6 @@ export const recalc_queue = analytics.table(
 
 /** Idempotencia e dead-letter do consumidor de eventos do analytics. */
 export const { processedEvents, deadLetter } = tabelasDeConsumidor("analytics");
+
+/** Outbox do analytics: analytics.indicators.updated sai daqui (ADR 0008). */
+export const outbox = tabelaDeOutbox("analytics");

@@ -1,0 +1,1 @@
+ALTER TABLE "analytics"."indicators" ADD COLUMN "preco" numeric(20, 6);

@@ -22,6 +22,20 @@
       "when": 1793647968196,
       "tag": "0002_consumidor_e_fila",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793659483918,
+      "tag": "0003_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793660411867,
+      "tag": "0004_preco",
+      "breakpoints": true
     }
   ]
 }

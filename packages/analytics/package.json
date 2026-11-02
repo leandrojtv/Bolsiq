@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./puro": {
+      "types": "./dist/puro.d.ts",
+      "default": "./dist/puro.js"
     }
   },
   "scripts": {

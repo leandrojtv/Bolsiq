@@ -96,3 +96,14 @@ describe("presets", () => {
     }
   });
 });
+
+describe("rotulos", () => {
+  it("todo indicador filtravel tem rotulo e todo preset tem nome", async () => {
+    const { INDICADORES, NOME_DO_PRESET, IndicadorFiltravel, presets } =
+      await import("./screener.js");
+    expect(Object.keys(INDICADORES).sort()).toEqual(
+      [...IndicadorFiltravel.options].sort(),
+    );
+    expect(Object.keys(NOME_DO_PRESET).sort()).toEqual(Object.keys(presets).sort());
+  });
+});

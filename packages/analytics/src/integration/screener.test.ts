@@ -7,6 +7,7 @@ import { criarDb, criarPool, type Db } from "@bolsiq/db-core";
 import { DFP_2024 } from "../cvm.fixtures.js";
 import { executarScreener } from "../executarScreener.js";
 import { filtroDoPreset, FiltroDeScreener } from "../screener.js";
+import { outbox } from "../db/schema.js";
 import { recalcularTicker, type ClienteDoMarketData } from "../worker.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
@@ -183,6 +184,7 @@ describe("recalculo e screener", () => {
     );
     expect(porPl.linhas).toHaveLength(1);
     expect(porPl.linhas[0]?.indicadores.pl).toBeCloseTo(10.5, 0);
+    expect(Number(porPl.linhas[0]?.preco)).toBeCloseTo(30, 0);
 
     // FII nao tem P/L: fica fora de um filtro por P/L.
     const fiiPorPl = await executarScreener(
@@ -199,6 +201,22 @@ describe("recalculo e screener", () => {
       FiltroDeScreener.parse({ liquidez_minima: 10_000_000, incluir_indefinidos: true }),
     );
     expect(liquidez.total).toBe(0);
+  });
+
+  it("publica analytics.indicators.updated so quando muda", async () => {
+    const eventos = async () =>
+      (await db.select().from(outbox)).filter(
+        (e) => (e.payload as { ticker: string }).ticker === "PETR4",
+      );
+    const antes = await eventos();
+    expect(antes).toHaveLength(1);
+    expect(antes[0]?.eventName).toBe("analytics.indicators.updated.v1");
+    expect(antes[0]?.payload).toMatchObject({
+      ticker: "PETR4",
+      reference_date: "2024-12-31",
+    });
+    await recalcularTicker(db, cliente, "PETR4", { cdi: [], ibov: [] });
+    expect(await eventos()).toHaveLength(1);
   });
 
   it("recalcular de novo sobrescreve a mesma data-base", async () => {

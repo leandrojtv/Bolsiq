@@ -66,7 +66,7 @@ export type FiltroDeScreener = z.infer<typeof FiltroDeScreener>;
 export const presets = {
   graham: {
     descricao:
-      "Acoes negociadas abaixo do preco justo de Graham, com lucro e patrimonio positivos",
+      "Ações negociadas abaixo do preço justo de Graham, com lucro e patrimônio positivos",
     filtro: {
       faixas: {
         margem_graham: { min: 0.2 },
@@ -79,7 +79,7 @@ export const presets = {
     },
   },
   bazin: {
-    descricao: "Dividendo medio de 5 anos acima de 6% sobre o preco atual",
+    descricao: "Dividendo médio de 5 anos acima de 6% sobre o preço atual",
     filtro: {
       faixas: { dy_medio_5a: { min: 0.06 }, margem_bazin: { min: 0 } },
       tipos: ["stock", "fii"],
@@ -88,7 +88,7 @@ export const presets = {
     },
   },
   magic_formula: {
-    descricao: "Greenblatt: melhor combinacao de EV/EBIT baixo com ROIC alto",
+    descricao: "Greenblatt: melhor combinação de EV/EBIT baixo com ROIC alto",
     filtro: {
       faixas: { ev_ebit: { min: 0, max: 12 }, roic: { min: 0.15 } },
       tipos: ["stock"],
@@ -116,3 +116,45 @@ export type NomeDePreset = keyof typeof presets;
 export function filtroDoPreset(nome: NomeDePreset): FiltroDeScreener {
   return FiltroDeScreener.parse(presets[nome].filtro);
 }
+
+export type FormatoDoIndicador = "razao" | "percentual" | "moeda";
+
+/** Rotulo e formato de exibicao de cada indicador filtravel. */
+export const INDICADORES: Record<
+  IndicadorFiltravel,
+  { rotulo: string; formato: FormatoDoIndicador }
+> = {
+  pl: { rotulo: "P/L", formato: "razao" },
+  pvp: { rotulo: "P/VP", formato: "razao" },
+  ev_ebitda: { rotulo: "EV/EBITDA", formato: "razao" },
+  ev_ebit: { rotulo: "EV/EBIT", formato: "razao" },
+  p_receita: { rotulo: "P/Receita", formato: "razao" },
+  dy_12m: { rotulo: "DY 12m", formato: "percentual" },
+  dy_medio_5a: { rotulo: "DY médio 5a", formato: "percentual" },
+  roe: { rotulo: "ROE", formato: "percentual" },
+  roic: { rotulo: "ROIC", formato: "percentual" },
+  roa: { rotulo: "ROA", formato: "percentual" },
+  margem_bruta: { rotulo: "Margem bruta", formato: "percentual" },
+  margem_ebitda: { rotulo: "Margem EBITDA", formato: "percentual" },
+  margem_liquida: { rotulo: "Margem líquida", formato: "percentual" },
+  dl_ebitda: { rotulo: "DL/EBITDA", formato: "razao" },
+  dl_pl: { rotulo: "DL/PL", formato: "razao" },
+  liquidez_corrente: { rotulo: "Liquidez corrente", formato: "razao" },
+  cagr_receita_5a: { rotulo: "CAGR receita 5a", formato: "percentual" },
+  cagr_lucro_5a: { rotulo: "CAGR lucro 5a", formato: "percentual" },
+  margem_graham: { rotulo: "Margem Graham", formato: "percentual" },
+  margem_bazin: { rotulo: "Margem Bazin", formato: "percentual" },
+  volatilidade_anual: { rotulo: "Volatilidade", formato: "percentual" },
+  drawdown_maximo: { rotulo: "Drawdown máx.", formato: "percentual" },
+  sharpe: { rotulo: "Sharpe", formato: "razao" },
+  beta: { rotulo: "Beta", formato: "razao" },
+  liquidez_diaria: { rotulo: "Liquidez diária", formato: "moeda" },
+};
+
+/** Nome legivel de cada preset, para os cards. */
+export const NOME_DO_PRESET: Record<NomeDePreset, string> = {
+  graham: "Graham",
+  bazin: "Bazin",
+  magic_formula: "Magic Formula",
+  dividendos_consistentes: "Dividendos consistentes",
+};

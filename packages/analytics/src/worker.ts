@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@bolsiq/db-core";
-import { assinar, type Assinatura, type Messaging } from "@bolsiq/messaging";
+import {
+  assinar,
+  iniciarLoopDePublicacao,
+  linhaDeOutbox,
+  type Assinatura,
+  type LoopDePublicacao,
+  type Messaging,
+} from "@bolsiq/messaging";
 import {
   AssetDetailResponse,
   DividendsResponse,
@@ -15,6 +22,7 @@ import {
   assets_mirror,
   deadLetter,
   indicators,
+  outbox,
   processedEvents,
   recalc_queue,
 } from "./db/schema.js";
@@ -137,14 +145,70 @@ export async function recalcularTicker(
   if (!linha) return "sem_preco";
 
   const valores = { ...linha, calculado_em: new Date().toISOString() };
-  await db
-    .insert(indicators)
-    .values(valores as typeof indicators.$inferInsert)
-    .onConflictDoUpdate({
-      target: [indicators.ticker, indicators.reference_date],
-      set: valores,
-    });
+  await db.transaction(async (tx) => {
+    const [anterior] = await tx
+      .select()
+      .from(indicators)
+      .where(
+        and(
+          eq(indicators.ticker, ticker),
+          eq(indicators.reference_date, linha.reference_date),
+        ),
+      );
+    await tx
+      .insert(indicators)
+      .values(valores as typeof indicators.$inferInsert)
+      .onConflictDoUpdate({
+        target: [indicators.ticker, indicators.reference_date],
+        set: valores,
+      });
+    const evento = eventoDeIndicadores(ticker, linha);
+    // Recalculo diario que nao mudou nada nao vira evento: o alerts avaliaria
+    // as mesmas regras com os mesmos numeros.
+    if (!anterior || mudou(anterior, linha)) {
+      await tx.insert(outbox).values(
+        linhaDeOutbox({
+          name: "analytics.indicators.updated.v1",
+          producer: "analytics",
+          payload: evento,
+        }),
+      );
+    }
+  });
   return "ok";
+}
+
+const CAMPOS_DO_EVENTO = ["preco_graham", "preco_bazin", "dy_12m", "pl", "pvp"] as const;
+
+function numeroOuNulo(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Number(n.toFixed(6)) : null;
+}
+
+/** Payload de analytics.indicators.updated.v1: precos como string, razoes como number. */
+export function eventoDeIndicadores(ticker: string, l: Record<string, unknown>) {
+  const preco = (v: unknown) =>
+    typeof v === "string" || typeof v === "number" ? String(v) : null;
+  return {
+    ticker,
+    reference_date: l.reference_date as string,
+    preco_graham: preco(l.preco_graham),
+    preco_bazin: preco(l.preco_bazin),
+    dy_12m: numeroOuNulo(l.dy_12m),
+    pl: numeroOuNulo(l.pl),
+    pvp: numeroOuNulo(l.pvp),
+  };
+}
+
+/** Compara pelo valor numerico: o banco devolve "6.140000" onde gravamos "6.14". */
+export function mudou(
+  anterior: Record<string, unknown>,
+  nova: Record<string, unknown>,
+): boolean {
+  return CAMPOS_DO_EVENTO.some(
+    (c) => numeroOuNulo(anterior[c]) !== numeroOuNulo(nova[c]),
+  );
 }
 
 export interface WorkerDeAnalytics {
@@ -207,6 +271,16 @@ export async function iniciarWorkerDeAnalytics(deps: {
       if (ctx.nivel === "debug") return;
       log("error", "falha ao consumir evento", { erro: erro.message, ...ctx });
     },
+  });
+
+  // analytics.indicators.updated: o mesmo publisher do market-data, lendo o
+  // outbox do schema analytics.
+  const publicacao: LoopDePublicacao = iniciarLoopDePublicacao({
+    db,
+    publicador: deps.messaging,
+    tabelas: { outbox, deadLetter },
+    aoFalhar: (erro) =>
+      log("error", "falha ao publicar o outbox do analytics", { erro: erro.message }),
   });
 
   let macroCache: { em: number; cdi: Ponto[]; ibov: Ponto[] } | null = null;
@@ -294,6 +368,7 @@ export async function iniciarWorkerDeAnalytics(deps: {
     drenar,
     async parar() {
       ativo = false;
+      await publicacao.parar();
       await assinatura.parar();
       await laco;
     },

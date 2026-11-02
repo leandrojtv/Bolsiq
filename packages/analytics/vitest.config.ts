@@ -18,6 +18,8 @@ export default defineConfig({
         // Precisam de Postgres e NATS: cobertos pelo teste de integracao.
         "src/worker.ts",
         "src/executarScreener.ts",
+        // Barril de reexportacao.
+        "src/puro.ts",
       ],
       thresholds: { lines: 95, functions: 95, branches: 90, statements: 95 },
     },

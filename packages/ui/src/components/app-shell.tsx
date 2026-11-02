@@ -1,3 +1,5 @@
+"use client";
+
 import {
   useEffect,
   useId,
@@ -40,6 +42,14 @@ export interface AppShellProps {
   userInitials?: string;
   searchPlaceholder?: string;
   onSearch?: (termo: string) => void;
+  /**
+   * Busca propria (ex. com autocomplete), no lugar do campo simples. O
+   * Ctrl+K foca o elemento com id `searchInputId`.
+   */
+  search?: ReactNode;
+  searchInputId?: string;
+  /** Esconde o topo abaixo de 768 px, quando a pagina tem cabecalho proprio. */
+  hideHeaderOnMobile?: boolean;
   linkComponent?: LinkComponent;
   children: ReactNode;
 }
@@ -80,6 +90,9 @@ export function AppShell({
   userInitials,
   searchPlaceholder = "Buscar ação, FII, BDR, ETF ou fundo",
   onSearch,
+  search,
+  searchInputId,
+  hideHeaderOnMobile = false,
   linkComponent: Link = LinkPadrao,
   children,
 }: AppShellProps) {
@@ -90,12 +103,15 @@ export function AppShell({
     const atalho = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        busca.current?.focus();
+        const alvo = searchInputId
+          ? document.getElementById(searchInputId)
+          : busca.current;
+        alvo?.focus();
       }
     };
     window.addEventListener("keydown", atalho);
     return () => window.removeEventListener("keydown", atalho);
-  }, []);
+  }, [searchInputId]);
 
   return (
     <div className="flex min-h-screen bg-bg font-sans text-text">
@@ -169,30 +185,37 @@ export function AppShell({
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-center gap-3 px-4 pt-4 md:px-content md:pt-5">
-          <form
-            role="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              onSearch?.(busca.current?.value ?? "");
-            }}
-            className="flex h-touch min-w-0 flex-1 items-center gap-2.5 rounded-control border border-border-input bg-surface px-3.5"
-          >
-            <label htmlFor={idBusca} className="sr-only">
-              Buscar ativo
-            </label>
-            <Search aria-hidden="true" size={16} className="shrink-0 text-benchmark" />
-            <input
-              ref={busca}
-              id={idBusca}
-              type="search"
-              placeholder={searchPlaceholder}
-              className="min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-text-3"
-            />
-            <kbd className="hidden rounded-chip border border-border-strong px-1.5 py-0.5 font-mono text-xs text-text-3 sm:inline">
-              Ctrl K
-            </kbd>
-          </form>
+        <header
+          className={cn(
+            "flex-wrap items-center gap-3 px-4 pt-4 md:flex md:px-content md:pt-5",
+            hideHeaderOnMobile ? "hidden" : "flex",
+          )}
+        >
+          {search ?? (
+            <form
+              role="search"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onSearch?.(busca.current?.value ?? "");
+              }}
+              className="flex h-touch min-w-0 flex-1 items-center gap-2.5 rounded-control border border-border-input bg-surface px-3.5"
+            >
+              <label htmlFor={idBusca} className="sr-only">
+                Buscar ativo
+              </label>
+              <Search aria-hidden="true" size={16} className="shrink-0 text-benchmark" />
+              <input
+                ref={busca}
+                id={idBusca}
+                type="search"
+                placeholder={searchPlaceholder}
+                className="min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-text-3"
+              />
+              <kbd className="hidden rounded-chip border border-border-strong px-1.5 py-0.5 font-mono text-xs text-text-3 sm:inline">
+                Ctrl K
+              </kbd>
+            </form>
+          )}
           <button
             type="button"
             onClick={onNotificationsClick}

@@ -463,13 +463,13 @@ jobs:
           file: ${{ matrix.deployable.dockerfile }}
           push: false
           load: true
-          tags: ${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}
+          tags: bolsiq-${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}
           cache-from: type=gha,scope=${{ matrix.deployable.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.deployable.name }}
       - name: Exporta a imagem para os jobs seguintes
         run: |
           mkdir -p /tmp/imagens
-          docker save "${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}" \
+          docker save "bolsiq-${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}" \
             -o "/tmp/imagens/${{ matrix.deployable.name }}.tar"
       - uses: actions/upload-artifact@v4
         with:

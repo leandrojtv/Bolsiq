@@ -1,10 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":dependencyDashboard",
-    ":semanticCommits"
-  ],
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommits"],
   "timezone": "America/Sao_Paulo",
   "schedule": ["* 0-6 * * 1"],
   "prConcurrentLimit": 5,
@@ -47,7 +43,11 @@
     },
     {
       "description": "Postgres fica preso na linha 17",
-      "matchPackageNames": ["postgres", "timescale/timescaledb", "timescale/timescaledb-ha"],
+      "matchPackageNames": [
+        "postgres",
+        "timescale/timescaledb",
+        "timescale/timescaledb-ha"
+      ],
       "allowedVersions": "/^17/"
     },
     {

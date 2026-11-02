@@ -34,5 +34,6 @@ make check    # actionlint, links e gitleaks — já funciona
 - [Como contribuir](docs/contributing.md) — branches, commits, PR, release, hotfix
 - [CI/CD](docs/ci-cd.md) — workflows, checks, secrets, environments
 - [Fontes de dados do market-data](docs/services/market-data-sources.md) — URL, formato, licença e mapeamento de campos
+- [Guia do cliente da API](docs/api/guia-do-cliente.md) — autenticação, limites, erros (especificação)
 - [Decisões de arquitetura](docs/adr/README.md)
 - Runbooks: [release](docs/runbooks/release.md) · [hotfix](docs/runbooks/hotfix.md) · [rollback](docs/runbooks/rollback.md) · [reprocessar fonte](docs/runbooks/reprocessar-fonte.md)

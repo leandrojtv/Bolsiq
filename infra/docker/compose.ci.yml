@@ -1,0 +1,61 @@
+# Compose usado pelos jobs `smoke` e `e2e` do CI.
+#
+# Sobe as imagens recém-construídas no job `build`, aplica as migrations como
+# passo único e espera todos os containers ficarem healthy.
+#
+# O market-data é publicado na porta 8000, que será a do Kong quando o gateway
+# existir (prompt do gateway / ADR 0007). Assim o smoke.sh não muda de endereço
+# quando o Kong entrar na frente.
+
+name: bolsiq-ci
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_USER: bolsiq
+      POSTGRES_PASSWORD: bolsiq
+      POSTGRES_DB: bolsiq
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bolsiq -d bolsiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: bolsiq-market-data:${IMAGE_TAG:-local}
+    command: ["node", "node_modules/@bolsiq/db-core/dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  market-data:
+    image: bolsiq-market-data:${IMAGE_TAG:-local}
+    environment:
+      ROLE: api
+      PORT: "3001"
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      LOG_LEVEL: warn
+      SERVICE_VERSION: ${IMAGE_TAG:-local}
+    ports:
+      - "8000:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  market-data-worker:
+    image: bolsiq-market-data:${IMAGE_TAG:-local}
+    environment:
+      ROLE: worker
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      LOG_LEVEL: warn
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully

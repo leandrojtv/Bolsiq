@@ -1,0 +1,32 @@
+# Configuração do gitleaks, usada pelo job `security` do CI e pelo
+# `make check-secrets`.
+#
+# Herda todas as regras padrão. A allowlist abaixo é deliberadamente estreita:
+# libera apenas os placeholders literais usados na documentação, e **não** o
+# prefixo `mdk_live_` em geral. Liberar o prefixo faria uma chave vazada de
+# verdade passar pelo scanner, que é exatamente o que ele existe para pegar.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders de documentação, não segredos"
+
+regexes = [
+  # Placeholder do guia do cliente. O texto em maiúsculas com underscore é
+  # inconfundivelmente um espaço reservado, não uma chave.
+  '''mdk_live_SUA_CHAVE_AQUI''',
+  # Placeholder anterior, do commit ad702d7. O gitleaks varre o histórico, não
+  # só a árvore de trabalho, então corrigir o arquivo não basta: o commit
+  # publicado continua contendo o texto. Liberado como literal exato, e não
+  # como padrão, para que o prefixo `mdk_live_` siga sendo detectado.
+  '''mdk_live_a1b2c3d4e5f6\.\.\.''',
+  # Exemplo de ULID de correlation ID na documentação: identificador de
+  # requisição, não credencial.
+  '''01JBQ7X8N4K2M9P3R5T7V9W1Y3''',
+]
+
+paths = [
+  # Exemplo de ambiente: contém nomes de variáveis, nunca valores.
+  '''\.env\.example$''',
+]

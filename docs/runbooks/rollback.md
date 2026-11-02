@@ -64,12 +64,12 @@ Antes de dar rollback, responda:
 git diff v1.1.0..v1.2.0 -- '**/migrations/**'
 ```
 
-| O que a migration fez | Rollback de imagem resolve? | O que fazer |
-| --- | --- | --- |
-| Só acrescentou coluna/tabela/índice | Sim | Rollback normal. A coluna nova fica sobrando, inofensiva |
-| Renomeou coluna | Não | Precisa de migration de volta, ou corrigir para frente |
-| Removeu coluna ou tabela | Não | Restaure do backup. O dado não está mais lá |
-| Mudou tipo de coluna | Depende | Avalie caso a caso; prefira corrigir para frente |
+| O que a migration fez               | Rollback de imagem resolve? | O que fazer                                              |
+| ----------------------------------- | --------------------------- | -------------------------------------------------------- |
+| Só acrescentou coluna/tabela/índice | Sim                         | Rollback normal. A coluna nova fica sobrando, inofensiva |
+| Renomeou coluna                     | Não                         | Precisa de migration de volta, ou corrigir para frente   |
+| Removeu coluna ou tabela            | Não                         | Restaure do backup. O dado não está mais lá              |
+| Mudou tipo de coluna                | Depende                     | Avalie caso a caso; prefira corrigir para frente         |
 
 Daí a prática: **migration sempre aditiva e compatível com a versão anterior.**
 Remoção de coluna vem numa release seguinte, depois que nenhum código em

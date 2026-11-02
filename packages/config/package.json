@@ -1,0 +1,11 @@
+{
+  "name": "@bolsiq/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "tsconfig.base.json",
+    "tsconfig.lib.json",
+    "tsconfig.app.json"
+  ]
+}

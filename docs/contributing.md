@@ -39,15 +39,15 @@ gitGraph
 
 ### O que cada branch é
 
-| Branch | Papel | Sai de | Volta para | Merge |
-| --- | --- | --- | --- | --- |
-| `main` | Produção. Cada merge gera uma tag `vX.Y.Z`. | — | — | merge commit |
-| `develop` | Integração. Deploy automático em staging. | `main` | — | squash |
-| `feature/<issue>-<slug>` | Funcionalidade nova | `develop` | `develop` | squash |
-| `fix/<issue>-<slug>` | Correção não urgente | `develop` | `develop` | squash |
-| `hotfix/<issue>-<slug>` | Correção urgente em produção | `main` | `main` **e** `develop` | merge commit |
-| `release/vX.Y.Z` | Congelamento para produção; só aceita `fix/*` | `develop` | `main` **e** `develop` | merge commit |
-| `chore/`, `docs/`, `refactor/`, `test/` | Manutenção | `develop` | `develop` | squash |
+| Branch                                  | Papel                                         | Sai de    | Volta para             | Merge        |
+| --------------------------------------- | --------------------------------------------- | --------- | ---------------------- | ------------ |
+| `main`                                  | Produção. Cada merge gera uma tag `vX.Y.Z`.   | —         | —                      | merge commit |
+| `develop`                               | Integração. Deploy automático em staging.     | `main`    | —                      | squash       |
+| `feature/<issue>-<slug>`                | Funcionalidade nova                           | `develop` | `develop`              | squash       |
+| `fix/<issue>-<slug>`                    | Correção não urgente                          | `develop` | `develop`              | squash       |
+| `hotfix/<issue>-<slug>`                 | Correção urgente em produção                  | `main`    | `main` **e** `develop` | merge commit |
+| `release/vX.Y.Z`                        | Congelamento para produção; só aceita `fix/*` | `develop` | `main` **e** `develop` | merge commit |
+| `chore/`, `docs/`, `refactor/`, `test/` | Manutenção                                    | `develop` | `develop`              | squash       |
 
 `main` só aceita PR de `release/*` e `hotfix/*`. Um PR de `feature/*` para `main`
 é reprovado pelo check `pr-meta`, com a explicação no resumo da execução.
@@ -94,12 +94,12 @@ Tipos: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`
 
 Efeito na versão:
 
-| Commit | Versão |
-| --- | --- |
-| `fix:` | patch (1.2.3 → 1.2.4) |
-| `feat:` | minor (1.2.3 → 1.3.0) |
+| Commit                                | Versão                |
+| ------------------------------------- | --------------------- |
+| `fix:`                                | patch (1.2.3 → 1.2.4) |
+| `feat:`                               | minor (1.2.3 → 1.3.0) |
 | `feat!:` ou rodapé `BREAKING CHANGE:` | major (1.2.3 → 2.0.0) |
-| `chore:`, `ci:`, `test:`, `style:` | nenhuma |
+| `chore:`, `ci:`, `test:`, `style:`    | nenhuma               |
 
 Referencie a issue na descrição:
 
@@ -140,10 +140,10 @@ ou check para o CI passar.
 
 ### Labels que mudam o comportamento do CI
 
-| Label | Efeito |
-| --- | --- |
-| `breaking-change` | O check `contract` passa a aceitar quebra em `/v1`. Exige nota de migração em `docs/`. |
-| `no-docs` | O check `docs-check` passa sem alteração em `docs/`. A justificativa vai no corpo do PR. |
+| Label             | Efeito                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `breaking-change` | O check `contract` passa a aceitar quebra em `/v1`. Exige nota de migração em `docs/`.   |
+| `no-docs`         | O check `docs-check` passa sem alteração em `docs/`. A justificativa vai no corpo do PR. |
 
 Aplicar uma dessas labels é uma decisão consciente, registrada no PR. Não são
 atalho para o CI ficar verde.

@@ -234,6 +234,11 @@ jobs:
     if: needs.changes.outputs.monorepo == 'true'
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm turbo run lint --filter="...[origin/${{ github.base_ref || 'develop' }}]"
       - name: Prettier
@@ -246,6 +251,11 @@ jobs:
     if: needs.changes.outputs.monorepo == 'true'
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm turbo run typecheck --filter="...[origin/${{ github.base_ref || 'develop' }}]"
 
@@ -262,6 +272,11 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Vitest com cobertura
         run: pnpm turbo run test:unit --filter="...[origin/${{ github.base_ref || 'develop' }}]"
@@ -314,6 +329,11 @@ jobs:
        needs.changes.outputs.docker == 'true')
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Pré-baixa as imagens dos containers de teste
         run: |
@@ -346,6 +366,11 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/bolsiq_ci
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Aplica todas as migrations do zero
         run: pnpm turbo run db:migrate
@@ -463,13 +488,13 @@ jobs:
           file: ${{ matrix.deployable.dockerfile }}
           push: false
           load: true
-          tags: ${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}
+          tags: bolsiq-${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}
           cache-from: type=gha,scope=${{ matrix.deployable.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.deployable.name }}
       - name: Exporta a imagem para os jobs seguintes
         run: |
           mkdir -p /tmp/imagens
-          docker save "${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}" \
+          docker save "bolsiq-${{ matrix.deployable.name }}:pr-${{ github.event.pull_request.number || github.run_id }}" \
             -o "/tmp/imagens/${{ matrix.deployable.name }}.tar"
       - uses: actions/upload-artifact@v4
         with:
@@ -529,6 +554,11 @@ jobs:
       (needs.changes.outputs.web == 'true' || needs.changes.outputs.contracts == 'true')
     steps:
       - uses: actions/checkout@v5
+        with:
+          # O filtro `...[origin/<base>]` do Turborepo resolve a base por git.
+          # Com o checkout raso padrão, `origin/develop` não existe localmente
+          # e o turbo falha com "unknown revision".
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - uses: actions/download-artifact@v4
         with:
@@ -574,10 +604,13 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Explícito, para não depender da descoberta automática: a allowlist
+          # é estreita de propósito e precisa ser a mesma do make check-secrets.
+          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
 
       - name: Trivy — dependências
         if: needs.changes.outputs.monorepo == 'true'
-        uses: aquasecurity/trivy-action@v0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -631,11 +664,9 @@ jobs:
       - name: Links quebrados no Markdown
         uses: lycheeverse/lychee-action@v2
         with:
-          args: >-
-            --no-progress
-            --exclude-path node_modules
-            --exclude '^https://github\.com/leandrojtv/Bolsiq/(discussions|pull|issues)'
-            './**/*.md'
+          # A configuração vive em lychee.toml, versionada, para que o
+          # `make check-links` local rode exatamente o mesmo que o CI.
+          args: "--no-progress --config lychee.toml './**/*.md'"
           fail: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

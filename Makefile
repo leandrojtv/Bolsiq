@@ -12,7 +12,11 @@ COMPOSE_CI  ?= infra/docker/compose.ci.yml
 
 # Roda um comando pnpm dentro de um container, com o repositório montado e o
 # store do pnpm em volume nomeado para não reinstalar tudo a cada chamada.
-PNPM := docker run --rm -it \
+# -t só quando há TTY: em CI ou sob um agente, `docker run -it` falha com
+# "the input device is not a TTY".
+DOCKER_TTY := $(shell test -t 0 && echo -t)
+
+PNPM := docker run --rm -i $(DOCKER_TTY) \
 	-v "$(CURDIR)":/app \
 	-v bolsiq-pnpm-store:/pnpm-store \
 	-w /app \
@@ -163,11 +167,11 @@ check-actions:
 
 ## check-links: procura links quebrados no Markdown
 check-links:
-	docker run --rm -v "$(CURDIR)":/input lycheeverse/lychee --no-progress --exclude-path node_modules './**/*.md'
+	docker run --rm -v "$(CURDIR)":/input -w /input lycheeverse/lychee --no-progress --config lychee.toml './**/*.md'
 
 ## check-secrets: procura segredos no código e no histórico
 check-secrets:
-	docker run --rm -v "$(CURDIR)":/repo zricethezav/gitleaks:latest detect --source=/repo --verbose
+	docker run --rm -v "$(CURDIR)":/repo zricethezav/gitleaks:latest detect --source=/repo --config=/repo/.gitleaks.toml --verbose
 
 ## check: todas as verificações que já funcionam sem o monorepo
 check: check-workflows check-actions check-links check-secrets

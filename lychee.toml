@@ -1,0 +1,32 @@
+# Configuração do verificador de links, usada pelo CI (job docs-check) e pelo
+# `make check-links`. Versionada para que local e CI nunca discordem.
+
+# Tenta de novo antes de reprovar: falha de rede intermitente não é link quebrado.
+max_retries = 3
+retry_wait_time = 2
+timeout = 20
+
+# User agent de navegador. Vários sites (a B3 entre eles) recusam clientes
+# que se identificam como ferramenta.
+user_agent = "Mozilla/5.0 (compatible; bolsiq-link-check)"
+
+# Códigos tratados como aceitáveis.
+#
+# 2xx é sucesso. Os demais são deliberados:
+#   403, 405  o servidor recusa o verificador, não o link — comum em portais
+#             públicos com proteção contra bot
+#   429       estamos sendo limitados, o link existe
+#   500..503  o servidor de terceiro está instável agora; isso não é motivo
+#             para reprovar um PR nosso. Já aconteceu com dadosabertos.bcb.gov.br,
+#             que devolveu 502 numa execução e 200 na seguinte
+accept = ["200..=299", "403", "405", "429", "500..=503"]
+
+exclude_path = ["node_modules", ".git"]
+
+exclude = [
+  # Links do próprio repositório que só existem depois de criados.
+  '^https://github\.com/leandrojtv/Bolsiq/(discussions|pull|issues)',
+  # Domínio do produto, ainda não registrado. Aparece nos exemplos do
+  # guia do cliente.
+  '^https://api\.bolsiq\.com',
+]

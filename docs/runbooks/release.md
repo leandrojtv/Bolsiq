@@ -116,9 +116,9 @@ make smoke BASE_URL=https://seu-dominio
 
 ## Se algo der errado
 
-| Sintoma | Causa provável | O que fazer |
-| --- | --- | --- |
+| Sintoma                                                     | Causa provável                                                                       | O que fazer                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | `resolver` falha com "nenhuma imagem de staging encontrada" | A release saiu de um ponto que nunca passou por `develop`, ou o CD de staging falhou | Não force. Garanta que o commit passou por `develop` e que o `cd-develop` publicou |
-| PR de release com checks eternamente pendentes | Falta `RELEASE_PLEASE_TOKEN` | Configure o PAT, ou dê um push vazio na branch do PR |
-| Merge em `main` bloqueado por falta de aprovação | Mantenedor único não aprova o próprio PR | `make gh-protect-solo` |
-| Smoke de produção falha | Ver [rollback.md](rollback.md) | — |
+| PR de release com checks eternamente pendentes              | Falta `RELEASE_PLEASE_TOKEN`                                                         | Configure o PAT, ou dê um push vazio na branch do PR                               |
+| Merge em `main` bloqueado por falta de aprovação            | Mantenedor único não aprova o próprio PR                                             | `make gh-protect-solo`                                                             |
+| Smoke de produção falha                                     | Ver [rollback.md](rollback.md)                                                       | —                                                                                  |

@@ -1,10 +1,11 @@
 {
-  "_comentario": "Lista dos artefatos publicáveis. Cada entrada gera uma imagem no GHCR. Vazio enquanto os serviços não existirem; o job de build do CI é pulado quando a lista está vazia.",
-  "_formato": {
-    "name": "nome da imagem no GHCR (ghcr.io/<owner>/<repo>-<name>)",
-    "context": "diretório de contexto do build",
-    "dockerfile": "caminho do Dockerfile",
-    "filter": "pacote do Turborepo usado para decidir se foi afetado"
-  },
-  "deployables": []
+  "_comentario": "Artefatos publicáveis. Cada entrada gera uma imagem no GHCR e entra na matriz dos jobs `build` do CI e `build-push` do CD.",
+  "deployables": [
+    {
+      "name": "market-data",
+      "context": ".",
+      "dockerfile": "infra/docker/market-data.Dockerfile",
+      "filter": "@bolsiq/market-data"
+    }
+  ]
 }

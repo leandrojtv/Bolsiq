@@ -117,7 +117,7 @@ squash. A nota está no próprio
 ### Origem restrita a `release/*` e `hotfix/*` em rulesets
 
 Rulesets do GitHub não têm regra de branch de origem: a condição `ref_name` se
-refere à branch *protegida*, não à de origem do PR.
+refere à branch _protegida_, não à de origem do PR.
 
 **Escolha:** a regra vive no check `pr-meta` do `ci.yml`, que reprova
 `feature/*` → `main` com mensagem explicativa. Como `ci-ok` é obrigatório e

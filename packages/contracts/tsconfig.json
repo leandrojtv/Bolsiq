@@ -1,0 +1,8 @@
+{
+  "extends": "@bolsiq/config/tsconfig.lib.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*"]
+}

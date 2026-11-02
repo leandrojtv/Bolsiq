@@ -574,6 +574,9 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Explícito, para não depender da descoberta automática: a allowlist
+          # é estreita de propósito e precisa ser a mesma do make check-secrets.
+          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
 
       - name: Trivy — dependências
         if: needs.changes.outputs.monorepo == 'true'

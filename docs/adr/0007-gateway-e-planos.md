@@ -31,12 +31,12 @@ escrita: mudança em chave significa **regerar o arquivo e recarregar**.
 
 Consequência direta nos critérios de aceite deste pedido:
 
-| Critério | Com Kong DB-less + `kong-sync` |
-| --- | --- |
-| Requisição sem chave → 401 | Funciona |
-| Acima do limite → 429 com `Retry-After` | Funciona |
-| Chave `free` em `/v1/fundamentals` → 403 | Funciona, via ACL |
-| **Chave revogada → 401** | **Só depois do próximo `kong-sync`** |
+| Critério                                 | Com Kong DB-less + `kong-sync`       |
+| ---------------------------------------- | ------------------------------------ |
+| Requisição sem chave → 401               | Funciona                             |
+| Acima do limite → 429 com `Retry-After`  | Funciona                             |
+| Chave `free` em `/v1/fundamentals` → 403 | Funciona, via ACL                    |
+| **Chave revogada → 401**                 | **Só depois do próximo `kong-sync`** |
 
 Revogar uma chave é a operação em que atraso é inaceitável: revoga-se chave
 porque vazou. Uma janela entre o `POST /admin/keys/{id}/revoke` e o próximo
@@ -139,11 +139,11 @@ Guardar só o hash. Prefixo visível `mdk_live_` para o cliente reconhecer a cha
 sem revelá-la, e para varredores de segredo detectarem vazamento em repositório
 público.
 
-| Coluna | Observação |
-| --- | --- |
-| `key_hash` | hash da chave inteira; nunca a chave |
-| `key_prefix` | `mdk_live_a1b2c3`, exibível e indexado para lookup |
-| `status` | `active`, `revoked` |
+| Coluna         | Observação                                                       |
+| -------------- | ---------------------------------------------------------------- |
+| `key_hash`     | hash da chave inteira; nunca a chave                             |
+| `key_prefix`   | `mdk_live_a1b2c3`, exibível e indexado para lookup               |
+| `status`       | `active`, `revoked`                                              |
 | `last_used_at` | atualizado de forma assíncrona; escrever a cada requisição custa |
 
 Hash: algoritmo de hash de senha (argon2id ou bcrypt) é desenhado para ser
@@ -154,13 +154,13 @@ por hábito.
 
 ### Semântica de erro
 
-| Situação | Código | Corpo |
-| --- | --- | --- |
-| Sem chave | 401 | `missing_api_key` |
-| Chave inválida ou revogada | 401 | `invalid_api_key` |
-| Endpoint fora do plano | 403 | `plan_upgrade_required`, com o plano mínimo |
-| Acima do limite | 429 | `rate_limit_exceeded`, com `Retry-After` |
-| Tickers acima do plano | 400 | `too_many_tickers`, com o máximo |
+| Situação                   | Código | Corpo                                       |
+| -------------------------- | ------ | ------------------------------------------- |
+| Sem chave                  | 401    | `missing_api_key`                           |
+| Chave inválida ou revogada | 401    | `invalid_api_key`                           |
+| Endpoint fora do plano     | 403    | `plan_upgrade_required`, com o plano mínimo |
+| Acima do limite            | 429    | `rate_limit_exceeded`, com `Retry-After`    |
+| Tickers acima do plano     | 400    | `too_many_tickers`, com o máximo            |
 
 Chave revogada devolve **401, não 403**, como o pedido determina. É a escolha
 certa: 403 informaria que a chave existe e não tem permissão, o que diz a um

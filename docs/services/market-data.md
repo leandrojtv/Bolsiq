@@ -10,26 +10,26 @@ mercado chama este serviço.
 
 A base está de pé e verificada; os adapters de fonte ainda não.
 
-| Parte | Estado |
-| --- | --- |
-| Monorepo, TypeScript estrito, Turborepo | pronto |
-| Schema e migrations, com 4 hypertables | pronto, aplicado em Postgres 17 + TimescaleDB |
-| Fastify com `ROLE`, health e OpenAPI gerado do Zod | pronto |
-| pg-boss com filas e agenda | pronto, 6 jobs agendados em `America/Sao_Paulo` |
-| Imagem Docker e compose | pronto, smoke passando |
-| Adapters CVM, B3 e BCB | **não implementados** — as conversões existem em `@bolsiq/domain` |
-| Endpoints `/admin/jobs` | **não implementados** |
-| Autenticação, planos e medição | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md) |
+| Parte                                              | Estado                                                                  |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| Monorepo, TypeScript estrito, Turborepo            | pronto                                                                  |
+| Schema e migrations, com 4 hypertables             | pronto, aplicado em Postgres 17 + TimescaleDB                           |
+| Fastify com `ROLE`, health e OpenAPI gerado do Zod | pronto                                                                  |
+| pg-boss com filas e agenda                         | pronto, 6 jobs agendados em `America/Sao_Paulo`                         |
+| Imagem Docker e compose                            | pronto, smoke passando                                                  |
+| Adapters CVM, B3 e BCB                             | **não implementados** — as conversões existem em `@bolsiq/domain`       |
+| Endpoints `/admin/jobs`                            | **não implementados**                                                   |
+| Autenticação, planos e medição                     | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md) |
 
 ## Papéis: `ROLE`
 
 Uma imagem, três modos ([ADR 0006](../adr/0006-jobs-no-proprio-servico.md)):
 
-| `ROLE` | Serve `/v1` | Serve `/v1/health` | Consome a fila |
-| --- | --- | --- | --- |
-| `api` | sim | sim | não |
-| `worker` | **não** | sim | sim |
-| `all` | sim | sim | sim |
+| `ROLE`   | Serve `/v1` | Serve `/v1/health` | Consome a fila |
+| -------- | ----------- | ------------------ | -------------- |
+| `api`    | sim         | sim                | não            |
+| `worker` | **não**     | sim                | sim            |
+| `all`    | sim         | sim                | sim            |
 
 `ROLE` é validado por Zod na inicialização e **falha alto** se vier errado. O
 ADR 0006 explica por quê: um `ROLE` digitado errado subiria dois `api` e nenhum
@@ -56,27 +56,27 @@ services/market-data/
 
 Pacotes de que depende:
 
-| Pacote | Papel |
-| --- | --- |
+| Pacote              | Papel                                                                 |
+| ------------------- | --------------------------------------------------------------------- |
 | `@bolsiq/contracts` | schemas Zod do contrato público, envelope de erro, gerador de OpenAPI |
-| `@bolsiq/domain` | conversões puras: decimal, CVM, BCB, COTAHIST |
-| `@bolsiq/db-core` | schema Drizzle, migrations e acesso ao Postgres |
+| `@bolsiq/domain`    | conversões puras: decimal, CVM, BCB, COTAHIST                         |
+| `@bolsiq/db-core`   | schema Drizzle, migrations e acesso ao Postgres                       |
 
 ## Schema
 
 Schema `market_data`, um banco por serviço. Nenhum outro serviço lê estas
 tabelas.
 
-| Tabela | Chave natural | Hypertable |
-| --- | --- | --- |
-| `assets` | `cnpj` (índice único em `ticker`) | não |
-| `quotes_daily` | `(ticker, date)` | sim, chunk mensal |
-| `financial_statements` | `(cvm_code, reference_date, statement_type, is_consolidated, account_code)` | não |
-| `fund_daily` | `(cnpj_fundo, date)` | sim, chunk semanal |
-| `macro_series` | `(series_code, date)` | sim, chunk anual |
-| `fetch_log` | `(source, source_ref, content_hash)` | não |
-| `api_plans`, `api_clients`, `api_keys` | `id` | não |
-| `api_usage` | `(key_id, ts, route)` | sim, chunk diário |
+| Tabela                                 | Chave natural                                                               | Hypertable         |
+| -------------------------------------- | --------------------------------------------------------------------------- | ------------------ |
+| `assets`                               | `cnpj` (índice único em `ticker`)                                           | não                |
+| `quotes_daily`                         | `(ticker, date)`                                                            | sim, chunk mensal  |
+| `financial_statements`                 | `(cvm_code, reference_date, statement_type, is_consolidated, account_code)` | não                |
+| `fund_daily`                           | `(cnpj_fundo, date)`                                                        | sim, chunk semanal |
+| `macro_series`                         | `(series_code, date)`                                                       | sim, chunk anual   |
+| `fetch_log`                            | `(source, source_ref, content_hash)`                                        | não                |
+| `api_plans`, `api_clients`, `api_keys` | `id`                                                                        | não                |
+| `api_usage`                            | `(key_id, ts, route)`                                                       | sim, chunk diário  |
 
 A chave natural é o que torna o reprocessamento idempotente: rodar o mesmo job
 duas vezes sobrescreve as mesmas linhas. O `fetch_log` é o outro nível, que
@@ -122,16 +122,16 @@ Horários em `America/Sao_Paulo`, passados ao pg-boss como fuso nomeado — não
 como deslocamento. O Brasil não tem horário de verão hoje; se voltar, só o fuso
 nomeado continua correto.
 
-| Job | Agenda |
-| --- | --- |
+| Job                  | Agenda          |
+| -------------------- | --------------- |
 | `b3-cotahist-diario` | `30 19 * * 1-5` |
-| `cvm-fundos` | `0 6 * * *` |
-| `bcb-sgs` | `0 6 * * *` |
-| `cvm-cadastro` | `0 5 * * 1` |
-| `cvm-dfp` | `30 5 * * 1` |
-| `cvm-itr` | `0 6 * * 1` |
-| `b3-cotahist-anual` | sob demanda |
-| `ajuste-proventos` | sob demanda |
+| `cvm-fundos`         | `0 6 * * *`     |
+| `bcb-sgs`            | `0 6 * * *`     |
+| `cvm-cadastro`       | `0 5 * * 1`     |
+| `cvm-dfp`            | `30 5 * * 1`    |
+| `cvm-itr`            | `0 6 * * 1`     |
+| `b3-cotahist-anual`  | sob demanda     |
+| `ajuste-proventos`   | sob demanda     |
 
 Os handlers ainda não existem: a fila, a agenda e o retry com backoff estão de
 pé, e é o que `/admin/jobs` vai consultar.
@@ -145,15 +145,15 @@ o job precisa encerrar como "sem dado" em vez de `failed`.
 `@bolsiq/domain` tem 100% de cobertura nas conversões onde o dado sai errado em
 silêncio:
 
-| Função | O que protege |
-| --- | --- |
-| `shiftDecimal` | aritmética decimal exata; `1234567890123 / 100` em double já perde precisão |
-| `parseCotahistPrice` | centavos e fator de cotação, nesta ordem |
-| `isLotePadraoAVista` | sem o filtro `CODBDI`/`TPMERC` entram opções, termo e fracionário |
-| `pickLatestVersion` | `ORDEM_EXERC = 'ÚLTIMO'` e maior `VERSAO` |
-| `applyCvmScale` | `ESCALA_MOEDA`; ignorá-la erra a demonstração por mil |
-| `parseBcbDate` | `dd/MM/yyyy`; `new Date()` embaralha os doze primeiros dias de cada mês |
-| `janelasDeConsulta` | o SGS devolve 406 em janela longa |
+| Função               | O que protege                                                               |
+| -------------------- | --------------------------------------------------------------------------- |
+| `shiftDecimal`       | aritmética decimal exata; `1234567890123 / 100` em double já perde precisão |
+| `parseCotahistPrice` | centavos e fator de cotação, nesta ordem                                    |
+| `isLotePadraoAVista` | sem o filtro `CODBDI`/`TPMERC` entram opções, termo e fracionário           |
+| `pickLatestVersion`  | `ORDEM_EXERC = 'ÚLTIMO'` e maior `VERSAO`                                   |
+| `applyCvmScale`      | `ESCALA_MOEDA`; ignorá-la erra a demonstração por mil                       |
+| `parseBcbDate`       | `dd/MM/yyyy`; `new Date()` embaralha os doze primeiros dias de cada mês     |
+| `janelasDeConsulta`  | o SGS devolve 406 em janela longa                                           |
 
 `applyCvmScale` falha alto em escala desconhecida em vez de assumir `UNIDADE`:
 assumir erraria por mil, e o número continuaria plausível.
@@ -185,10 +185,10 @@ Isso sobe o Postgres, aplica as migrations como passo único e sobe `api` e
 
 ## Endpoints
 
-| Método | Rota | Chave | Observação |
-| --- | --- | --- | --- |
-| GET | `/v1/health` | não | único endpoint servido por todos os papéis |
-| GET | `/v1/openapi.json` | não | gerado dos schemas Zod |
+| Método | Rota               | Chave | Observação                                 |
+| ------ | ------------------ | ----- | ------------------------------------------ |
+| GET    | `/v1/health`       | não   | único endpoint servido por todos os papéis |
+| GET    | `/v1/openapi.json` | não   | gerado dos schemas Zod                     |
 
 As rotas de dados entram conforme os adapters nascem. Toda rota nova passa por
 `routes/specs.ts`, que é a fonte única do app e do OpenAPI — é isso que impede

@@ -26,14 +26,14 @@ que não conhece.
 Toda requisição leva a chave no header:
 
 ```
-X-API-Key: mdk_live_a1b2c3d4e5f6...
+X-API-Key: mdk_live_SUA_CHAVE_AQUI
 ```
 
 Dois endpoints não exigem chave:
 
-| Endpoint | Para que serve |
-| --- | --- |
-| `GET /v1/health` | monitoração |
+| Endpoint               | Para que serve                            |
+| ---------------------- | ----------------------------------------- |
+| `GET /v1/health`       | monitoração                               |
 | `GET /v1/openapi.json` | especificação OpenAPI, para gerar cliente |
 
 ### Formato da chave
@@ -59,16 +59,16 @@ chave pública. Para front-end, faça a chamada pelo seu próprio back-end.
 
 ## Planos e limites
 
-| | `free` | `startup` | `pro` |
-| --- | --- | --- | --- |
-| Requisições por minuto | 20 | 120 | 600 |
-| Requisições por mês | 10.000 | 500.000 | 5.000.000 |
-| Tickers por chamada | 5 | 50 | 200 |
-| Cotações e histórico | sim | sim | sim |
-| Fundos | sim | sim | sim |
-| Benchmarks macro | sim | sim | sim |
-| `fundamentals` | **não** | sim | sim |
-| WebSocket | não | sim | sim |
+|                        | `free`  | `startup` | `pro`     |
+| ---------------------- | ------- | --------- | --------- |
+| Requisições por minuto | 20      | 120       | 600       |
+| Requisições por mês    | 10.000  | 500.000   | 5.000.000 |
+| Tickers por chamada    | 5       | 50        | 200       |
+| Cotações e histórico   | sim     | sim       | sim       |
+| Fundos                 | sim     | sim       | sim       |
+| Benchmarks macro       | sim     | sim       | sim       |
+| `fundamentals`         | **não** | sim       | sim       |
+| WebSocket              | não     | sim       | sim       |
 
 Os números acima são a proposta inicial e precisam ser confirmados antes do
 primeiro cliente.
@@ -105,17 +105,17 @@ Formato único:
 }
 ```
 
-| HTTP | `code` | O que aconteceu | O que fazer |
-| --- | --- | --- | --- |
-| 400 | `too_many_tickers` | Mais tickers do que o plano permite | Fatie a chamada; o campo `max` diz o limite |
-| 401 | `missing_api_key` | Header `X-API-Key` ausente | Envie a chave |
-| 401 | `invalid_api_key` | Chave inexistente ou revogada | Confira a chave; se foi revogada, crie outra |
-| 403 | `plan_upgrade_required` | Endpoint fora do seu plano | O campo `required_plan` diz o mínimo |
-| 404 | `not_found` | Ticker ou fundo inexistente | Confira o identificador |
-| 422 | `validation_error` | Parâmetro malformado | O campo `details` aponta o parâmetro |
-| 429 | `rate_limit_exceeded` | Acima do limite | **Espere o que diz `Retry-After`** |
-| 500 | `internal_error` | Erro nosso | Tente de novo com backoff; persistindo, abra suporte com o `correlation_id` |
-| 503 | `source_unavailable` | Fonte de dados indisponível | Erro temporário; tente mais tarde |
+| HTTP | `code`                  | O que aconteceu                     | O que fazer                                                                 |
+| ---- | ----------------------- | ----------------------------------- | --------------------------------------------------------------------------- |
+| 400  | `too_many_tickers`      | Mais tickers do que o plano permite | Fatie a chamada; o campo `max` diz o limite                                 |
+| 401  | `missing_api_key`       | Header `X-API-Key` ausente          | Envie a chave                                                               |
+| 401  | `invalid_api_key`       | Chave inexistente ou revogada       | Confira a chave; se foi revogada, crie outra                                |
+| 403  | `plan_upgrade_required` | Endpoint fora do seu plano          | O campo `required_plan` diz o mínimo                                        |
+| 404  | `not_found`             | Ticker ou fundo inexistente         | Confira o identificador                                                     |
+| 422  | `validation_error`      | Parâmetro malformado                | O campo `details` aponta o parâmetro                                        |
+| 429  | `rate_limit_exceeded`   | Acima do limite                     | **Espere o que diz `Retry-After`**                                          |
+| 500  | `internal_error`        | Erro nosso                          | Tente de novo com backoff; persistindo, abra suporte com o `correlation_id` |
+| 503  | `source_unavailable`    | Fonte de dados indisponível         | Erro temporário; tente mais tarde                                           |
 
 Chave revogada devolve **401**, não 403. É deliberado: 403 revelaria que a
 chave existe.
@@ -148,9 +148,7 @@ curl -H "X-API-Key: $BOLSIQ_API_KEY" \
   "period": { "start": "2026-11-01", "end": "2026-11-30" },
   "requests": { "used": 18432, "limit": 500000 },
   "rate_limit": { "per_minute": 120 },
-  "by_day": [
-    { "date": "2026-11-01", "requests": 1203, "errors": 4 }
-  ]
+  "by_day": [{ "date": "2026-11-01", "requests": 1203, "errors": 4 }]
 }
 ```
 
@@ -161,7 +159,7 @@ O consumo aparece em até um minuto após a requisição.
 ### curl
 
 ```bash
-export BOLSIQ_API_KEY="mdk_live_..."
+export BOLSIQ_API_KEY="mdk_live_SUA_CHAVE_AQUI"
 
 # Cotação
 curl -sH "X-API-Key: $BOLSIQ_API_KEY" \

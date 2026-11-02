@@ -171,7 +171,7 @@ check-links:
 
 ## check-secrets: procura segredos no código e no histórico
 check-secrets:
-	docker run --rm -v "$(CURDIR)":/repo zricethezav/gitleaks:latest detect --source=/repo --verbose
+	docker run --rm -v "$(CURDIR)":/repo zricethezav/gitleaks:latest detect --source=/repo --config=/repo/.gitleaks.toml --verbose
 
 ## check: todas as verificações que já funcionam sem o monorepo
 check: check-workflows check-actions check-links check-secrets

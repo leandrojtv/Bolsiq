@@ -9,13 +9,13 @@ redistribuição e mapeamento de campos.
 
 ## Quadro geral
 
-| Fonte | O que traz | Formato | Frequência | Licença | Pode redistribuir? |
-| --- | --- | --- | --- | --- | --- |
-| CVM — cadastro | Companhias abertas: CNPJ, nome, setor | CSV, latin1, `;` | diária | ODbL | Sim, com atribuição e share-alike |
-| CVM — DFP/ITR | Demonstrações anuais e trimestrais | ZIP de CSVs, latin1, `;` | DFP anual, ITR trimestral | ODbL | Sim, com atribuição e share-alike |
-| CVM — informe diário de fundos | NAV, patrimônio, aplicações, resgates, cotistas | ZIP mensal de CSV | diária (arquivo mensal) | ODbL | Sim, com atribuição e share-alike |
-| B3 — COTAHIST | Preços históricos de todo o universo | largura fixa, 245 bytes | anual e diário | Termos de Uso da B3 | **Não** |
-| BCB — SGS | Selic, CDI, IPCA, IGP-M | JSON (API) | diária e mensal | aberta (confirmar termos) | Sim, com atribuição |
+| Fonte                          | O que traz                                      | Formato                  | Frequência                | Licença                   | Pode redistribuir?                |
+| ------------------------------ | ----------------------------------------------- | ------------------------ | ------------------------- | ------------------------- | --------------------------------- |
+| CVM — cadastro                 | Companhias abertas: CNPJ, nome, setor           | CSV, latin1, `;`         | diária                    | ODbL                      | Sim, com atribuição e share-alike |
+| CVM — DFP/ITR                  | Demonstrações anuais e trimestrais              | ZIP de CSVs, latin1, `;` | DFP anual, ITR trimestral | ODbL                      | Sim, com atribuição e share-alike |
+| CVM — informe diário de fundos | NAV, patrimônio, aplicações, resgates, cotistas | ZIP mensal de CSV        | diária (arquivo mensal)   | ODbL                      | Sim, com atribuição e share-alike |
+| B3 — COTAHIST                  | Preços históricos de todo o universo            | largura fixa, 245 bytes  | anual e diário            | Termos de Uso da B3       | **Não**                           |
+| BCB — SGS                      | Selic, CDI, IPCA, IGP-M                         | JSON (API)               | diária e mensal           | aberta (confirmar termos) | Sim, com atribuição               |
 
 ---
 
@@ -32,16 +32,16 @@ cadastro. Por isso o job faz `upsert`, nunca `insert`.
 
 ### Mapeamento para `assets`
 
-| Coluna no CSV | Coluna em `assets` | Observação |
-| --- | --- | --- |
-| `CNPJ_CIA` | `cnpj` | normalizar: só dígitos, 14 caracteres |
-| `DENOM_SOCIAL` | `legal_name` | razão social |
-| `DENOM_COMERC` | `name` | nome de exibição; cair para `DENOM_SOCIAL` se vazio |
-| `CD_CVM` | `cvm_code` | chave da CVM; é por ela que DFP/ITR se ligam |
-| `SETOR_ATIV` | `sector` | taxonomia da CVM, não a da B3 |
-| `SIT` | `status` | `ATIVO`, `CANCELADA` etc. |
-| `DT_REG` | `registered_at` | data de registro na CVM |
-| `CONTROLE_ACIONARIO` | `ownership_type` | estatal, privado, estrangeiro |
+| Coluna no CSV        | Coluna em `assets` | Observação                                          |
+| -------------------- | ------------------ | --------------------------------------------------- |
+| `CNPJ_CIA`           | `cnpj`             | normalizar: só dígitos, 14 caracteres               |
+| `DENOM_SOCIAL`       | `legal_name`       | razão social                                        |
+| `DENOM_COMERC`       | `name`             | nome de exibição; cair para `DENOM_SOCIAL` se vazio |
+| `CD_CVM`             | `cvm_code`         | chave da CVM; é por ela que DFP/ITR se ligam        |
+| `SETOR_ATIV`         | `sector`           | taxonomia da CVM, não a da B3                       |
+| `SIT`                | `status`           | `ATIVO`, `CANCELADA` etc.                           |
+| `DT_REG`             | `registered_at`    | data de registro na CVM                             |
+| `CONTROLE_ACIONARIO` | `ownership_type`   | estatal, privado, estrangeiro                       |
 
 **O cadastro não traz ticker.** Ele identifica a companhia (CNPJ e código CVM),
 não os papéis negociados. A ligação CNPJ → ticker tem de vir de outra fonte, e
@@ -69,14 +69,14 @@ Descomprimido, cada CSV passa de 100 MB — daí a leitura em streaming, nunca
 
 ### CSVs dentro do ZIP
 
-| Sufixo | Conteúdo |
-| --- | --- |
-| `_BPA_` | Balanço patrimonial ativo |
-| `_BPP_` | Balanço patrimonial passivo |
-| `_DRE_` | Demonstração do resultado |
+| Sufixo                  | Conteúdo                                 |
+| ----------------------- | ---------------------------------------- |
+| `_BPA_`                 | Balanço patrimonial ativo                |
+| `_BPP_`                 | Balanço patrimonial passivo              |
+| `_DRE_`                 | Demonstração do resultado                |
 | `_DFC_MI_` / `_DFC_MD_` | Fluxo de caixa, método indireto / direto |
-| `_DMPL_` | Mutações do patrimônio líquido |
-| `_DVA_` | Valor adicionado |
+| `_DMPL_`                | Mutações do patrimônio líquido           |
+| `_DVA_`                 | Valor adicionado                         |
 
 Cada um vem em duas variantes: **individual** e **consolidado** (`_con_`). Para
 análise de holding, o consolidado é o que importa; grave os dois e deixe a
@@ -113,32 +113,32 @@ de `latin1`, não sobre os bytes.
 
 ### Mapeamento para `financial_statements`
 
-| Coluna no CSV | Coluna em `financial_statements` | Observação |
-| --- | --- | --- |
-| `CNPJ_CIA` | `cnpj` | só dígitos |
-| `CD_CVM` | `cvm_code` | chave de junção com `assets` |
-| `DT_REFER` | `reference_date` | data-base, `timestamptz` em UTC |
-| `DT_INI_EXERC` | `period_start` | ausente no balanço (é posição, não fluxo) |
-| `DT_FIM_EXERC` | `period_end` | |
-| `VERSAO` | `version` | guardar, para auditoria |
-| `ORDEM_EXERC` | — | usada no filtro, não gravada |
-| `CD_CONTA` | `account_code` | plano de contas da CVM, ex. `3.01` |
-| `DS_CONTA` | `account_label` | |
-| `VL_CONTA` | `amount` | **`numeric`**, nunca `float` |
-| `ESCALA_MOEDA` | `scale` | `UNIDADE` ou `MIL`; **multiplicar por 1000 quando `MIL`** |
-| `MOEDA` | `currency` | sempre `REAL` na prática |
-| `GRUPO_DFP` | `statement_type` | de onde sai `BPA`/`BPP`/`DRE`/`DFC` |
-| — | `is_consolidated` | do nome do CSV, não de coluna |
+| Coluna no CSV  | Coluna em `financial_statements` | Observação                                                |
+| -------------- | -------------------------------- | --------------------------------------------------------- |
+| `CNPJ_CIA`     | `cnpj`                           | só dígitos                                                |
+| `CD_CVM`       | `cvm_code`                       | chave de junção com `assets`                              |
+| `DT_REFER`     | `reference_date`                 | data-base, `timestamptz` em UTC                           |
+| `DT_INI_EXERC` | `period_start`                   | ausente no balanço (é posição, não fluxo)                 |
+| `DT_FIM_EXERC` | `period_end`                     |                                                           |
+| `VERSAO`       | `version`                        | guardar, para auditoria                                   |
+| `ORDEM_EXERC`  | —                                | usada no filtro, não gravada                              |
+| `CD_CONTA`     | `account_code`                   | plano de contas da CVM, ex. `3.01`                        |
+| `DS_CONTA`     | `account_label`                  |                                                           |
+| `VL_CONTA`     | `amount`                         | **`numeric`**, nunca `float`                              |
+| `ESCALA_MOEDA` | `scale`                          | `UNIDADE` ou `MIL`; **multiplicar por 1000 quando `MIL`** |
+| `MOEDA`        | `currency`                       | sempre `REAL` na prática                                  |
+| `GRUPO_DFP`    | `statement_type`                 | de onde sai `BPA`/`BPP`/`DRE`/`DFC`                       |
+| —              | `is_consolidated`                | do nome do CSV, não de coluna                             |
 
 `ESCALA_MOEDA` é a terceira armadilha: ignorá-la erra a escala por mil.
 
 ### Proveniência (regra 4 do CLAUDE.md)
 
-| Campo | Valor |
-| --- | --- |
-| `source` | `cvm-dfp` ou `cvm-itr` |
-| `fetched_at` | instante do download, UTC |
-| `license` | `ODbL-1.0` |
+| Campo        | Valor                                                     |
+| ------------ | --------------------------------------------------------- |
+| `source`     | `cvm-dfp` ou `cvm-itr`                                    |
+| `fetched_at` | instante do download, UTC                                 |
+| `license`    | `ODbL-1.0`                                                |
 | `source_ref` | `dfp_cia_aberta_2023.zip#dfp_cia_aberta_DRE_con_2023.csv` |
 
 ---
@@ -158,16 +158,16 @@ meses fechados nunca mais (também correto).
 
 ### Mapeamento para `fund_daily` (hypertable)
 
-| Coluna no CSV | Coluna em `fund_daily` | Observação |
-| --- | --- | --- |
-| `CNPJ_FUNDO` | `cnpj_fundo` | só dígitos; parte da chave |
-| `DT_COMPTC` | `date` | data de competência; dimensão de tempo da hypertable |
-| `VL_QUOTA` | `nav` | valor da cota, `numeric` |
-| `VL_PATRIM_LIQ` | `aum` | patrimônio líquido, `numeric` |
-| `CAPTC_DIA` | `inflows` | captação do dia |
-| `RESG_DIA` | `outflows` | resgates do dia |
-| `NR_COTST` | `holders` | número de cotistas, inteiro |
-| `VL_TOTAL` | `total_portfolio` | carteira a valor de mercado |
+| Coluna no CSV   | Coluna em `fund_daily` | Observação                                           |
+| --------------- | ---------------------- | ---------------------------------------------------- |
+| `CNPJ_FUNDO`    | `cnpj_fundo`           | só dígitos; parte da chave                           |
+| `DT_COMPTC`     | `date`                 | data de competência; dimensão de tempo da hypertable |
+| `VL_QUOTA`      | `nav`                  | valor da cota, `numeric`                             |
+| `VL_PATRIM_LIQ` | `aum`                  | patrimônio líquido, `numeric`                        |
+| `CAPTC_DIA`     | `inflows`              | captação do dia                                      |
+| `RESG_DIA`      | `outflows`             | resgates do dia                                      |
+| `NR_COTST`      | `holders`              | número de cotistas, inteiro                          |
+| `VL_TOTAL`      | `total_portfolio`      | carteira a valor de mercado                          |
 
 Chave natural: `(cnpj_fundo, date)`. É o que torna a reexecução idempotente.
 
@@ -205,25 +205,25 @@ Posições em bytes, começando em 1. **Validar contra o layout publicado pela B
 antes de usar em produção** — este quadro é o layout conhecido e não substitui o
 documento oficial.
 
-| Posição | Campo | Tipo | Em `quotes_daily` |
-| --- | --- | --- | --- |
-| 1–2 | `TIPREG` | tipo de registro (`01` = cotação) | filtro |
-| 3–10 | `DATA` | `AAAAMMDD` | `date` |
-| 11–12 | `CODBDI` | código BDI (segmento) | filtro |
-| 13–24 | `CODNEG` | ticker | `ticker` |
-| 25–27 | `TPMERC` | tipo de mercado | filtro |
-| 28–39 | `NOMRES` | nome resumido | — |
-| 40–49 | `ESPECI` | especificação (ON, PN, UNT) | `class` |
-| 57–69 | `PREABE` | abertura | `open` |
-| 70–82 | `PREMAX` | máxima | `high` |
-| 83–95 | `PREMIN` | mínima | `low` |
-| 96–108 | `PREMED` | média | `average` |
-| 109–121 | `PREULT` | fechamento | `close` |
-| 148–152 | `TOTNEG` | número de negócios | `trades` |
-| 153–170 | `QUATOT` | quantidade negociada | `volume` |
-| 171–188 | `VOLTOT` | volume financeiro | `financial_volume` |
-| 211–217 | `FATCOT` | **fator de cotação** | divisor |
-| 231–242 | `CODISI` | ISIN | `isin` |
+| Posição | Campo    | Tipo                              | Em `quotes_daily`  |
+| ------- | -------- | --------------------------------- | ------------------ |
+| 1–2     | `TIPREG` | tipo de registro (`01` = cotação) | filtro             |
+| 3–10    | `DATA`   | `AAAAMMDD`                        | `date`             |
+| 11–12   | `CODBDI` | código BDI (segmento)             | filtro             |
+| 13–24   | `CODNEG` | ticker                            | `ticker`           |
+| 25–27   | `TPMERC` | tipo de mercado                   | filtro             |
+| 28–39   | `NOMRES` | nome resumido                     | —                  |
+| 40–49   | `ESPECI` | especificação (ON, PN, UNT)       | `class`            |
+| 57–69   | `PREABE` | abertura                          | `open`             |
+| 70–82   | `PREMAX` | máxima                            | `high`             |
+| 83–95   | `PREMIN` | mínima                            | `low`              |
+| 96–108  | `PREMED` | média                             | `average`          |
+| 109–121 | `PREULT` | fechamento                        | `close`            |
+| 148–152 | `TOTNEG` | número de negócios                | `trades`           |
+| 153–170 | `QUATOT` | quantidade negociada              | `volume`           |
+| 171–188 | `VOLTOT` | volume financeiro                 | `financial_volume` |
+| 211–217 | `FATCOT` | **fator de cotação**              | divisor            |
+| 231–242 | `CODISI` | ISIN                              | `isin`             |
 
 ### As três conversões obrigatórias
 
@@ -239,11 +239,11 @@ documento oficial.
 
 ### Proveniência e ajuste
 
-| Campo | Valor |
-| --- | --- |
-| `source` | `b3-cotahist` |
-| `license` | `proprietária — B3, sem direito de redistribuição` |
-| `source_ref` | `COTAHIST_A2023.ZIP` |
+| Campo        | Valor                                              |
+| ------------ | -------------------------------------------------- |
+| `source`     | `b3-cotahist`                                      |
+| `license`    | `proprietária — B3, sem direito de redistribuição` |
+| `source_ref` | `COTAHIST_A2023.ZIP`                               |
 
 O COTAHIST **não** é ajustado por proventos: a própria B3 informa que as
 cotações vêm na moeda e forma da época, sem ajuste por inflação ou proventos.
@@ -262,15 +262,15 @@ não está definida — mais uma pendência.
 
 ### Séries, verificadas na API em 2026-11-01
 
-| Código | Série | Unidade | Frequência | Valor de conferência |
-| --- | --- | --- | --- | --- |
-| `11` | Selic | % no dia útil | diária | `0.050788` em 30/10/2026 |
-| `12` | CDI | % no dia útil | diária | `0.050788` em 29/10/2026 |
-| `432` | Selic meta | % a.a. | diária | `13.75` em 04/11/2026 |
-| `433` | IPCA | % no mês | mensal | `0.82` em 01/09/2026 |
-| `189` | IGP-M | % no mês | mensal | `1.47` em 01/10/2026 |
-| `4389` | Selic acumulada | % a.a. | diária | `13.65` em 29/10/2026 |
-| `4391` | CDI acumulado | % no mês | mensal | `1.02` em 01/10/2026 |
+| Código | Série           | Unidade       | Frequência | Valor de conferência     |
+| ------ | --------------- | ------------- | ---------- | ------------------------ |
+| `11`   | Selic           | % no dia útil | diária     | `0.050788` em 30/10/2026 |
+| `12`   | CDI             | % no dia útil | diária     | `0.050788` em 29/10/2026 |
+| `432`  | Selic meta      | % a.a.        | diária     | `13.75` em 04/11/2026    |
+| `433`  | IPCA            | % no mês      | mensal     | `0.82` em 01/09/2026     |
+| `189`  | IGP-M           | % no mês      | mensal     | `1.47` em 01/10/2026     |
+| `4389` | Selic acumulada | % a.a.        | diária     | `13.65` em 29/10/2026    |
+| `4391` | CDI acumulado   | % no mês      | mensal     | `1.02` em 01/10/2026     |
 
 Para benchmark de retorno, o que serve é **12** (CDI diário) e **11** (Selic
 diária), porque compõem no dia útil. A série **432** é a meta definida pelo
@@ -279,13 +279,13 @@ traz data futura, por carregar a meta vigente adiante.
 
 ### Mapeamento para `macro_series` (hypertable)
 
-| Origem | Coluna em `macro_series` | Observação |
-| --- | --- | --- |
-| código da série | `series_code` | ex. `12`; parte da chave |
-| `data` | `date` | **`dd/MM/aaaa`**, não ISO; dimensão de tempo |
-| `valor` | `value` | string no JSON; converter para `numeric` |
-| — | `unit` | da tabela acima, não da API |
-| — | `frequency` | `daily` ou `monthly` |
+| Origem          | Coluna em `macro_series` | Observação                                   |
+| --------------- | ------------------------ | -------------------------------------------- |
+| código da série | `series_code`            | ex. `12`; parte da chave                     |
+| `data`          | `date`                   | **`dd/MM/aaaa`**, não ISO; dimensão de tempo |
+| `valor`         | `value`                  | string no JSON; converter para `numeric`     |
+| —               | `unit`                   | da tabela acima, não da API                  |
+| —               | `frequency`              | `daily` ou `monthly`                         |
 
 Chave natural: `(series_code, date)`.
 
@@ -316,8 +316,8 @@ comercial, e impõe duas obrigações:
   sob a mesma licença.
 
 O share-alike é o ponto a examinar com cuidado jurídico: há diferença entre
-*produce a work* (servir resultados de consulta, em geral fora da obrigação) e
-*distribuir um banco derivado* (que a aciona). Uma API que devolve consultas
+_produce a work_ (servir resultados de consulta, em geral fora da obrigação) e
+_distribuir um banco derivado_ (que a aciona). Uma API que devolve consultas
 tende a ser o primeiro caso; um dump para download é o segundo. **Não é uma
 conclusão que eu possa dar — é conversa com advogado**, e vale ter a resposta
 antes de haver cliente pagante.
@@ -335,12 +335,12 @@ exatamente o núcleo do produto — um comparador de ativos sem preço de ação
 
 O que isso significa na prática:
 
-| Uso | Situação |
-| --- | --- |
-| Baixar COTAHIST manualmente e analisar internamente | Uso informativo; é o que a página prevê |
-| Coletar por job automatizado | Vedado pelos termos, mesmo sem redistribuir |
-| Servir preço de ação na API pública | Redistribuição; exige contrato |
-| Servir indicador derivado (volatilidade, correlação, beta) | Zona cinzenta; depende do contrato |
+| Uso                                                        | Situação                                    |
+| ---------------------------------------------------------- | ------------------------------------------- |
+| Baixar COTAHIST manualmente e analisar internamente        | Uso informativo; é o que a página prevê     |
+| Coletar por job automatizado                               | Vedado pelos termos, mesmo sem redistribuir |
+| Servir preço de ação na API pública                        | Redistribuição; exige contrato              |
+| Servir indicador derivado (volatilidade, correlação, beta) | Zona cinzenta; depende do contrato          |
 
 Caminhos, em ordem de custo:
 
@@ -365,11 +365,11 @@ pública.
 
 ### Resumo
 
-| Fonte | Uso interno | Redistribuir na API |
-| --- | --- | --- |
-| CVM (cadastro, DFP/ITR, fundos) | Sim | Sim, com atribuição; checar share-alike |
-| BCB (SGS) | Sim | Sim, com atribuição; confirmar termos |
-| B3 (COTAHIST) | Informativo | **Não, sem contrato** |
+| Fonte                           | Uso interno | Redistribuir na API                     |
+| ------------------------------- | ----------- | --------------------------------------- |
+| CVM (cadastro, DFP/ITR, fundos) | Sim         | Sim, com atribuição; checar share-alike |
+| BCB (SGS)                       | Sim         | Sim, com atribuição; confirmar termos   |
+| B3 (COTAHIST)                   | Informativo | **Não, sem contrato**                   |
 
 ---
 

@@ -24,13 +24,13 @@ quase nunca muda, e quando não muda nada acontece.
 
 Dentro do processamento, a idempotência vem da chave natural, não do hash:
 
-| Tabela | Chave natural | Conflito resolve em |
-| --- | --- | --- |
-| `assets` | `cnpj` | `upsert` |
-| `quotes_daily` | `(ticker, date)` | `upsert` |
+| Tabela                 | Chave natural                                               | Conflito resolve em        |
+| ---------------------- | ----------------------------------------------------------- | -------------------------- |
+| `assets`               | `cnpj`                                                      | `upsert`                   |
+| `quotes_daily`         | `(ticker, date)`                                            | `upsert`                   |
 | `financial_statements` | `(cvm_code, reference_date, account_code, is_consolidated)` | `upsert` da maior `versao` |
-| `fund_daily` | `(cnpj_fundo, date)` | `upsert` |
-| `macro_series` | `(series_code, date)` | `upsert` |
+| `fund_daily`           | `(cnpj_fundo, date)`                                        | `upsert`                   |
+| `macro_series`         | `(series_code, date)`                                       | `upsert`                   |
 
 Rodar o mesmo job duas vezes é seguro mesmo que o hash seja apagado: o segundo
 passe sobrescreve as mesmas linhas com os mesmos valores.
@@ -54,16 +54,16 @@ curl -s -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 Nomes dos jobs:
 
-| Job | Fonte |
-| --- | --- |
-| `cvm-cadastro` | cadastro de companhias abertas |
-| `cvm-dfp` | demonstrações anuais |
-| `cvm-itr` | demonstrações trimestrais |
-| `cvm-fundos` | informe diário de fundos |
-| `b3-cotahist-diario` | COTAHIST do dia |
-| `b3-cotahist-anual` | COTAHIST de um ano |
-| `bcb-sgs` | séries do SGS |
-| `ajuste-proventos` | recálculo de `adj_close` |
+| Job                  | Fonte                          |
+| -------------------- | ------------------------------ |
+| `cvm-cadastro`       | cadastro de companhias abertas |
+| `cvm-dfp`            | demonstrações anuais           |
+| `cvm-itr`            | demonstrações trimestrais      |
+| `cvm-fundos`         | informe diário de fundos       |
+| `b3-cotahist-diario` | COTAHIST do dia                |
+| `b3-cotahist-anual`  | COTAHIST de um ano             |
+| `bcb-sgs`            | séries do SGS                  |
+| `ajuste-proventos`   | recálculo de `adj_close`       |
 
 Se o hash não mudou, o job encerra sem fazer nada. Para forçar, veja o passo 3.
 
@@ -142,14 +142,14 @@ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
   http://localhost:3001/admin/jobs | jq '.jobs[] | select(.status=="failed")'
 ```
 
-| Sintoma | Causa provável | O que fazer |
-| --- | --- | --- |
-| HTTP 404 na CVM | Arquivo do ano ainda não publicado | Normal no início do ano; não é erro |
-| HTTP 406 no BCB | Janela de datas longa demais em série diária | Fatiar em janelas de até 3 anos |
-| HTTP 403 na B3 | Bloqueio de coleta automatizada | Ver a seção de licenças em market-data-sources.md; não insista com retry |
-| ZIP corrompido | Download interrompido | O hash difere do esperado; o retry resolve |
-| Timeout | Arquivo grande em rede lenta | Aumente o timeout do job, não o número de tentativas |
-| `invalid byte sequence` | Leitura sem `latin1` | Bug no parser, não na fonte |
+| Sintoma                 | Causa provável                               | O que fazer                                                              |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------ |
+| HTTP 404 na CVM         | Arquivo do ano ainda não publicado           | Normal no início do ano; não é erro                                      |
+| HTTP 406 no BCB         | Janela de datas longa demais em série diária | Fatiar em janelas de até 3 anos                                          |
+| HTTP 403 na B3          | Bloqueio de coleta automatizada              | Ver a seção de licenças em market-data-sources.md; não insista com retry |
+| ZIP corrompido          | Download interrompido                        | O hash difere do esperado; o retry resolve                               |
+| Timeout                 | Arquivo grande em rede lenta                 | Aumente o timeout do job, não o número de tentativas                     |
+| `invalid byte sequence` | Leitura sem `latin1`                         | Bug no parser, não na fonte                                              |
 
 Retry não resolve erro de licença nem erro de parser. Se o `status` é `failed` e
 a causa é 403 ou decodificação, parar e corrigir é mais rápido que insistir.

@@ -7,3 +7,6 @@ pnpm-lock.yaml
 
 # Gerado por scripts/gerar-docs-eventos.ts; o formato é do gerador
 docs/events.md
+
+# Design de referencia exportado do canvas: arquivo de origem, nao codigo.
+docs/design/

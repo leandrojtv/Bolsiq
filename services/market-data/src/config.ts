@@ -17,6 +17,9 @@ export type Role = z.infer<typeof Role>;
  * que um `ROLE` digitado errado em produção subiria dois `api` e nenhum
  * `worker`, e nada pareceria errado até o primeiro job agendado não rodar.
  */
+/** Variável definida e vazia (`BRAPI_TOKEN=` no .env) vale como ausente. */
+const vazioComoAusente = (v: unknown) => (v === "" ? undefined : v);
+
 export const Env = z.object({
   ROLE: Role.default("all"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -26,6 +29,12 @@ export const Env = z.object({
   NATS_URL: z.string().default("nats://localhost:4222"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
   SERVICE_VERSION: z.string().default("0.0.0"),
+  /** Sem token, a brapi só serve os tickers de demonstração. */
+  BRAPI_TOKEN: z.preprocess(vazioComoAusente, z.string().optional()),
+  BRAPI_DELAY_MINUTES: z.coerce.number().int().nonnegative().default(15),
+  QUOTE_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  /** Token das rotas /admin. Sem ele, /admin recusa tudo. */
+  ADMIN_TOKEN: z.preprocess(vazioComoAusente, z.string().min(16).optional()),
 });
 
 export type Env = z.infer<typeof Env>;

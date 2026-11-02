@@ -18,20 +18,28 @@
     "@bolsiq/contracts": "workspace:*",
     "@bolsiq/db-core": "workspace:*",
     "@bolsiq/domain": "workspace:*",
+    "@bolsiq/messaging": "workspace:*",
+    "@fastify/swagger": "^9.9.3",
+    "@fastify/swagger-ui": "^6.1.2",
+    "@fastify/websocket": "^11.3.6",
+    "decimal.js": "^10.4.3",
+    "drizzle-orm": "^0.45.4",
     "fastify": "^5.2.0",
     "pg-boss": "^10.1.6",
-    "zod": "^3.24.1",
-    "@bolsiq/messaging": "workspace:*",
-    "@fastify/websocket": "^11.3.6",
-    "ws": "^8.22.1"
+    "ws": "^8.22.1",
+    "yauzl": "^3.4.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@bolsiq/config": "workspace:*",
+    "@types/ws": "^8.5.13",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "@vitest/coverage-v8": "^2.1.8",
+    "testcontainers": "^10.16.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8",
-    "@types/ws": "^8.5.13",
-    "testcontainers": "^10.16.0"
+    "yazl": "^3.3.1"
   }
 }

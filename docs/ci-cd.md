@@ -5,18 +5,18 @@ como reproduzir o CI na sua máquina.
 
 ## Workflows
 
-| Workflow | Gatilho | Jobs | Tempo médio | Obrigatório |
-| --- | --- | --- | --- | --- |
-| [ci.yml](../.github/workflows/ci.yml) | PR para `main` ou `develop`; merge group | `pr-meta`, `changes`, `lint`, `typecheck`, `unit`, `integration`, `migrations`, `contract`, `build`, `smoke`, `e2e`, `security`, `docs-check`, `ci-ok` | 6–9 min com cache quente | **Sim** — só o `ci-ok` |
-| [cd-develop.yml](../.github/workflows/cd-develop.yml) | push em `develop` | `matriz`, `build-push`, `deploy-staging` | 5–8 min | Não |
-| [release-please.yml](../.github/workflows/release-please.yml) | push em `main` | `release-please` | < 1 min | Não |
-| [cd-production.yml](../.github/workflows/cd-production.yml) | tag `vX.Y.Z` | `resolver`, `promover`, `deploy-producao`, `rollback`, `aviso-rollback` | 3–5 min + espera pela aprovação | Não |
-| [hotfix-backmerge.yml](../.github/workflows/hotfix-backmerge.yml) | PR de `hotfix/*` ou `release/*` mergeado em `main` | `back-merge` | < 1 min | Não |
-| [claude-review.yml](../.github/workflows/claude-review.yml) | PR para `main` ou `develop` | `revisar` | 1–3 min | Não |
-| [claude-mention.yml](../.github/workflows/claude-mention.yml) | `@claude` em issue, PR ou comentário | `responder` | variável | Não |
-| [codeql.yml](../.github/workflows/codeql.yml) | PR para `main`; segunda 04:00 UTC | `analisar` (matriz) | 3–6 min | Não |
-| [labeler.yml](../.github/workflows/labeler.yml) | PR aberto ou atualizado | `labeler` | < 30 s | Não |
-| [deploy.yml](../.github/workflows/deploy.yml) | `workflow_call` | `deploy` | 2–4 min | — |
+| Workflow                                                          | Gatilho                                            | Jobs                                                                                                                                                   | Tempo médio                     | Obrigatório            |
+| ----------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- | ---------------------- |
+| [ci.yml](../.github/workflows/ci.yml)                             | PR para `main` ou `develop`; merge group           | `pr-meta`, `changes`, `lint`, `typecheck`, `unit`, `integration`, `migrations`, `contract`, `build`, `smoke`, `e2e`, `security`, `docs-check`, `ci-ok` | 6–9 min com cache quente        | **Sim** — só o `ci-ok` |
+| [cd-develop.yml](../.github/workflows/cd-develop.yml)             | push em `develop`                                  | `matriz`, `build-push`, `deploy-staging`                                                                                                               | 5–8 min                         | Não                    |
+| [release-please.yml](../.github/workflows/release-please.yml)     | push em `main`                                     | `release-please`                                                                                                                                       | < 1 min                         | Não                    |
+| [cd-production.yml](../.github/workflows/cd-production.yml)       | tag `vX.Y.Z`                                       | `resolver`, `promover`, `deploy-producao`, `rollback`, `aviso-rollback`                                                                                | 3–5 min + espera pela aprovação | Não                    |
+| [hotfix-backmerge.yml](../.github/workflows/hotfix-backmerge.yml) | PR de `hotfix/*` ou `release/*` mergeado em `main` | `back-merge`                                                                                                                                           | < 1 min                         | Não                    |
+| [claude-review.yml](../.github/workflows/claude-review.yml)       | PR para `main` ou `develop`                        | `revisar`                                                                                                                                              | 1–3 min                         | Não                    |
+| [claude-mention.yml](../.github/workflows/claude-mention.yml)     | `@claude` em issue, PR ou comentário               | `responder`                                                                                                                                            | variável                        | Não                    |
+| [codeql.yml](../.github/workflows/codeql.yml)                     | PR para `main`; segunda 04:00 UTC                  | `analisar` (matriz)                                                                                                                                    | 3–6 min                         | Não                    |
+| [labeler.yml](../.github/workflows/labeler.yml)                   | PR aberto ou atualizado                            | `labeler`                                                                                                                                              | < 30 s                          | Não                    |
+| [deploy.yml](../.github/workflows/deploy.yml)                     | `workflow_call`                                    | `deploy`                                                                                                                                               | 2–4 min                         | —                      |
 
 Os tempos são estimativas de projeto, não medições: nenhum serviço existe ainda.
 Atualize esta coluna quando houver histórico real.
@@ -34,20 +34,20 @@ os PRs.
 
 ### O que cada check cobra
 
-| Job | O que reprova |
-| --- | --- |
-| `pr-meta` | Título fora de Conventional Commits; nome de branch fora do padrão; slug acima de 50 caracteres; origem não permitida para a base (`feature/*` → `main`, por exemplo). Aplica `size:XS..XL` e avisa acima de 600 linhas. |
-| `lint` | ESLint ou Prettier. |
-| `typecheck` | `tsc`. |
-| `unit` | Vitest, incluindo o piso de cobertura definido no `vitest.config` **de cada pacote**. Comenta o resumo de cobertura no PR. |
-| `integration` | Testes com Postgres+Timescale e NATS reais, via Testcontainers. |
-| `migrations` | Migrations que não aplicam num banco limpo, ou drift entre o schema do Drizzle e as migrations versionadas. |
-| `contract` | Quebra incompatível em `/v1`, comparada com a base via `oasdiff`. Liberado pela label `breaking-change`. |
-| `build` | Falha no build de qualquer imagem afetada. Sem push em PR. |
-| `smoke` | Algum container não fica `healthy`, ou algum endpoint de health não responde 200 através do Kong. |
-| `e2e` | Playwright, quando `apps/web` ou os contratos mudam. |
-| `security` | gitleaks (segredo no código ou no histórico) e Trivy (HIGH/CRITICAL com correção disponível). |
-| `docs-check` | Código de serviço alterado sem nada em `docs/`, salvo com a label `no-docs`. Também reprova link quebrado em Markdown. |
+| Job           | O que reprova                                                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pr-meta`     | Título fora de Conventional Commits; nome de branch fora do padrão; slug acima de 50 caracteres; origem não permitida para a base (`feature/*` → `main`, por exemplo). Aplica `size:XS..XL` e avisa acima de 600 linhas. |
+| `lint`        | ESLint ou Prettier.                                                                                                                                                                                                      |
+| `typecheck`   | `tsc`.                                                                                                                                                                                                                   |
+| `unit`        | Vitest, incluindo o piso de cobertura definido no `vitest.config` **de cada pacote**. Comenta o resumo de cobertura no PR.                                                                                               |
+| `integration` | Testes com Postgres+Timescale e NATS reais, via Testcontainers.                                                                                                                                                          |
+| `migrations`  | Migrations que não aplicam num banco limpo, ou drift entre o schema do Drizzle e as migrations versionadas.                                                                                                              |
+| `contract`    | Quebra incompatível em `/v1`, comparada com a base via `oasdiff`. Liberado pela label `breaking-change`.                                                                                                                 |
+| `build`       | Falha no build de qualquer imagem afetada. Sem push em PR.                                                                                                                                                               |
+| `smoke`       | Algum container não fica `healthy`, ou algum endpoint de health não responde 200 através do Kong.                                                                                                                        |
+| `e2e`         | Playwright, quando `apps/web` ou os contratos mudam.                                                                                                                                                                     |
+| `security`    | gitleaks (segredo no código ou no histórico) e Trivy (HIGH/CRITICAL com correção disponível).                                                                                                                            |
+| `docs-check`  | Código de serviço alterado sem nada em `docs/`, salvo com a label `no-docs`. Também reprova link quebrado em Markdown.                                                                                                   |
 
 ### Estado atual: jobs pulados
 
@@ -59,14 +59,14 @@ isso na execução.
 
 Vão ligando sozinhos conforme os arquivos aparecem:
 
-| Job | Liga quando existir |
-| --- | --- |
-| `lint`, `typecheck`, `unit` | `pnpm-workspace.yaml` |
-| `integration` | `pnpm-workspace.yaml` + mudança em `services/`, `packages/db-core` ou `infra/docker` |
-| `migrations` | mudança em `packages/db-core`, `**/migrations/**` ou `drizzle.config.ts` |
-| `contract` | alvo `openapi:generate` no Turborepo |
-| `build` | entradas em [`infra/docker/deployables.json`](../infra/docker/deployables.json) |
-| `smoke`, `e2e` | `infra/docker/compose.ci.yml` |
+| Job                         | Liga quando existir                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `lint`, `typecheck`, `unit` | `pnpm-workspace.yaml`                                                                |
+| `integration`               | `pnpm-workspace.yaml` + mudança em `services/`, `packages/db-core` ou `infra/docker` |
+| `migrations`                | mudança em `packages/db-core`, `**/migrations/**` ou `drizzle.config.ts`             |
+| `contract`                  | alvo `openapi:generate` no Turborepo                                                 |
+| `build`                     | entradas em [`infra/docker/deployables.json`](../infra/docker/deployables.json)      |
+| `smoke`, `e2e`              | `infra/docker/compose.ci.yml`                                                        |
 
 ## Otimizações de tempo
 
@@ -88,14 +88,14 @@ Meta: menos de 10 minutos para um PR típico com cache quente.
 
 Configure em Settings → Secrets and variables → Actions.
 
-| Secret | Escopo | Para que serve | Sem ele |
-| --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | repositório | Revisão automática do Claude e respostas a `@claude` | Os dois workflows do Claude falham; o resto do CI segue |
-| `SSH_HOST` | environment | Host de deploy | Deploy falha |
-| `SSH_USER` | environment | Usuário SSH | Deploy falha |
-| `SSH_KEY` | environment | Chave privada de deploy, sem passphrase | Deploy falha |
-| `SSH_PORT` | environment | Porta SSH (opcional; padrão 22) | Usa 22 |
-| `ENV_FILE` | environment | Conteúdo completo do `.env` daquele ambiente | Deploy falha |
+| Secret                 | Escopo      | Para que serve                                                                                                                                        | Sem ele                                                   |
+| ---------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | repositório | Revisão automática do Claude e respostas a `@claude`                                                                                                  | Os dois workflows do Claude falham; o resto do CI segue   |
+| `SSH_HOST`             | environment | Host de deploy                                                                                                                                        | Deploy falha                                              |
+| `SSH_USER`             | environment | Usuário SSH                                                                                                                                           | Deploy falha                                              |
+| `SSH_KEY`              | environment | Chave privada de deploy, sem passphrase                                                                                                               | Deploy falha                                              |
+| `SSH_PORT`             | environment | Porta SSH (opcional; padrão 22)                                                                                                                       | Usa 22                                                    |
+| `ENV_FILE`             | environment | Conteúdo completo do `.env` daquele ambiente                                                                                                          | Deploy falha                                              |
 | `RELEASE_PLEASE_TOKEN` | repositório | PAT para o release-please. Opcional, mas **recomendado**: com o `GITHUB_TOKEN` padrão, o PR de release não dispara o CI, e o `ci-ok` nunca fica verde | O PR de release precisa de um push manual para rodar o CI |
 
 Os secrets de deploy são **por environment**, não do repositório: é isso que
@@ -109,11 +109,11 @@ que publicar: o push para o GHCR usa o `GITHUB_TOKEN` automático.
 
 ## Environments
 
-| Environment | Quem usa | Proteção |
-| --- | --- | --- |
-| `staging` | `cd-develop.yml` | Nenhuma. Merge em `develop` publica direto. |
-| `production` | `cd-production.yml` | **Required reviewers.** É aqui que vive a aprovação manual do deploy de produção. |
-| `production-rollback` | job `rollback` | Mesmos secrets de produção, **sem** required reviewers. |
+| Environment           | Quem usa            | Proteção                                                                          |
+| --------------------- | ------------------- | --------------------------------------------------------------------------------- |
+| `staging`             | `cd-develop.yml`    | Nenhuma. Merge em `develop` publica direto.                                       |
+| `production`          | `cd-production.yml` | **Required reviewers.** É aqui que vive a aprovação manual do deploy de produção. |
+| `production-rollback` | job `rollback`      | Mesmos secrets de produção, **sem** required reviewers.                           |
 
 O `production-rollback` existe por um motivo específico: se o rollback usasse o
 environment `production`, ele esperaria aprovação humana — com a produção

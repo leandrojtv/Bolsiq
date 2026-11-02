@@ -55,6 +55,17 @@ services:
       timeout: 5s
       retries: 10
 
+  # Perfil tools: nao sobe no `make up`, so quando pedido.
+  #   docker compose -f infra/docker/compose.dev.yml --profile tools up -d storybook
+  storybook:
+    profiles: ["tools"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/storybook.Dockerfile
+    image: bolsiq-storybook:local
+    ports:
+      - "6006:80"
+
 volumes:
   postgres-dev:
   nats-dev:

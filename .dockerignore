@@ -20,6 +20,7 @@ coverage
 **/openapi.json
 **/playwright-report
 **/test-results
+**/storybook-static
 
 # Histórico e metadados
 .git

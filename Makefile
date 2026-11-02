@@ -136,10 +136,11 @@ docs-events-check:
 	$(call exige_monorepo)
 	$(PNPM) --filter @bolsiq/contracts run docs:events:check
 
-## build-image: constroi as imagens (market-data e alerts-worker)
+## build-image: constroi as imagens (market-data, alerts-worker e analytics-worker)
 build-image:
 	docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
 	docker build -f infra/docker/alerts-worker.Dockerfile -t bolsiq-alerts-worker:$${IMAGE_TAG:-local} .
+	docker build -f infra/docker/analytics-worker.Dockerfile -t bolsiq-analytics-worker:$${IMAGE_TAG:-local} .
 
 ## build-image-clean: constroi sem cache, como o CI faz
 build-image-clean:
@@ -157,6 +158,7 @@ dev-up: build-image
 	IMAGE_TAG=$${IMAGE_TAG:-local} docker compose -f $(COMPOSE_CI) up -d --wait --wait-timeout 180
 	@echo
 	@echo "  API      http://localhost:8000/v1/health"
+	@echo "  Swagger  http://localhost:8000/docs"
 	@echo "  OpenAPI  http://localhost:8000/v1/openapi.json"
 	@echo "  Stream   ws://localhost:8000/v1/stream"
 	@echo "  Página   infra/dev/teste-stream.html  (abra no navegador)"
@@ -164,6 +166,12 @@ dev-up: build-image
 	@echo "  Publicar cotação:  make dev-cotacao TICKER=PETR4 PRECO=38.42"
 	@echo
 	@echo "  Caixa de e-mail:  http://localhost:8025"
+	@echo "  Carga histórica:  make backfill FROM=2024"
+
+## backfill: carga histórica desde FROM (COTAHIST, CVM e BCB) no ambiente local
+backfill:
+	@test -n "$(FROM)" || { echo "uso: make backfill FROM=2024"; exit 1; }
+	docker compose -f $(COMPOSE_CI) run --rm --no-deps market-data-worker node dist/backfill.js $(FROM)
 
 ## dev-down: derruba o ambiente local e apaga os volumes
 dev-down:
@@ -171,7 +179,7 @@ dev-down:
 
 ## dev-logs: acompanha os logs do market-data
 dev-logs:
-	docker compose -f $(COMPOSE_CI) logs -f --tail 50 market-data market-data-worker
+	docker compose -f $(COMPOSE_CI) logs -f --tail 50 market-data market-data-worker analytics-worker
 
 ## dev-cotacao: publica uma cotação no outbox (TICKER=, PRECO=, VARIACAO=)
 dev-cotacao:

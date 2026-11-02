@@ -174,4 +174,18 @@ describe("buildOpenApi", () => {
       scheme: "bearer",
     });
   });
+
+  it("nao gera $ref relativo ao schema da resposta", () => {
+    const Valor = z.string();
+    const doc = buildOpenApi(options, [
+      {
+        method: "get",
+        path: "/x",
+        summary: "x",
+        tags: ["x"],
+        response: z.object({ a: Valor, b: Valor }),
+      },
+    ]);
+    expect(JSON.stringify(doc)).not.toContain("$ref");
+  });
 });

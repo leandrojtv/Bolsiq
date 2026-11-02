@@ -26,6 +26,16 @@ export interface RouteSpec {
   body?: AnySchema;
 }
 
+/**
+ * Schemas inline, sem `$ref`.
+ *
+ * Com o padrao, o zod-to-json-schema troca a segunda ocorrencia de um mesmo
+ * schema (Money, IsoDate) por `$ref: "#/properties/..."`, relativo ao schema
+ * da resposta. No documento OpenAPI esse caminho nao existe, e o oasdiff do
+ * check `contract` recusa o arquivo.
+ */
+const OPCOES_DE_SCHEMA = { target: "openApi3", $refStrategy: "none" } as const;
+
 export interface OpenApiOptions {
   title: string;
   version: string;
@@ -60,7 +70,7 @@ export function buildOpenApi(
           description: "Sucesso",
           content: {
             "application/json": {
-              schema: zodToJsonSchema(route.response, { target: "openApi3" }),
+              schema: zodToJsonSchema(route.response, OPCOES_DE_SCHEMA),
             },
           },
         },
@@ -75,7 +85,7 @@ export function buildOpenApi(
         required: false,
         content: {
           "application/json": {
-            schema: zodToJsonSchema(route.body, { target: "openApi3" }),
+            schema: zodToJsonSchema(route.body, OPCOES_DE_SCHEMA),
           },
         },
       };
@@ -122,7 +132,7 @@ function paramsToOpenApi(
 ): Record<string, unknown>[] {
   if (!schema) return [];
 
-  const json = zodToJsonSchema(schema, { target: "openApi3" }) as {
+  const json = zodToJsonSchema(schema, OPCOES_DE_SCHEMA) as {
     properties?: Record<string, unknown>;
     required?: string[];
   };

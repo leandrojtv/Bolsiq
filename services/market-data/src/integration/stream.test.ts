@@ -18,24 +18,52 @@ let messaging: Messaging;
 let app: FastifyInstance;
 let urlWs: string;
 
-/** Lê mensagens do socket até `condicao` ou estourar o prazo. */
-async function coletar(
-  socket: WebSocket,
-  condicao: (msgs: Record<string, unknown>[]) => boolean,
-  ms = 10_000,
-): Promise<Record<string, unknown>[]> {
+interface Coletor {
+  todas: () => Record<string, unknown>[];
+  esperarPor: (
+    condicao: (msgs: Record<string, unknown>[]) => boolean,
+    ms?: number,
+  ) => Promise<Record<string, unknown>[]>;
+  silencioPor: (ms: number) => Promise<Record<string, unknown>[]>;
+}
+
+/**
+ * Coletor único por socket, com o listener anexado UMA vez.
+ *
+ * Anexar um listener novo a cada espera, com um array novo, perde o que chegou
+ * no intervalo entre as esperas — e é exatamente o que acontece aqui: o
+ * servidor repassa a cotação em milissegundos, antes de a espera seguinte
+ * existir. A mensagem chegava ao socket e era descartada pelo teste.
+ */
+function coletorDe(socket: WebSocket): Coletor {
   const recebidas: Record<string, unknown>[] = [];
-  const limite = Date.now() + ms;
 
   socket.on("message", (dados: Buffer) => {
     recebidas.push(JSON.parse(dados.toString()) as Record<string, unknown>);
   });
 
-  while (Date.now() < limite) {
-    if (condicao(recebidas)) return recebidas;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return recebidas;
+  return {
+    todas: () => [...recebidas],
+    async esperarPor(condicao, ms = 10_000) {
+      const limite = Date.now() + ms;
+      while (Date.now() < limite) {
+        if (condicao(recebidas)) return [...recebidas];
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      return [...recebidas];
+    },
+    async silencioPor(ms) {
+      await new Promise((r) => setTimeout(r, ms));
+      return [...recebidas];
+    },
+  };
+}
+
+async function abrir(url: string): Promise<{ socket: WebSocket; coletor: Coletor }> {
+  const socket = new WebSocket(url);
+  const coletor = coletorDe(socket);
+  await new Promise((r) => socket.on("open", r));
+  return { socket, coletor };
 }
 
 function publicarCotacao(ticker: string, preco: string): Promise<unknown> {
@@ -83,15 +111,14 @@ afterAll(async () => {
 
 describe("/v1/stream", () => {
   it("entrega ao cliente inscrito em PETR4 e só a ele", async () => {
-    const socket = new WebSocket(urlWs);
-    await new Promise((r) => socket.on("open", r));
+    const { socket, coletor } = await abrir(urlWs);
 
     try {
       socket.send(JSON.stringify({ action: "subscribe", tickers: ["PETR4"] }));
 
       // Espera o reconhecimento antes de publicar, senão a cotação sai antes
       // de a assinatura existir.
-      const confirmacao = await coletar(socket, (m) =>
+      const confirmacao = await coletor.esperarPor((m) =>
         m.some((x) => x.type === "subscribed"),
       );
       expect(confirmacao.find((m) => m.type === "subscribed")).toMatchObject({
@@ -101,7 +128,9 @@ describe("/v1/stream", () => {
       await publicarCotacao("PETR4", "38.42");
       await publicarCotacao("VALE3", "61.10");
 
-      const recebidas = await coletar(socket, (m) => m.some((x) => x.type === "quote"));
+      const recebidas = await coletor.esperarPor((m) =>
+        m.some((x) => x.type === "quote"),
+      );
 
       const cotacoes = recebidas.filter((m) => m.type === "quote");
       expect(cotacoes).toHaveLength(1);
@@ -118,18 +147,17 @@ describe("/v1/stream", () => {
   });
 
   it("para de entregar depois do unsubscribe", async () => {
-    const socket = new WebSocket(urlWs);
-    await new Promise((r) => socket.on("open", r));
+    const { socket, coletor } = await abrir(urlWs);
 
     try {
       socket.send(JSON.stringify({ action: "subscribe", tickers: ["ITUB4"] }));
-      await coletar(socket, (m) => m.some((x) => x.type === "subscribed"));
+      await coletor.esperarPor((m) => m.some((x) => x.type === "subscribed"));
 
       socket.send(JSON.stringify({ action: "unsubscribe", tickers: ["ITUB4"] }));
-      await coletar(socket, (m) => m.some((x) => x.type === "unsubscribed"));
+      await coletor.esperarPor((m) => m.some((x) => x.type === "unsubscribed"));
 
       await publicarCotacao("ITUB4", "32.00");
-      const depois = await coletar(socket, () => false, 2500);
+      const depois = await coletor.silencioPor(2500);
 
       expect(depois.filter((m) => m.type === "quote")).toHaveLength(0);
     } finally {
@@ -138,19 +166,18 @@ describe("/v1/stream", () => {
   });
 
   it("responde erro a comando inválido sem derrubar a conexão", async () => {
-    const socket = new WebSocket(urlWs);
-    await new Promise((r) => socket.on("open", r));
+    const { socket, coletor } = await abrir(urlWs);
 
     try {
       socket.send("isto não é JSON");
-      const r = await coletar(socket, (m) => m.some((x) => x.type === "error"));
+      const r = await coletor.esperarPor((m) => m.some((x) => x.type === "error"));
       expect(r.find((m) => m.type === "error")).toMatchObject({
-        message: expect.stringContaining("JSON") as unknown as string,
+        message: expect.stringContaining("JSON"),
       });
 
       // A conexão segue útil depois do erro.
       socket.send(JSON.stringify({ action: "ping" }));
-      const pong = await coletar(socket, (m) => m.some((x) => x.type === "pong"));
+      const pong = await coletor.esperarPor((m) => m.some((x) => x.type === "pong"));
       expect(pong.some((m) => m.type === "pong")).toBe(true);
       expect(socket.readyState).toBe(WebSocket.OPEN);
     } finally {
@@ -159,14 +186,13 @@ describe("/v1/stream", () => {
   });
 
   it("rejeita ticker inválido e mantém os válidos", async () => {
-    const socket = new WebSocket(urlWs);
-    await new Promise((r) => socket.on("open", r));
+    const { socket, coletor } = await abrir(urlWs);
 
     try {
       socket.send(
         JSON.stringify({ action: "subscribe", tickers: ["BBDC4", "não-existe"] }),
       );
-      const r = await coletar(socket, (m) => m.some((x) => x.type === "subscribed"));
+      const r = await coletor.esperarPor((m) => m.some((x) => x.type === "subscribed"));
       const confirmacao = r.find((m) => m.type === "subscribed");
 
       expect(confirmacao).toMatchObject({ tickers: ["BBDC4"] });

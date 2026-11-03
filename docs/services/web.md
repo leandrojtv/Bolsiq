@@ -72,14 +72,19 @@ make backfill FROM=2024
 
 ## Variáveis
 
-| Variável              | Para quê                                 |
-| --------------------- | ---------------------------------------- |
-| `MARKET_DATA_URL`     | base do `/v1`; com o Kong, o gateway     |
-| `MARKET_DATA_API_KEY` | chave interna do BFF; nunca no navegador |
-| `DATABASE_URL`        | schemas `analytics` e `alerts`           |
-| `NATS_URL`            | sino: assinatura de `alerts.inapp.*`     |
-| `VAPID_PUBLIC_KEY`    | Web Push; vazio deixa Push indisponível  |
-| `FEATURE_TELEGRAM`    | mostra o canal Telegram (`true`)         |
+| Variável                                   | Para quê                                 |
+| ------------------------------------------ | ---------------------------------------- |
+| `MARKET_DATA_URL`                          | base do `/v1`; com o Kong, o gateway     |
+| `MARKET_DATA_API_KEY`                      | chave interna do BFF; nunca no navegador |
+| `DATABASE_URL`                             | schemas `analytics` e `alerts`           |
+| `NATS_URL`                                 | sino: assinatura de `alerts.inapp.*`     |
+| `VAPID_PUBLIC_KEY`                         | Web Push; vazio deixa Push indisponível  |
+| `FEATURE_TELEGRAM`                         | mostra o canal Telegram (`true`)         |
+| `APP_URL`                                  | base dos links de e-mail e do Google     |
+| `BETTER_AUTH_SECRET`                       | assina sessão; obrigatório em produção   |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some           |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)        |
+| `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto    |
 
 ## Testes
 
@@ -146,3 +151,41 @@ Design em [docs/design/Alertas.dc.html](../design/Alertas.dc.html). Decisões no
 e2e em `e2e/alertas.spec.ts`: regra criada pela tela dispara no sino em até
 5 s e chega no Mailpit; regra desligada não dispara; sheet do ativo;
 preferências.
+
+## Conta
+
+Better Auth (ADR 0010), configurado em `packages/auth` e servido em
+`/api/auth`. Decisões de uso no [ADR 0022](../adr/0022-login-carteira-e-snapshot.md).
+
+- **Telas**: `/entrar`, `/cadastro`, `/recuperar`, `/redefinir-senha`,
+  `/configuracoes/seguranca` (2FA por TOTP) e `/configuracoes/conta` (sair,
+  exportar e excluir).
+- **E-mail obrigatório verificado**: o link chega pelo SMTP (Mailpit em dev) e
+  já entra na conta. Login antes de verificar reenvia o link.
+- **Google** só aparece com `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
+- **Rotas protegidas** (`/carteiras`, `/configuracoes/conta`,
+  `/configuracoes/seguranca`): o `proxy.ts` redireciona sem cookie de sessão;
+  a página e o BFF validam a sessão de verdade.
+- **Primeiro login no aparelho**: watchlist do `localStorage` e alertas do id
+  provisório passam para a conta.
+
+## Carteira
+
+Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
+
+- Seletor de carteira (com "Nova carteira…"); a primeira visita cria
+  "Principal".
+- Resumo: patrimônio, TWR 12m contra o CDI do período, não realizado,
+  realizado e proventos 12m.
+- Rentabilidade: TWR dos snapshots contra CDI, IPCA+6% e IBOV, em base 100.
+  Enquanto o `portfolio-worker` recalcula, a tela consulta de novo a cada 3 s.
+- Alocação por classe, setor ou ativo; posições com o aviso de evento
+  corporativo ("Desdobramento 1:2 aplicado"); proventos por mês.
+- Nova transação e importação em sheet (embaixo no celular), com relatório
+  das linhas rejeitadas.
+- Toda leitura e escrita passa por `comoUsuario` (RLS). Carteira de outro
+  usuário responde 404.
+
+e2e: `e2e/carteira.spec.ts` (conferência, isolamento entre usuários,
+500 linhas em menos de 5 s, nova transação) e `e2e/autenticacao.spec.ts`
+(login, recuperação, 2FA, watchlist, LGPD).

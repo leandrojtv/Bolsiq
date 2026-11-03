@@ -30,3 +30,9 @@ export function tratar(erro: unknown) {
   }
   throw erro;
 }
+
+export const naoAutenticado = () =>
+  Response.json(
+    { error: { code: "unauthorized", message: "Entre na sua conta." } },
+    { status: 401 },
+  );

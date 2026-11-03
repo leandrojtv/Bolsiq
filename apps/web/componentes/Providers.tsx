@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { ProvedorDeConta } from "./conta/Conta";
 
 export function Providers({ children }: { children: ReactNode }) {
   const [cliente] = useState(
@@ -20,5 +21,9 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  return <QueryClientProvider client={cliente}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={cliente}>
+      <ProvedorDeConta>{children}</ProvedorDeConta>
+    </QueryClientProvider>
+  );
 }

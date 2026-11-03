@@ -1,16 +1,28 @@
+import { getSessionCookie } from "better-auth/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Identidade provisoria por aparelho (ADR 0021).
+ * Duas coisas antes de qualquer rota:
  *
- * Sem login ainda (Prompt E), alertas, notificacoes e preferencias precisam de
- * um dono. O primeiro acesso recebe um id aleatorio num cookie httpOnly; e
- * esse id que vira `user_id`. Com o Better Auth, o id do usuario logado passa
- * a valer e os registros deste cookie migram para a conta.
+ * 1. Rotas que exigem login redirecionam para /entrar quando nao ha cookie
+ *    de sessao. E so o atalho: a pagina e o BFF validam a sessao de verdade.
+ * 2. Identidade provisoria por aparelho (ADR 0021): sem login, alertas e
+ *    preferencias precisam de dono. O primeiro acesso recebe um id aleatorio
+ *    num cookie httpOnly; no login, o que estiver nele migra para a conta.
  */
 export const COOKIE_DO_USUARIO = "bolsiq_uid";
+const EXIGEM_LOGIN = ["/carteiras", "/configuracoes/conta", "/configuracoes/seguranca"];
 
 export function proxy(req: NextRequest) {
+  const caminho = req.nextUrl.pathname;
+  if (EXIGEM_LOGIN.some((p) => caminho === p || caminho.startsWith(`${p}/`))) {
+    if (!getSessionCookie(req)) {
+      const entrar = new URL("/entrar", req.url);
+      entrar.searchParams.set("volta", caminho + req.nextUrl.search);
+      return NextResponse.redirect(entrar);
+    }
+  }
+
   if (req.cookies.get(COOKIE_DO_USUARIO)?.value) return NextResponse.next();
   const id = `dev_${crypto.randomUUID()}`;
   // O handler desta mesma requisicao ja precisa do id: vai no header e no cookie.

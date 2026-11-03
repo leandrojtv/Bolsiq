@@ -112,6 +112,26 @@ test.describe("screener", () => {
     for (const t of fora) expect(r.linhas.map((l) => l.ticker)).not.toContain(t);
   });
 
+  test("FII aparece com a ordenacao padrao por P/L, depois das acoes", async ({
+    page,
+    request,
+  }) => {
+    const res = await request.post("/api/screener", {
+      data: { tipos: ["stock", "fii"], limite: 1000 },
+    });
+    const { linhas } = (await res.json()) as {
+      linhas: { ticker: string; kind: string }[];
+    };
+    const tipos = linhas.map((l) => l.kind);
+    expect(tipos).toContain("fii");
+    // Acoes com P/L primeiro, FII no fim.
+    expect(tipos.indexOf("fii")).toBeGreaterThan(tipos.lastIndexOf("stock"));
+
+    await page.goto("/screener?tipos=fii");
+    await expect(page.getByRole("row", { name: /HGLG11/ })).toBeVisible();
+    await expect(page.getByText(/P\/L só existe para ações/)).toBeVisible();
+  });
+
   test("filtro invalido responde 422", async ({ request }) => {
     const res = await request.post("/api/screener", {
       data: { faixas: { pl: { min: 10, max: 5 } } },

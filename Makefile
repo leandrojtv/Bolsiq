@@ -24,7 +24,7 @@ PNPM := docker run --rm -i $(DOCKER_TTY) \
 	-e PNPM_HOME=/pnpm \
 	-e npm_config_store_dir=/pnpm-store \
 	$(NODE_IMAGE) \
-	bash -lc 'corepack enable >/dev/null 2>&1 && exec pnpm'
+	bash -lc 'corepack enable >/dev/null 2>&1 && exec pnpm "$$@"' pnpm
 
 define exige_monorepo
 	@if [ ! -f pnpm-workspace.yaml ]; then \

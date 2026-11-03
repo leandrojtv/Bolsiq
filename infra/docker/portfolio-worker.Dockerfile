@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Imagem do portfolio-worker: snapshot diario das carteiras e migrations dos
-# schemas `app` e `portfolio` (ADR 0022).
+# schemas `app`, `portfolio` (ADR 0022) e `assistant` (ADR 0024).
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -33,6 +33,8 @@ WORKDIR /app
 COPY --from=build --chown=bolsiq:bolsiq /app ./
 COPY --from=build --chown=bolsiq:bolsiq /repo/packages/auth/migrations ./migrations/app
 COPY --from=build --chown=bolsiq:bolsiq /repo/packages/portfolio/migrations ./migrations/portfolio
+# Do pruner: o worker nao depende do pacote do assistente, so aplica as migrations.
+COPY --from=pruner --chown=bolsiq:bolsiq /repo/packages/assistant/migrations ./migrations/assistant
 USER bolsiq
 EXPOSE 3004
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \

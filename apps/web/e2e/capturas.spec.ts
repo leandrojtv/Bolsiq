@@ -1,5 +1,6 @@
-import { test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { publicarCotacao } from "./banco";
+import { CONFERENCIA, cadastrar, emailNovo } from "./conta";
 
 /** Regras e uma notificacao disparada, para a captura de /alertas nao sair vazia. */
 async function prepararAlertas(page: Page) {
@@ -40,12 +41,53 @@ for (const largura of LARGURAS) {
   });
 }
 
+/** Conta nova com a carteira de conferencia e os snapshots ja gravados. */
+async function prepararCarteira(page: Page): Promise<string> {
+  const id = await cadastrar(page, emailNovo("captura"));
+  await page.request.post(`/api/carteiras/${id}/importacoes`, {
+    multipart: {
+      formato: "bolsiq",
+      arquivo: {
+        name: "conferencia.csv",
+        mimeType: "text/csv",
+        buffer: Buffer.from(CONFERENCIA),
+      },
+    },
+  });
+  await expect
+    .poll(
+      async () =>
+        (
+          (await (await page.request.get(`/api/carteiras/${id}`)).json()) as {
+            data: { recalculando: boolean };
+          }
+        ).data.recalculando,
+      { timeout: 60_000 },
+    )
+    .toBe(false);
+  return `/carteiras/${id}`;
+}
+
 for (const largura of [390, 1440]) {
+  test(`carteira em ${largura} px`, async ({ page }, info) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: largura, height: largura === 390 ? 844 : 1100 });
+    await page.goto(await prepararCarteira(page));
+    await page.locator("canvas").first().waitFor();
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(1000);
+    await page.screenshot({
+      path: info.outputPath(`carteira-${largura}.png`),
+      fullPage: true,
+    });
+  });
+
   for (const [nome, rota] of [
     ["comparar", "/comparar?t=PETR4,PRIO3,HGLG11,07455507000189&p=1A"],
     ["screener", "/screener?preset=graham"],
     ["alertas", "/alertas?t=PETR4"],
     ["notificacoes", "/configuracoes/notificacoes"],
+    ["entrar", "/entrar"],
   ] as const) {
     test(`${nome} em ${largura} px`, async ({ page }, info) => {
       await page.setViewportSize({

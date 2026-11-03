@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { canalInApp, subjectInApp } from "./inapp.js";
 import { canalPush } from "./push.js";
 import { canalTelegram, telegramHabilitado } from "./telegram.js";
-import { escapar, templateDeEmail } from "./templates.js";
+import { emailDeConta, escapar, templateDeEmail } from "./templates.js";
 
 const n = {
   id: "n1",
@@ -46,6 +46,20 @@ describe("templates", () => {
     // bg e accent de tokens.css (#0B0F14, #6C9CFF), em estilo inline.
     expect(t.html.toLowerCase()).toContain("#0b0f14");
     expect(t.html.toLowerCase()).toContain("#6c9cff");
+  });
+});
+
+describe("e-mail de conta", () => {
+  it("leva o link no botao e o aviso de quem nao pediu", async () => {
+    const e = await emailDeConta({
+      titulo: "Confirme seu e-mail",
+      corpo: "Falta um passo.",
+      link: "http://app/verificar?token=abc",
+      acao: "Confirmar e-mail",
+    });
+    expect(e.assunto).toBe("Confirme seu e-mail");
+    expect(e.html).toContain('href="http://app/verificar?token=abc"');
+    expect(e.texto).toContain("Se não foi você");
   });
 });
 

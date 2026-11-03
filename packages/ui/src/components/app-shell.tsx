@@ -40,6 +40,8 @@ export interface AppShellProps {
   notifications?: number;
   onNotificationsClick?: () => void;
   userInitials?: string;
+  /** Area da conta no topo (ex. link "Entrar" ou avatar), no lugar das iniciais. */
+  account?: ReactNode;
   searchPlaceholder?: string;
   onSearch?: (termo: string) => void;
   /**
@@ -88,6 +90,7 @@ export function AppShell({
   notifications = 0,
   onNotificationsClick,
   userInitials,
+  account,
   searchPlaceholder = "Buscar ação, FII, BDR, ETF ou fundo",
   onSearch,
   search,
@@ -236,7 +239,8 @@ export function AppShell({
               </span>
             )}
           </button>
-          {userInitials && (
+          {account}
+          {!account && userInitials && (
             <div
               aria-hidden="true"
               className="hidden size-touch items-center justify-center rounded-full bg-accent-soft font-semibold text-accent-soft-text sm:flex"

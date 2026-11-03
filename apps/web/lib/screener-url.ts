@@ -26,6 +26,18 @@ export const COLUNAS_PADRAO: IndicadorFiltravel[] = [
   "liquidez_diaria",
 ];
 
+/** So FII na tela: P/L, ROE e margem nao existem para fundo. */
+export const COLUNAS_FII: IndicadorFiltravel[] = [
+  "pvp",
+  "dy_12m",
+  "patrimonio_liquido",
+  "cotistas",
+  "liquidez_diaria",
+];
+
+const colunasPadrao = (tipos: Tipo[]) =>
+  tipos.length === 1 && tipos[0] === "fii" ? COLUNAS_FII : COLUNAS_PADRAO;
+
 export interface EstadoDoScreener {
   preset: NomeDePreset | null;
   tipos: Tipo[];
@@ -63,10 +75,11 @@ export function estadoInicial(): EstadoDoScreener {
 /** Estado a partir do preset: as faixas, tipos e ordenacao que o autor publicou. */
 export function estadoDoPreset(nome: NomeDePreset): EstadoDoScreener {
   const f = filtroDoPreset(nome);
+  const tipos = f.tipos ?? TIPOS;
   return {
     ...estadoInicial(),
     preset: nome,
-    tipos: f.tipos ?? TIPOS,
+    tipos,
     faixas: f.faixas,
     ordenarPor: f.ordenar_por,
     ordem: f.ordem,
@@ -74,7 +87,7 @@ export function estadoDoPreset(nome: NomeDePreset): EstadoDoScreener {
       ...new Set([
         f.ordenar_por,
         ...Object.keys(f.faixas).filter(ehIndicador),
-        ...COLUNAS_PADRAO,
+        ...colunasPadrao(tipos),
       ]),
     ].slice(0, 8),
   };
@@ -103,16 +116,20 @@ export function estadoDaUrl(p: URLSearchParams): EstadoDoScreener {
     .filter((t): t is Tipo => (TIPOS as string[]).includes(t));
   const colunas = p.get("cols")?.split(",").filter(ehIndicador);
   const ord = p.get("ord");
+  const tiposFinais = tipos && tipos.length > 0 ? tipos : base.tipos;
+  // Sem preset e sem `cols`, as colunas seguem o tipo: /screener?tipos=fii
+  // abre com P/VP e DY em vez de P/L e ROE.
+  const colunasDoTipo = base.preset ? base.colunas : colunasPadrao(tiposFinais);
   return {
     ...base,
     faixas,
-    tipos: tipos && tipos.length > 0 ? tipos : base.tipos,
+    tipos: tiposFinais,
     liquidezMinima: numero(p.get("liq") ?? undefined) ?? base.liquidezMinima,
     incluirIndefinidos: p.get("indef") === "1" || base.incluirIndefinidos,
     ordenarPor: ord && ehIndicador(ord) ? ord : base.ordenarPor,
     ordem: p.get("dir") === "desc" ? "desc" : p.get("dir") === "asc" ? "asc" : base.ordem,
     pagina: Math.max(1, Math.floor(numero(p.get("pag") ?? undefined) ?? 1)),
-    colunas: colunas && colunas.length > 0 ? colunas : base.colunas,
+    colunas: colunas && colunas.length > 0 ? colunas : colunasDoTipo,
   };
 }
 

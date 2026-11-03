@@ -190,15 +190,6 @@ export async function processarEntregas(
         destino,
       );
 
-      if (r.ok) {
-        await tx
-          .update(deliveries)
-          .set({ status: "enviada", enviada_em: agora.toISOString(), erro: null })
-          .where(eq(deliveries.id, e.id));
-        enviadas++;
-        continue;
-      }
-
       if (r.remover_push?.length) {
         await tx
           .delete(pushSubscriptions)
@@ -208,6 +199,15 @@ export async function processarEntregas(
               inArray(pushSubscriptions.endpoint, r.remover_push),
             ),
           );
+      }
+
+      if (r.ok) {
+        await tx
+          .update(deliveries)
+          .set({ status: "enviada", enviada_em: agora.toISOString(), erro: null })
+          .where(eq(deliveries.id, e.id));
+        enviadas++;
+        continue;
       }
 
       const tentativas = e.tentativas + 1;

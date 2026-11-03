@@ -47,6 +47,29 @@ export function emCooldown(regra: Regra, agora: Date): boolean {
   return agora.getTime() - ultimo < regra.cooldown_segundos * 1000;
 }
 
+/** Valor em reais para o texto da notificacao: "R$ 52,71". */
+function reais(v: Decimal | string, casas = 2): string {
+  return `R$ ${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas }).format(new Decimal(v).toNumber())}`;
+}
+
+function pct(fracao: number | Decimal): string {
+  const n = typeof fracao === "number" ? fracao : fracao.toNumber();
+  return `${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n * 100)}%`;
+}
+
+/** "2026-11-05" vira "05/11/2026". */
+function data(iso: string): string {
+  return iso.split("-").reverse().join("/");
+}
+
+const NOME_DO_PROVENTO: Record<string, string> = {
+  dividendo: "dividendo",
+  jcp: "JCP",
+  bonificacao: "bonificação",
+  desdobramento: "desdobramento",
+  grupamento: "grupamento",
+};
+
 /**
  * Avalia regras de preco contra uma cotacao.
  *
@@ -78,22 +101,32 @@ export function avaliarCotacao(
       const sentido = r.tipo === "preco_acima" ? "acima de" : "abaixo de";
       disparos.push({
         regra: r,
-        titulo: `${cotacao.ticker} ${sentido} R$ ${limite.toFixed(2)}`,
-        corpo: `${cotacao.ticker} esta em R$ ${preco.toFixed(2)}.`,
-        dados: { preco: cotacao.price, limite: r.params.valor },
+        titulo: `${cotacao.ticker} ${sentido} ${reais(limite)}`,
+        corpo: `${cotacao.ticker} está em ${reais(preco)}.`,
+        dados: {
+          ticker: cotacao.ticker,
+          tipo: r.tipo,
+          preco: cotacao.price,
+          limite: r.params.valor,
+        },
       });
     } else if (r.tipo === "variacao_diaria") {
       // `change` e a variacao absoluta sobre o fechamento anterior.
       const anterior = preco.minus(variacao);
       if (anterior.lte(0)) continue;
-      const pct = variacao.div(anterior);
-      if (pct.abs().lt(r.params.percentual) || emCooldown(r, agora)) continue;
+      const variacaoDia = variacao.div(anterior);
+      if (variacaoDia.abs().lt(r.params.percentual) || emCooldown(r, agora)) continue;
 
       disparos.push({
         regra: r,
-        titulo: `${cotacao.ticker} ${pct.isNeg() ? "cai" : "sobe"} ${pct.abs().times(100).toFixed(2)}% no dia`,
-        corpo: `${cotacao.ticker} esta em R$ ${preco.toFixed(2)}.`,
-        dados: { preco: cotacao.price, variacao: pct.toNumber() },
+        titulo: `${cotacao.ticker} ${variacaoDia.isNeg() ? "cai" : "sobe"} ${pct(variacaoDia.abs())} no dia`,
+        corpo: `${cotacao.ticker} está em ${reais(preco)}.`,
+        dados: {
+          ticker: cotacao.ticker,
+          tipo: r.tipo,
+          preco: cotacao.price,
+          variacao: variacaoDia.toNumber(),
+        },
       });
     }
   }
@@ -123,9 +156,9 @@ export function avaliarIndicadores(
       if (ind.dy_12m === null || ind.dy_12m <= r.params.percentual) continue;
       disparos.push({
         regra: r,
-        titulo: `${ind.ticker} com DY de ${(ind.dy_12m * 100).toFixed(2)}%`,
-        corpo: `Acima dos ${(r.params.percentual * 100).toFixed(2)}% configurados.`,
-        dados: { dy_12m: ind.dy_12m },
+        titulo: `${ind.ticker} com DY de ${pct(ind.dy_12m)}`,
+        corpo: `Acima dos ${pct(r.params.percentual)} configurados.`,
+        dados: { ticker: ind.ticker, tipo: r.tipo, dy_12m: ind.dy_12m },
       });
       continue;
     }
@@ -137,17 +170,27 @@ export function avaliarIndicadores(
       if (preco.gte(ind.preco_graham)) continue;
       disparos.push({
         regra: r,
-        titulo: `${ind.ticker} abaixo do preco justo de Graham`,
-        corpo: `Preco R$ ${preco.toFixed(2)}, preco justo R$ ${new Decimal(ind.preco_graham).toFixed(2)}.`,
-        dados: { preco: ultimoPreco, preco_graham: ind.preco_graham },
+        titulo: `${ind.ticker} abaixo do preço justo de Graham`,
+        corpo: `Preço ${reais(preco)}, preço justo ${reais(ind.preco_graham)}. Não é recomendação.`,
+        dados: {
+          ticker: ind.ticker,
+          tipo: r.tipo,
+          preco: ultimoPreco,
+          preco_graham: ind.preco_graham,
+        },
       });
     } else if (r.tipo === "abaixo_bazin" && ind.preco_bazin !== null) {
       if (preco.gte(ind.preco_bazin)) continue;
       disparos.push({
         regra: r,
-        titulo: `${ind.ticker} abaixo do preco-teto de Bazin`,
-        corpo: `Preco R$ ${preco.toFixed(2)}, teto R$ ${new Decimal(ind.preco_bazin).toFixed(2)}.`,
-        dados: { preco: ultimoPreco, preco_bazin: ind.preco_bazin },
+        titulo: `${ind.ticker} abaixo do preço-teto de Bazin`,
+        corpo: `Preço ${reais(preco)}, teto ${reais(ind.preco_bazin)}. Não é recomendação.`,
+        dados: {
+          ticker: ind.ticker,
+          tipo: r.tipo,
+          preco: ultimoPreco,
+          preco_bazin: ind.preco_bazin,
+        },
       });
     }
   }
@@ -168,20 +211,20 @@ export function avaliarProvento(regras: Regra[], p: Provento, agora: Date): Resu
     if (r.tipo === "provento_anunciado") {
       disparos.push({
         regra: r,
-        titulo: `${p.ticker} anunciou ${p.kind}`,
+        titulo: `${p.ticker} anunciou ${NOME_DO_PROVENTO[p.kind] ?? p.kind}`,
         corpo: p.value_per_share
-          ? `R$ ${new Decimal(p.value_per_share).toFixed(4)} por acao, data com ${p.ex_date}.`
-          : `Data com ${p.ex_date}.`,
-        dados: { ...p },
+          ? `${reais(p.value_per_share, 4)} por ação, data ex ${data(p.ex_date)}.`
+          : `Data ex ${data(p.ex_date)}.`,
+        dados: { ...p, tipo: r.tipo },
       });
     } else if (r.tipo === "data_com_proxima") {
       // Data com ja passada nao avisa: o direito ja foi decidido.
       if (diasAteEx < 0 || diasAteEx > r.params.dias) continue;
       disparos.push({
         regra: r,
-        titulo: `Data com de ${p.ticker} em ${diasAteEx} dia(s)`,
-        corpo: `Quem tiver ${p.ticker} ate ${p.ex_date} recebe o ${p.kind}.`,
-        dados: { ...p, dias_ate_ex: diasAteEx },
+        titulo: `Data ex de ${p.ticker} em ${diasAteEx} ${diasAteEx === 1 ? "dia" : "dias"}`,
+        corpo: `Quem tiver ${p.ticker} antes de ${data(p.ex_date)} recebe o ${NOME_DO_PROVENTO[p.kind] ?? p.kind}.`,
+        dados: { ...p, tipo: r.tipo, dias_ate_ex: diasAteEx },
       });
     }
   }
@@ -200,9 +243,9 @@ export function avaliarDemonstrativo(
     .filter((r) => r.tipo === "demonstrativo_publicado" && !emCooldown(r, agora))
     .map((r) => ({
       regra: r,
-      titulo: `${ticker} publicou ${d.statement_kind} de ${d.period_end}`,
-      corpo: `Demonstracao financeira nova ou reapresentada.`,
-      dados: { ...d },
+      titulo: `${ticker} publicou ${d.statement_kind} de ${data(d.period_end)}`,
+      corpo: "Demonstração financeira nova ou reapresentada. Indicadores recalculados.",
+      dados: { ...d, ticker, tipo: r.tipo },
     }));
   return { disparos, rearmar: [] };
 }

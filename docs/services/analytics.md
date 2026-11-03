@@ -25,22 +25,26 @@ no [ADR 0009](../adr/0009-analytics-como-modulo.md).
 O `analytics-worker` consome o stream `MARKETDATA` e enfileira em
 `analytics.recalc_queue`:
 
-| Evento                | Recalcula                          |
-| --------------------- | ---------------------------------- |
-| `asset.listed`        | o ticker novo                      |
-| `statement.published` | os tickers da companhia            |
-| `daily.closed`        | todo o universo listado no espelho |
-| `dividend.announced`  | o ticker                           |
-| `asset.delisted`      | nada; marca o espelho como fora    |
+| Evento                 | Recalcula                          |
+| ---------------------- | ---------------------------------- |
+| `asset.listed`         | o ticker novo                      |
+| `statement.published`  | os tickers da companhia            |
+| `daily.closed`         | todo o universo listado no espelho |
+| `dividend.announced`   | o ticker                           |
+| `fii.report.published` | os tickers do FII                  |
+| `asset.delisted`       | nada; marca o espelho como fora    |
 
 O handler so enfileira, dentro da transacao da idempotencia. Um laco drena a
 fila com `FOR UPDATE SKIP LOCKED` e chama o `/v1` para cada ticker:
 `assets`, `history` (bruto e ajustado, 1 ano), `fundamentals` (anual) e
-`dividends` (6 anos). CDI e IBOV sao lidos uma vez por hora para a rodada.
+`dividends` (6 anos) e, para FII, `fiis/{ticker}/monthly` (2 anos). CDI e
+IBOV sao lidos uma vez por hora para a rodada.
 
 Acao com DFP calcula tudo, com data-base igual a do demonstrativo. FII, ETF e
 BDR, sem demonstrativo, calculam o que so depende de preco e provento:
-desempenho, dividend yield e Bazin, com data-base no ultimo pregao.
+desempenho, dividend yield e Bazin, com data-base no ultimo pregao. FII com
+informe mensal ligado ganha tambem P/VP, patrimonio liquido e cotistas (ver
+[FIIs e fundos](#fiis-e-fundos)).
 
 Conta ausente na fonte vira indicador nulo, nao zero: banco sem resultado bruto
 fica sem margem bruta. Razao acima de 10^11 tambem vira nula, em vez de
@@ -64,6 +68,7 @@ qualquer filtro de valor.
 | Demonstracoes financeiras | CVM DFP e ITR, via `market-data` | evento `marketdata.statement.published.v1` dispara o recalculo; os numeros vem de `GET /v1/fundamentals` |
 | Preco e serie de retornos | B3 COTAHIST, via `market-data`   | evento `marketdata.daily.closed.v1`; serie de `GET /v1/quotes`                                           |
 | Proventos                 | `market-data`                    | evento `marketdata.dividend.announced.v1`                                                                |
+| Informe mensal de FII     | CVM, via `market-data`           | evento `marketdata.fii.report.published.v1`; os numeros vem de `GET /v1/fiis/{ticker}/monthly`           |
 | CDI e IPCA                | BCB SGS, via `market-data`       | `GET /v1/macro`                                                                                          |
 | Universo e setor          | `market-data`                    | eventos `asset.listed` e `delisted`, espelhados em `analytics.assets_mirror`                             |
 
@@ -147,10 +152,33 @@ Tres escolhas que mudam o numero:
 
 ### FIIs e fundos
 
-FIIs usam P/VP, DY, liquidez diaria e vacancia quando o relatorio gerencial
-traz. Fundos usam rentabilidade contra CDI, volatilidade, patrimonio liquido e
-cotistas, do informe diario da CVM. As colunas existem em `indicators`; as
-formulas sao as mesmas, com entradas diferentes.
+FIIs usam o informe mensal da CVM (`GET /v1/fiis/{ticker}/monthly`), com a
+competencia mais recente:
+
+| Coluna               | Formula                                                             |
+| -------------------- | ------------------------------------------------------------------- |
+| `vpa`                | `nav_per_share` (VP da cota)                                        |
+| `pvp`                | $P / VP_{cota}$                                                     |
+| `patrimonio_liquido` | `equity`                                                            |
+| `cotistas`           | `holders`                                                           |
+| `dy_12m`             | brapi quando ela tem proventos do FII; senao, pelo informe (abaixo) |
+
+O DY do informe e o que o administrador declara, sobre o valor patrimonial.
+O rendimento por cota do mes e entao $DY_{mes} \times VP_{cota}$, e
+
+$$\text{DY}_{12m} = \frac{\sum_{m} \max(DY_m, 0) \cdot VP_m}{P}$$
+
+somando as competencias dos 12 meses que terminam na mais recente. Mes com DY
+negativo (erro de preenchimento que a CVM publica como veio) conta zero.
+Sem `BRAPI_TOKEN`, que e o caso padrao, todo FII usa esse caminho; com token,
+a brapi tem precedencia por ter data-ex e valor pagos, nao estimados.
+`fonte_demonstrativo` fica `cvm-fii-mensal:<competencia>:v<versao>`.
+
+Vacancia continua nula: o informe mensal nao traz ocupacao (esta no
+trimestral, ainda nao ingerido).
+
+Fundos usam rentabilidade contra CDI, volatilidade, patrimonio liquido e
+cotistas, do informe diario da CVM.
 
 ## Conferencia contra a CVM
 
@@ -212,7 +240,12 @@ linha, o que tornaria impossivel a meta de 300 ms.
 Filtro validado por Zod em `src/screener.ts`, com faixas por indicador, setor,
 tipo e liquidez minima. Presets: `graham`, `bazin`, `magic_formula`,
 `dividendos_consistentes` -- filtros nomeados com os numeros publicados por cada
-autor, nao recomendacao.
+autor, nao recomendacao -- e `fii_desconto` (FII com P/VP abaixo de 1 e DY 12m
+acima de 8%), o corte usual do mercado de FII, sem autor.
+
+`patrimonio_liquido` e `cotistas` sao filtraveis. Com so FII no filtro, a tela
+abre com as colunas P/VP, DY 12m, patrimonio, cotistas e liquidez, em vez de
+P/L, ROE e margem.
 
 Indices parciais em `pl`, `pvp`, `roe`, `dy_medio_5a`, `ev_ebit` e
 `liquidez_diaria` cobrem os filtros mais usados. A meta de 300 ms para o

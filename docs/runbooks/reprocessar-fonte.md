@@ -60,6 +60,7 @@ Nomes dos jobs:
 | `cvm-dfp`            | demonstrações anuais           |
 | `cvm-itr`            | demonstrações trimestrais      |
 | `cvm-fundos`         | informe diário de fundos       |
+| `cvm-fii-mensal`     | informe mensal de FII          |
 | `b3-cotahist-diario` | COTAHIST do dia                |
 | `b3-cotahist-anual`  | COTAHIST de um ano             |
 | `bcb-sgs`            | séries do SGS                  |

@@ -50,6 +50,7 @@ irrelevante.
 | [`marketdata.daily.closed.v1`](#marketdatadailyclosedv1) | `market-data` | `analytics`, `portfolio` |
 | [`marketdata.dividend.announced.v1`](#marketdatadividendannouncedv1) | `market-data` | `market-data (ajuste-proventos)`, `portfolio`, `alerts` |
 | [`marketdata.statement.published.v1`](#marketdatastatementpublishedv1) | `market-data` | `analytics` |
+| [`marketdata.fii.report.published.v1`](#marketdatafiireportpublishedv1) | `market-data` | `analytics` |
 | [`marketdata.asset.listed.v1`](#marketdataassetlistedv1) | `market-data` | `apps/web`, `analytics` |
 | [`marketdata.asset.delisted.v1`](#marketdataassetdelistedv1) | `market-data` | `apps/web`, `analytics`, `portfolio` |
 | [`analytics.indicators.updated.v1`](#analyticsindicatorsupdatedv1) | `analytics` | `alerts` |
@@ -189,6 +190,40 @@ Demonstração financeira nova ou reapresentada foi gravada. Reapresentação ta
     ],
     "period_end": "2026-09-30",
     "statement_kind": "ITR"
+  }
+}
+```
+
+## marketdata.fii.report.published.v1
+
+Informe mensal de FII novo ou reapresentado foi gravado. Um evento por fundo, com a competência mais recente que mudou.
+
+- **Subject:** `marketdata.fii.report.published.v1`
+- **Produtor:** `market-data`
+- **Consumidores:** `analytics`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `cnpj` | string | sim |
+| `tickers` | array de string | sim |
+| `reference_date` | string (YYYY-MM-DD) | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "marketdata.fii.report.published.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "market-data",
+  "payload": {
+    "cnpj": "11728688000147",
+    "tickers": [
+      "HGLG11"
+    ],
+    "reference_date": "2026-09-01"
   }
 }
 ```

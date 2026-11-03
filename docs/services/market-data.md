@@ -8,20 +8,21 @@ mercado chama este serviço.
 
 ## Estado atual
 
-| Parte                                              | Estado                                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Monorepo, TypeScript estrito, Turborepo            | pronto                                                                                     |
-| Schema e migrations, com 4 hypertables             | pronto, aplicado em Postgres 17 + TimescaleDB                                              |
-| Fastify com `ROLE`, health e OpenAPI gerado do Zod | pronto, com Swagger UI em `/docs`                                                          |
-| pg-boss com filas e agenda                         | pronto, manipuladores ligados a cada job                                                   |
-| Imagem Docker e compose                            | pronto, smoke passando                                                                     |
-| Adapters brapi, B3 COTAHIST, CVM e BCB             | pronto; brapi e SGS em read-through, COTAHIST e CVM em lote (ADR 0013)                     |
-| Endpoints de dados `/v1`                           | pronto: assets, quotes, history, dividends, fundamentals, macro                            |
-| Endpoints `/admin/jobs`                            | pronto, com `ADMIN_TOKEN`                                                                  |
-| Produtor de eventos via outbox                     | pronto: quote.updated, daily.closed, dividend.announced, statement.published, asset.listed |
-| Carga histórica                                    | pronto: `make backfill FROM=2024`, cerca de 8 minutos                                      |
-| Fundos (`cvm-fundos`)                              | pronto: cadastro das classes e informe diário; `/v1/funds`                                 |
-| Autenticação, planos e medição                     | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md)                    |
+| Parte                                              | Estado                                                                                                                     |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo, TypeScript estrito, Turborepo            | pronto                                                                                                                     |
+| Schema e migrations, com 4 hypertables             | pronto, aplicado em Postgres 17 + TimescaleDB                                                                              |
+| Fastify com `ROLE`, health e OpenAPI gerado do Zod | pronto, com Swagger UI em `/docs`                                                                                          |
+| pg-boss com filas e agenda                         | pronto, manipuladores ligados a cada job                                                                                   |
+| Imagem Docker e compose                            | pronto, smoke passando                                                                                                     |
+| Adapters brapi, B3 COTAHIST, CVM e BCB             | pronto; brapi e SGS em read-through, COTAHIST e CVM em lote (ADR 0013)                                                     |
+| Endpoints de dados `/v1`                           | pronto: assets, quotes, history, dividends, fundamentals, funds, fiis, macro                                               |
+| Endpoints `/admin/jobs`                            | pronto, com `ADMIN_TOKEN`                                                                                                  |
+| Produtor de eventos via outbox                     | pronto: quote.updated, daily.closed, dividend.announced, statement.published, fii.report.published, asset.listed           |
+| Carga histórica                                    | pronto: `make backfill FROM=2024`, cerca de 8 minutos                                                                      |
+| Fundos (`cvm-fundos`)                              | pronto: cadastro das classes e informe diário; `/v1/funds`                                                                 |
+| FIIs (`cvm-fii-mensal`)                            | pronto: informe mensal da CVM, ligado ao ticker pelo ISIN; `/v1/fiis` ([ADR 0023](../adr/0023-fii-pelo-informe-mensal.md)) |
+| Autenticação, planos e medição                     | **não implementados** — ver [ADR 0007](../adr/0007-gateway-e-planos.md)                                                    |
 
 ## Papéis: `ROLE`
 
@@ -138,6 +139,7 @@ nomeado continua correto.
 | -------------------- | --------------- |
 | `b3-cotahist-diario` | `30 19 * * 1-5` |
 | `cvm-fundos`         | `0 6 * * *`     |
+| `cvm-fii-mensal`     | `30 6 * * *`    |
 | `bcb-sgs`            | `0 6 * * *`     |
 | `cvm-cadastro`       | `0 5 * * 1`     |
 | `cvm-dfp`            | `30 5 * * 1`    |
@@ -146,17 +148,19 @@ nomeado continua correto.
 | `ajuste-proventos`   | sob demanda     |
 
 Cada job tem manipulador em `jobs/handlers.ts`. O `backfill.ts` chama os
-mesmos manipuladores, em ordem: COTAHIST anual, cadastro, DFP e ITR, SGS.
+mesmos manipuladores, em ordem: COTAHIST anual, cadastro, DFP e ITR, informe
+mensal de FII (desde o ano anterior a `FROM`), SGS e fundos.
 
-| Job                  | O que faz                                                                                    | Eventos                                    |
-| -------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `b3-cotahist-diario` | pregão do dia; 404 da B3 (feriado) encerra como `sem_pregao`, não falha                      | `quote.updated` por papel, `daily.closed`  |
-| `b3-cotahist-anual`  | ano inteiro (`{"ano": 2024}`), sem evento de preço                                           | `asset.listed` para papel novo             |
-| `cvm-cadastro`       | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                       | nenhum                                     |
-| `cvm-dfp`, `cvm-itr` | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                     | `statement.published` por companhia e data |
-| `bcb-sgs`            | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                        | nenhum                                     |
-| `cvm-fundos`         | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia) | nenhum                                     |
-| `ajuste-proventos`   | sem efeito: o ajuste é calculado na leitura de `/v1/history`                                 | —                                          |
+| Job                  | O que faz                                                                                                    | Eventos                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `b3-cotahist-diario` | pregão do dia; 404 da B3 (feriado) encerra como `sem_pregao`, não falha                                      | `quote.updated` por papel, `daily.closed`  |
+| `b3-cotahist-anual`  | ano inteiro (`{"ano": 2024}`), sem evento de preço                                                           | `asset.listed` para papel novo             |
+| `cvm-cadastro`       | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                                       | nenhum                                     |
+| `cvm-dfp`, `cvm-itr` | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                                     | `statement.published` por companhia e data |
+| `bcb-sgs`            | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                                        | nenhum                                     |
+| `cvm-fundos`         | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia)                 | nenhum                                     |
+| `cvm-fii-mensal`     | informe mensal de FII do ano corrente e do anterior (`{"ano": 2025}` escolhe); liga CNPJ ao ticker pelo ISIN | `fii.report.published` por FII com ticker  |
+| `ajuste-proventos`   | sem efeito: o ajuste é calculado na leitura de `/v1/history`                                                 | —                                          |
 
 O feriado continua fora da agenda das 19:30, mas não gera falha: o download
 devolve 404 e o job termina como `sem_pregao`.
@@ -236,22 +240,23 @@ make test-integration
 
 ## Endpoints
 
-| Método | Rota                        | Fonte                          | Observação                                          |
-| ------ | --------------------------- | ------------------------------ | --------------------------------------------------- |
-| GET    | `/v1/health`                | —                              | anônimo; servido por todos os papéis                |
-| GET    | `/v1/openapi.json`, `/docs` | —                              | gerados dos schemas Zod                             |
-| GET    | `/v1/assets?q=&type=`       | COTAHIST + cadastro CVM        | até 20; ticker exato primeiro, depois prefixo, nome |
-| GET    | `/v1/assets/{ticker}`       | COTAHIST + cadastro CVM        |                                                     |
-| GET    | `/v1/quotes/{tickers}`      | brapi; reserva no COTAHIST     | até 20 tickers separados por vírgula                |
-| GET    | `/v1/history/{ticker}`      | COTAHIST; proventos da brapi   | `interval=1d\|1wk\|1mo`, padrão 1 ano, ajustado     |
-| GET    | `/v1/dividends/{ticker}`    | brapi                          | dividendo, JCP, desdobramento, grupamento           |
-| GET    | `/v1/fundamentals/{ticker}` | CVM DFP/ITR                    | `period=annual\|quarterly`; consolidado se houver   |
-| GET    | `/v1/macro/{serie}`         | SGS; IBOV pela brapi ou BOVA11 | `cdi`, `selic`, `ipca`, `igpm`, `ibov`              |
-| GET    | `/v1/funds?q=`              | CVM (registro de classes)      | por nome ou CNPJ, até 20                            |
-| GET    | `/v1/funds/{cnpj}`          | CVM (registro de classes)      | CNPJ com ou sem pontuação                           |
-| GET    | `/v1/funds/{cnpj}/history`  | CVM (informe diário)           | cota, patrimônio e cotistas por dia                 |
-| GET    | `/admin/jobs`               | pg-boss                        | `Authorization: Bearer $ADMIN_TOKEN`                |
-| POST   | `/admin/jobs/{name}`        | pg-boss                        | corpo opcional `{"data": {"ano": 2024}}`            |
+| Método | Rota                        | Fonte                          | Observação                                            |
+| ------ | --------------------------- | ------------------------------ | ----------------------------------------------------- |
+| GET    | `/v1/health`                | —                              | anônimo; servido por todos os papéis                  |
+| GET    | `/v1/openapi.json`, `/docs` | —                              | gerados dos schemas Zod                               |
+| GET    | `/v1/assets?q=&type=`       | COTAHIST + cadastro CVM        | até 20; ticker exato primeiro, depois prefixo, nome   |
+| GET    | `/v1/assets/{ticker}`       | COTAHIST + cadastro CVM        |                                                       |
+| GET    | `/v1/quotes/{tickers}`      | brapi; reserva no COTAHIST     | até 20 tickers separados por vírgula                  |
+| GET    | `/v1/history/{ticker}`      | COTAHIST; proventos da brapi   | `interval=1d\|1wk\|1mo`, padrão 1 ano, ajustado       |
+| GET    | `/v1/dividends/{ticker}`    | brapi                          | dividendo, JCP, desdobramento, grupamento             |
+| GET    | `/v1/fundamentals/{ticker}` | CVM DFP/ITR                    | `period=annual\|quarterly`; consolidado se houver     |
+| GET    | `/v1/macro/{serie}`         | SGS; IBOV pela brapi ou BOVA11 | `cdi`, `selic`, `ipca`, `igpm`, `ibov`                |
+| GET    | `/v1/funds?q=`              | CVM (registro de classes)      | por nome ou CNPJ, até 20                              |
+| GET    | `/v1/funds/{cnpj}`          | CVM (registro de classes)      | CNPJ com ou sem pontuação                             |
+| GET    | `/v1/funds/{cnpj}/history`  | CVM (informe diário)           | cota, patrimônio e cotistas por dia                   |
+| GET    | `/v1/fiis/{ticker}/monthly` | CVM (informe mensal de FII)    | PL, VP da cota, cotistas e DY por competência; 2 anos |
+| GET    | `/admin/jobs`               | pg-boss                        | `Authorization: Bearer $ADMIN_TOKEN`                  |
+| POST   | `/admin/jobs/{name}`        | pg-boss                        | corpo opcional `{"data": {"ano": 2024}}`              |
 
 Toda resposta de dados traz `meta`: `source`, `fetched_at`, `license`,
 `stale` e `delay_minutes`. `stale` é verdadeiro quando a fonte falhou e o valor

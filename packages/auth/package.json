@@ -27,6 +27,6 @@
     "@bolsiq/config": "workspace:*",
     "@types/pg": "^8.11.10",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "4.1.12"
   }
 }

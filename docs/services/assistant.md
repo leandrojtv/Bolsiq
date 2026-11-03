@@ -188,6 +188,12 @@ esperadas e responde os valores esperados. Isso confere o harness e as ferrament
 valor esperado não bate com a saída real, reprova) e roda em `make test`. **Não homologa
 nada.**
 
+Resultados até aqui:
+
+| Modelo                   | Ferramenta | Parâmetros | Números | Texto | Resultado |
+| ------------------------ | ---------- | ---------- | ------- | ----- | --------- |
+| `ollama/llama3.2:latest` | 70,4%      | 74,1%      | 51,9%   | 66,7% | reprovado |
+
 Modelo pequeno em Ollama precisa de memória livre: um modelo maior que a RAM da máquina
 trava o host.
 

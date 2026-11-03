@@ -15,13 +15,14 @@
       "default": "./dist/fonts.js"
     },
     "./tokens.css": "./tokens.css",
-    "./preset.css": "./preset.css"
+    "./preset.css": "./preset.css",
+    "./tokens.json": "./dist/tokens.json"
   },
   "sideEffects": [
     "*.css"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/gerar-tokens-json.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src stories .storybook tests && node scripts/checar-tokens.mjs",
     "test:unit": "vitest run --coverage",
@@ -30,6 +31,7 @@
     "test:visual": "playwright test"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "1.3.1",
     "@radix-ui/react-select": "2.4.1",
     "@radix-ui/react-slot": "1.5.0",
     "@radix-ui/react-switch": "1.4.1",

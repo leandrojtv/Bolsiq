@@ -17,6 +17,7 @@ import {
   Price,
   RangeInput,
   Select,
+  Sheet,
   SegmentedControl,
   Skeleton,
   SourceLine,
@@ -426,5 +427,19 @@ describe("AppShell com busca propria", () => {
     expect(document.activeElement?.id).toBe("minha-busca");
     expect(container.querySelector("header")?.className).toMatch(/\bhidden\b/);
     expect(screen.queryByRole("search")).toBeNull();
+  });
+});
+
+describe("Sheet", () => {
+  it("abre com titulo e fecha pelo botao", () => {
+    const mudar = vi.fn();
+    render(
+      <Sheet open onOpenChange={mudar} title="Novo alerta" description="d">
+        <p>corpo</p>
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog", { name: "Novo alerta" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(mudar).toHaveBeenCalledWith(false);
   });
 });

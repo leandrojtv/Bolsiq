@@ -9,3 +9,4 @@ export * from "./components/selecao.js";
 export * from "./components/tabela.js";
 export * from "./components/estados.js";
 export * from "./components/app-shell.js";
+export * from "./components/sheet.js";

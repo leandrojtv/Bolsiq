@@ -243,6 +243,13 @@ describe("FII pelo informe mensal", () => {
     // 11 meses de 1% sobre VP 40; a ordem de entrada nao importa.
     expect(rendimentoFii12m(informes)).toBe("4.4");
     expect(rendimentoFii12m([])).toBeNull();
+    // 36% num mes e liquidacao, nao rendimento.
+    expect(
+      rendimentoFii12m([
+        ...informes,
+        informe("2026-10-01", { dividend_yield_month: "0.36" }),
+      ]),
+    ).toBe("4");
     expect(rendimentoFii12m([informe("2026-09-01", { nav_per_share: null })])).toBeNull();
   });
 
@@ -272,6 +279,21 @@ describe("FII pelo informe mensal", () => {
     const semInforme = recalcular(dados({ kind: "fii", anuais: [] }));
     expect(comBrapi?.dy_12m).toBe(semInforme?.dy_12m);
     expect(Number(comBrapi?.pvp)).toBeCloseTo(0.85, 6);
+  });
+
+  it("VP em outra escala que o preco anula P/VP e DY pelo informe", () => {
+    // Preco 34 sobre VP 400: P/VP 0,085, grupamento nao refletido.
+    const r = recalcular(
+      dados({
+        kind: "fii",
+        anuais: [],
+        proventos: [],
+        informesFii: informes.map((i) => ({ ...i, nav_per_share: "400" })),
+      }),
+    );
+    expect(r?.pvp).toBeNull();
+    expect(Number(r?.dy_12m)).toBe(0);
+    expect(r?.patrimonio_liquido).toBe("1000000000");
   });
 
   it("sem informe, FII fica sem P/VP e acao nao usa informe", () => {

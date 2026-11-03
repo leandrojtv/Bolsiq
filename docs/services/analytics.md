@@ -168,11 +168,18 @@ O rendimento por cota do mes e entao $DY_{mes} \times VP_{cota}$, e
 
 $$\text{DY}_{12m} = \frac{\sum_{m} \max(DY_m, 0) \cdot VP_m}{P}$$
 
-somando as competencias dos 12 meses que terminam na mais recente. Mes com DY
-negativo (erro de preenchimento que a CVM publica como veio) conta zero.
-Sem `BRAPI_TOKEN`, que e o caso padrao, todo FII usa esse caminho; com token,
-a brapi tem precedencia por ter data-ex e valor pagos, nao estimados.
-`fonte_demonstrativo` fica `cvm-fii-mensal:<competencia>:v<versao>`.
+somando as competencias dos 12 meses que terminam na mais recente. Dois cortes
+contra erro da fonte, medidos no backfill de 2025-2026:
+
+- Mes com DY negativo (erro de preenchimento) ou acima de 5% (liquidacao ou
+  amortizacao declarada como rendimento: RDLI11 com 36% em dez/2025) conta
+  zero. Sao 123 de 15.284 competencias acima de 5%.
+- P/VP fora de 0,2 a 5 indica VP e preco em escalas diferentes (grupamento que
+  um dos lados nao refletiu: CARE11 com VP 34,35 e preco 2,94). Nesse caso P/VP
+  e DY pelo informe ficam nulos; patrimonio e cotistas continuam.
+  Sem `BRAPI_TOKEN`, que e o caso padrao, todo FII usa esse caminho; com token,
+  a brapi tem precedencia por ter data-ex e valor pagos, nao estimados.
+  `fonte_demonstrativo` fica `cvm-fii-mensal:<competencia>:v<versao>`.
 
 Vacancia continua nula: o informe mensal nao traz ocupacao (esta no
 trimestral, ainda nao ingerido).

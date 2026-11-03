@@ -109,10 +109,21 @@ function mesesAntes(data: string, meses: number): string {
  * Rendimento por cota dos 12 meses do informe, terminando na competencia mais
  * recente: soma de DY do mes vezes o VP da cota. O DY do informe e calculado
  * pelo administrador sobre o valor patrimonial, entao o produto devolve o
- * rendimento em reais por cota. Mes com DY negativo (erro de preenchimento,
- * que a CVM publica como veio) conta zero: rendimento distribuido nao e
- * negativo. `null` sem nenhum mes utilizavel.
+ * rendimento em reais por cota. Conta zero o mes com DY negativo (erro de
+ * preenchimento, que a CVM publica como veio) e o acima de `DY_MES_MAXIMO`
+ * (liquidacao ou amortizacao declarada como rendimento: RDLI11 com 36% em
+ * dez/2025). `null` sem nenhum mes utilizavel.
  */
+const DY_MES_MAXIMO = 0.05;
+
+/**
+ * P/VP de FII plausivel. Fora disso o VP do informe e o preco do COTAHIST nao
+ * estao na mesma escala (grupamento que um dos lados ainda nao refletiu:
+ * CARE11 com VP 34,35 e preco 2,94), e P/VP e DY pelo informe ficam nulos.
+ */
+const PVP_FII_MIN = 0.2;
+const PVP_FII_MAX = 5;
+
 export function rendimentoFii12m(informes: FiiMonthlyReport[]): string | null {
   const ordenados = [...informes].sort((a, b) =>
     a.reference_date.localeCompare(b.reference_date),
@@ -130,7 +141,9 @@ export function rendimentoFii12m(informes: FiiMonthlyReport[]): string | null {
   return meses
     .reduce((acc, i) => {
       const dy = d(i.dividend_yield_month as string);
-      return dy.gt(0) ? acc.plus(dy.times(i.nav_per_share as string)) : acc;
+      return dy.gt(0) && dy.lte(DY_MES_MAXIMO)
+        ? acc.plus(dy.times(i.nav_per_share as string))
+        : acc;
     }, d(0))
     .toFixed();
 }
@@ -150,9 +163,11 @@ function indicadoresDeFii(
   if (!ultimo) return null;
   const vp = ultimo.nav_per_share;
   const precoPositivo = d(preco).gt(0);
-  const pvp = vp !== null && d(vp).gt(0) ? d(preco).div(vp).toNumber() : null;
+  const bruto = vp !== null && d(vp).gt(0) ? d(preco).div(vp).toNumber() : null;
+  const pvp =
+    bruto !== null && bruto >= PVP_FII_MIN && bruto <= PVP_FII_MAX ? bruto : null;
   const rendimento = rendimentoFii12m(informes);
-  const usarInforme = d(proventos12m).eq(0) && rendimento !== null;
+  const usarInforme = d(proventos12m).eq(0) && rendimento !== null && pvp !== null;
   return {
     vpa: vp,
     pvp: razao(pvp),

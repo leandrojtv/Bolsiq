@@ -1,6 +1,7 @@
 import "server-only";
 import { asc, eq, inArray, sql } from "drizzle-orm";
 import { schema as alertas } from "@bolsiq/alerts";
+import { schema as assistente } from "@bolsiq/assistant";
 import { usuarios, watchlist } from "@bolsiq/auth";
 import { comoUsuario, schema as portfolio } from "@bolsiq/portfolio";
 import { banco } from "./analytics";
@@ -104,11 +105,30 @@ export async function exportarDados(uid: string) {
     importacoes: await tx.select().from(portfolio.imports),
     auditoria: await tx.select().from(portfolio.audit_log),
   }));
+  const doAssistente = await comoUsuario(db, uid, async (tx) => {
+    // A chave cifrada fica de fora: nao e dado que o usuario precise levar, e so
+    // abre com a chave-mestra do servidor.
+    const [config] = await tx
+      .select({
+        provedor: assistente.settings.provedor,
+        modelo: assistente.settings.modelo,
+        consentimento_em: assistente.settings.consentimento_em,
+      })
+      .from(assistente.settings);
+    return {
+      configuracao: config ?? null,
+      perfil: await tx.select().from(assistente.investorProfiles),
+      conversas: await tx.select().from(assistente.conversations),
+      mensagens: await tx.select().from(assistente.messages),
+      consumo: await tx.select().from(assistente.usage),
+    };
+  });
   return {
     gerado_em: new Date().toISOString(),
     conta: conta ?? null,
     watchlist: await lerWatchlist(uid),
     ...carteira,
+    assistente: doAssistente,
     alertas: {
       regras: await db.select().from(alertRules).where(eq(alertRules.user_id, uid)),
       notificacoes: await db
@@ -142,6 +162,14 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx.delete(portfolio.imports).where(eq(portfolio.imports.user_id, uid));
     // transactions cai junto, pela FK com cascade.
     await tx.delete(portfolio.portfolios).where(eq(portfolio.portfolios.user_id, uid));
+    // messages cai junto, pela FK com cascade.
+    await tx
+      .delete(assistente.conversations)
+      .where(eq(assistente.conversations.user_id, uid));
+    await tx
+      .delete(assistente.investorProfiles)
+      .where(eq(assistente.investorProfiles.user_id, uid));
+    await tx.delete(assistente.settings).where(eq(assistente.settings.user_id, uid));
   });
   const { alertRules, notifications, deliveries, userPrefs, pushSubscriptions } = alertas;
   await db.transaction(async (tx) => {
@@ -156,5 +184,7 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.user_id, uid));
     await tx.delete(watchlist).where(eq(watchlist.user_id, uid));
     await tx.delete(portfolio.audit_log).where(eq(portfolio.audit_log.user_id, uid));
+    // Consumo e append-only para a aplicacao, como a auditoria: mesmo caminho.
+    await tx.delete(assistente.usage).where(eq(assistente.usage.user_id, uid));
   });
 }

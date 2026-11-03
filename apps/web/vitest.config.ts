@@ -25,6 +25,7 @@ export default defineConfig({
         "lib/market-data.ts",
         "componentes/watchlist.ts",
         "lib/carteira-modelo.ts",
+        "lib/assistente-modelo.ts",
       ],
       thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 },
     },

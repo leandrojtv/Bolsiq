@@ -24,6 +24,10 @@ regexes = [
   # Exemplo de ULID de correlation ID na documentação: identificador de
   # requisição, não credencial.
   '''01JBQ7X8N4K2M9P3R5T7V9W1Y3''',
+  # Chave-mestra de desenvolvimento do compose de teste, valor literal e publico.
+  '''ZGVzZW52b2x2aW1lbnRvLW5hby11c2FyLWVtLXByb2Q=''',
+  # Chaves falsas dos testes do assistente: so o prefixo sk-e2e, sk-teste e sk-chave-que.
+  '''sk-(e2e-chave|teste-abcdefghijklmnop|chave-que-nunca)[a-z0-9-]*''',
 ]
 
 paths = [

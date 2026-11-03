@@ -1,15 +1,20 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { MessageCircle } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ComponentProps, ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { AppShell, navegacaoPadrao, type LinkComponent } from "@bolsiq/ui";
 import { buscarCotacoes } from "@/lib/api";
 import { useSino } from "./alertas/useSino";
 import { useConta } from "./conta/Conta";
 import { BuscaGlobal, ID_DA_BUSCA } from "./BuscaGlobal";
 import { useWatchlist } from "./watchlist";
+
+// Fora do bundle inicial: o painel so carrega no primeiro clique.
+const PainelDoAssistente = dynamic(() => import("./assistente/Painel"), { ssr: false });
 
 // exactOptionalPropertyTypes nao aceita os handlers opcionais do <a> no Link
 // do Next; as props sao as mesmas em tempo de execucao.
@@ -40,6 +45,8 @@ export function Casca({ children }: { children: ReactNode }) {
     refetchInterval: 60_000,
   });
   const porTicker = new Map((data?.data ?? []).map((c) => [c.ticker, c]));
+  const [assistenteAberto, setAssistenteAberto] = useState(false);
+  const [assistenteUsado, setAssistenteUsado] = useState(false);
 
   return (
     <AppShell
@@ -78,6 +85,20 @@ export function Casca({ children }: { children: ReactNode }) {
       linkComponent={LinkNext}
     >
       {children}
+      <button
+        type="button"
+        aria-label="Pergunte ao Bolsiq"
+        onClick={() => {
+          setAssistenteUsado(true);
+          setAssistenteAberto(true);
+        }}
+        className="fixed right-4 bottom-24 z-30 flex size-12 items-center justify-center rounded-full bg-accent text-on-accent shadow-lg hover:bg-link md:right-6 md:bottom-6"
+      >
+        <MessageCircle aria-hidden="true" size={22} />
+      </button>
+      {assistenteUsado && (
+        <PainelDoAssistente aberto={assistenteAberto} aoMudar={setAssistenteAberto} />
+      )}
     </AppShell>
   );
 }

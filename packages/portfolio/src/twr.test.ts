@@ -35,6 +35,15 @@ describe("twrDiario", () => {
     expect(p[1]?.retorno_diario).toBeCloseTo(0, 10);
   });
 
+  it("vender a carteira inteira mede a variacao do dia, nao -100%", () => {
+    // 1000 sobe 10% e e vendida inteira no fechamento: 1100 saem.
+    const p = twrDiario([
+      { data: "2024-01-01", valor: "1000", fluxo_caixa: "1000" },
+      { data: "2024-01-02", valor: "0", fluxo_caixa: "-1100" },
+    ]);
+    expect(p[1]?.retorno_diario).toBeCloseTo(0.1, 10);
+  });
+
   it("aporte com valorizacao separa as duas coisas", () => {
     // 1000 + aporte de 1000, fecha em 2200: 10% sobre 2000.
     const p = twrDiario([

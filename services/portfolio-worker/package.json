@@ -1,0 +1,26 @@
+{
+  "name": "@bolsiq/portfolio-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@bolsiq/auth": "workspace:*",
+    "@bolsiq/contracts": "workspace:*",
+    "@bolsiq/db-core": "workspace:*",
+    "@bolsiq/portfolio": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "pg-boss": "^10.1.6",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@bolsiq/config": "workspace:*",
+    "typescript": "^5.7.2"
+  }
+}

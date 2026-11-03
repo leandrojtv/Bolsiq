@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
 import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { comoUsuario as comoUsuarioDoApp } from "../db/sessao.js";
+import { portfolios, transactions } from "../db/schema.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
 
@@ -251,6 +254,35 @@ describe("RLS do portfolio", () => {
         await q("UPDATE portfolio.audit_log SET acao = 'outra'");
       }),
     ).rejects.toThrow(/permission denied/i);
+  });
+
+  it("comoUsuario vale para a RLS mesmo conectado como superusuario", async () => {
+    // O app conecta com o DATABASE_URL (superusuario no compose) e troca o
+    // papel dentro da transacao: SET LOCAL ROLE bolsiq_app (ADR 0022).
+    const db = drizzle(dono);
+    const visiveis = await comoUsuarioDoApp(db, USUARIO_A, (tx) =>
+      tx.select().from(portfolios),
+    );
+    expect(visiveis.map((c) => c.user_id)).toEqual([USUARIO_A]);
+    await expect(
+      comoUsuarioDoApp(db, USUARIO_A, (tx) =>
+        tx.insert(transactions).values({
+          id: "tx-forjada",
+          portfolio_id: carteiraB,
+          user_id: USUARIO_B,
+          ticker: "PETR4",
+          tipo: "compra",
+          data: "2024-01-15",
+          quantidade: "1",
+          preco: "1",
+        }),
+      ),
+    ).rejects.toThrow();
+    // O papel e o usuario morrem com a transacao: a conexao volta superusuario.
+    const r = await dono.query(
+      "SELECT current_user, current_setting('bolsiq.user_id', true) AS u",
+    );
+    expect(r.rows[0]).toEqual({ current_user: "dono", u: "" });
   });
 
   it("o papel da aplicacao nao tem BYPASSRLS", async () => {

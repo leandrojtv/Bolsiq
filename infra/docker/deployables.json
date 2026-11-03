@@ -20,6 +20,12 @@
       "filter": "@bolsiq/analytics-worker"
     },
     {
+      "name": "portfolio-worker",
+      "context": ".",
+      "dockerfile": "infra/docker/portfolio-worker.Dockerfile",
+      "filter": "@bolsiq/portfolio-worker"
+    },
+    {
       "name": "web",
       "context": ".",
       "dockerfile": "infra/docker/web.Dockerfile",

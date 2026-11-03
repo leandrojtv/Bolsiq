@@ -1,6 +1,16 @@
-import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook as render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useWatchlist } from "./watchlist";
+
+// Sem conta no contexto: a watchlist e a do localStorage.
+const renderHook = <T,>(hook: () => T) =>
+  render(hook, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+    ),
+  });
 
 beforeEach(() => localStorage.clear());
 

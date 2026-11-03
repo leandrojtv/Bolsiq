@@ -35,6 +35,8 @@ export const portfolios = portfolio.table(
     corretora_padrao: text("corretora_padrao"),
     arquivada: boolean("arquivada").notNull().default(false),
     criada_em: utc("criada_em").notNull().defaultNow(),
+    /** Primeira data com snapshot desatualizado; o worker recalcula dali em diante. */
+    recalcular_desde: date("recalcular_desde", { mode: "string" }),
   },
   (t) => [
     index("portfolios_user_idx").on(t.user_id),

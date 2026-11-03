@@ -11,6 +11,7 @@ import {
   Text,
 } from "@react-email/components";
 import { render } from "@react-email/render";
+import type { ReactNode } from "react";
 import tokens from "@bolsiq/ui/tokens.json" with { type: "json" };
 import type { NotificacaoParaEnvio } from "./canal.js";
 
@@ -70,16 +71,19 @@ const estilo = {
   linha: { borderColor: cor.border, margin: "24px 0 16px" },
 };
 
-export function EmailDeAlerta({
+/** Moldura dos e-mails do Bolsiq: marca, titulo, corpo, botao e rodape. */
+export function EmailBolsiq({
   titulo,
   corpo,
   link,
-  preferencias,
+  acao,
+  rodape,
 }: {
   titulo: string;
   corpo: string;
   link: string;
-  preferencias: string;
+  acao: string;
+  rodape: ReactNode;
 }) {
   return (
     <Html lang="pt-BR">
@@ -96,22 +100,66 @@ export function EmailDeAlerta({
           <Text style={estilo.corpo}>{corpo}</Text>
           <Section>
             <Button href={link} style={estilo.botao}>
-              Ver no Bolsiq
+              {acao}
             </Button>
           </Section>
           <Hr style={estilo.linha} />
-          <Text style={estilo.rodape}>
-            Você recebeu este e-mail porque criou um alerta. Não é recomendação de
-            investimento. Ajuste os canais em{" "}
-            <a href={preferencias} style={{ color: cor.link }}>
-              preferências de notificação
-            </a>
-            .
-          </Text>
+          <Text style={estilo.rodape}>{rodape}</Text>
         </Container>
       </Body>
     </Html>
   );
+}
+
+export function EmailDeAlerta({
+  titulo,
+  corpo,
+  link,
+  preferencias,
+}: {
+  titulo: string;
+  corpo: string;
+  link: string;
+  preferencias: string;
+}) {
+  return (
+    <EmailBolsiq
+      titulo={titulo}
+      corpo={corpo}
+      link={link}
+      acao="Ver no Bolsiq"
+      rodape={
+        <>
+          Você recebeu este e-mail porque criou um alerta. Não é recomendação de
+          investimento. Ajuste os canais em{" "}
+          <a href={preferencias} style={{ color: cor.link }}>
+            preferências de notificação
+          </a>
+          .
+        </>
+      }
+    />
+  );
+}
+
+/** E-mail de conta (verificacao, recuperacao de senha), no mesmo visual. */
+export async function emailDeConta(m: {
+  titulo: string;
+  corpo: string;
+  link: string;
+  acao: string;
+}) {
+  const el = (
+    <EmailBolsiq
+      {...m}
+      rodape="Se não foi você, ignore este e-mail. O link vale por tempo limitado."
+    />
+  );
+  return {
+    assunto: m.titulo,
+    html: await render(el),
+    texto: await render(el, { plainText: true }),
+  };
 }
 
 /**

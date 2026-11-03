@@ -17,10 +17,10 @@ entre schemas de servicos diferentes.
 | Importacao de CSV e do extrato da B3                                | pronto, 500 linhas em menos de 5 s                       |
 | Alocacao e proventos por mes                                        | pronto                                                   |
 | Schema com RLS forcada                                              | pronto, 12 testes contra Postgres real                   |
-| Autenticacao (Better Auth)                                          | **nao implementada**, depende de `apps/web`              |
-| Telas `/carteiras`                                                  | **nao implementadas**, dependem de `apps/web`            |
-| Snapshot diario gravado                                             | **nao implementado**, a tabela existe e o calculo tambem |
-| Exportacao e exclusao LGPD                                          | **nao implementadas**                                    |
+| Autenticacao (Better Auth)                                          | pronto: `packages/auth`, telas no `apps/web` (ADR 0022)  |
+| Telas `/carteiras`                                                  | prontas no `apps/web` ([web.md](web.md#carteira))        |
+| Snapshot diario gravado                                             | pronto: `portfolio-worker`, job e recalculo por marcacao |
+| Exportacao e exclusao LGPD                                          | pronto: `/configuracoes/conta`                           |
 
 ## Modelo de dados
 
@@ -78,15 +78,16 @@ Totais: realizado 532,80, proventos 321,00, taxas 25,00.
 
 ## TWR
 
-$$r_t = \frac{V_t}{V_{t-1} + CF_t} - 1 \qquad \text{TWR} = \prod_{t}(1 + r_t) - 1$$
+$$r_t = \frac{V_t + S_t}{V_{t-1} + A_t} - 1 \qquad \text{TWR} = \prod_{t}(1 + r_t) - 1$$
 
 O TWR mede a decisao de alocacao, nao o tamanho do aporte: ele neutraliza fluxo
 de caixa. Quem quiser o resultado em reais usa resultado realizado e nao
 realizado.
 
-**Convencao: fluxo no inicio do dia.** O aporte entra no denominador, ou seja,
-participa do retorno daquele dia. A convencao oposta daria numeros diferentes, e
-a escolha precisa estar escrita porque nao e deduzivel do resultado.
+**Convencao: aporte no inicio do dia, retirada no fim.** $A_t$ e o fluxo
+liquido positivo (compra) e entra no denominador: o aporte participa do retorno
+daquele dia. $S_t$ e a retirada (venda, provento) e volta ao numerador. Com a
+retirada no inicio, o dia em que a carteira vende tudo daria -100% (ADR 0022).
 
 O primeiro dia nao tem retorno: nao existe $V_{t-1}$. Devolve `null`, nao zero,
 porque zero significaria "nao rendeu".
@@ -166,13 +167,14 @@ Duas barreiras, nesta ordem:
 Detalhes sem os quais a RLS nao protege nada estao no
 [ADR 0011](../adr/0011-rls.md). O resumo operacional:
 
-- A aplicacao conecta com `bolsiq_app`: **nao e dono das tabelas e nao tem
-  BYPASSRLS**.
+- Toda transacao da aplicacao no `portfolio` passa por `comoUsuario`, que faz
+  `SET LOCAL ROLE bolsiq_app` (**nao e dono das tabelas e nao tem
+  BYPASSRLS**) e `SET LOCAL bolsiq.user_id` (ADR 0022).
 - `FORCE ROW LEVEL SECURITY` em todas as tabelas, senao o dono ignora as
   politicas.
 - **Superusuario ignora a RLS**, e `FORCE` nao alcanca superusuario. Rodar a
   aplicacao como `postgres` anula a barreira inteira. Isto esta verificado em
-  teste, e e o motivo de `DATABASE_URL_APP` existir separado de `DATABASE_URL`.
+  teste, e e o motivo de trocar o papel dentro da transacao.
 - O usuario da sessao vem de `SET LOCAL bolsiq.user_id`, nunca `SET`: sem
   `LOCAL`, o usuario vaza para a proxima requisicao que pegar a mesma conexao
   do pool.
@@ -180,11 +182,32 @@ Detalhes sem os quais a RLS nao protege nada estao no
 `audit_log` e append-only, garantido por `REVOKE UPDATE, DELETE` e por politica
 separada de `SELECT` e `INSERT`. Nem a aplicacao reescreve auditoria.
 
+## Snapshot diario
+
+`services/portfolio-worker` (ADR 0022):
+
+- O app marca `portfolios.recalcular_desde` em toda transacao nova e
+  importacao. O worker procura carteiras marcadas a cada `RECALCULO_MS`
+  (2 s), recalcula a serie inteira com `snapshotsDiarios` e regrava
+  `snapshots`, como o dono da carteira (mesma RLS).
+- O job `portfolio.snapshot-diario` (pg-boss, `SNAPSHOT_CRON`, padrao 19h de
+  dias uteis em Brasilia) marca todas as carteiras: e o snapshot do
+  fechamento.
+- Preco: `/v1/history?adjusted=false`. Ativo sem fechamento entra pelo custo.
+- O mesmo processo aplica as migrations dos schemas `app` e `portfolio`
+  (`portfolio-migrate` no compose).
+
+## LGPD
+
+Em `/configuracoes/conta`: exportar tudo em JSON e excluir a conta. A
+exclusao apaga carteira, transacoes, snapshots, importacoes, auditoria,
+alertas, watchlist e a conta (ADR 0022).
+
 ## Pendencias
 
-1. **Better Auth e as telas**, que dependem de `apps/web`.
-2. **Snapshot diario gravado**: a tabela e o calculo existem; falta o job.
-3. **Rate limit no login** e auditoria dos eventos de autenticacao.
-4. **LGPD**: exportacao e exclusao dos dados do usuario.
-5. **Teste E2E de isolamento entre usuarios**, que precisa de sessao real. O que
-   existe hoje cobre a camada de banco, que e a barreira mais profunda.
+1. **Auditoria dos eventos de autenticacao** (login, 2FA, troca de senha) no
+   `audit_log`. Hoje so as acoes na carteira sao auditadas.
+2. **Check que reprove acesso ao `portfolio` fora de `comoUsuario`.**
+3. **Editar e apagar transacao** pela tela.
+4. **Caixa** da carteira: o design mostra uma linha de caixa; ainda nao ha
+   transacao de deposito ou saque.

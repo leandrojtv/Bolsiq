@@ -33,10 +33,10 @@
   },
   "devDependencies": {
     "@bolsiq/config": "workspace:*",
-    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/coverage-v8": "4.1.12",
     "drizzle-kit": "^0.31.11",
     "testcontainers": "^10.16.0",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "4.1.12"
   }
 }

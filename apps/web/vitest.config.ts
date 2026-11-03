@@ -8,7 +8,8 @@ export default defineConfig({
       "server-only": fileURLToPath(new URL("./testes/server-only.ts", import.meta.url)),
     },
   },
-  esbuild: { jsx: "automatic" },
+  // O tsconfig do Next usa jsx "preserve"; o teste precisa do JSX transformado.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     environment: "jsdom",
     // Sem URL o jsdom tem origem opaca e nao oferece localStorage.
@@ -23,6 +24,7 @@ export default defineConfig({
         "lib/indicadores-tecnicos.ts",
         "lib/market-data.ts",
         "componentes/watchlist.ts",
+        "lib/carteira-modelo.ts",
       ],
       thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 },
     },

@@ -407,6 +407,20 @@ describe("AppShell", () => {
     rerender(<AppShell nav={navegacaoPadrao("/ativo")}>x</AppShell>);
     expect(screen.getByRole("button", { name: "Notificações" })).toBeTruthy();
   });
+
+  it("area da conta substitui as iniciais", () => {
+    render(
+      <AppShell
+        nav={navegacaoPadrao("/ativo")}
+        userInitials="LB"
+        account={<a href="/entrar">Entrar</a>}
+      >
+        x
+      </AppShell>,
+    );
+    expect(screen.getByRole("link", { name: "Entrar" })).toBeTruthy();
+    expect(screen.queryByText("LB")).toBeNull();
+  });
 });
 
 describe("AppShell com busca propria", () => {

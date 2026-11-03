@@ -67,6 +67,10 @@ export async function criarApp(deps: AppDeps): Promise<FastifyInstance> {
     requestIdLogLabel: "correlation_id",
     genReqId: () => crypto.randomUUID(),
     disableRequestLogging: env.NODE_ENV === "test",
+    // O padrao do Fastify (100 caracteres por parametro) cortava
+    // /v1/quotes/{tickers} com mais de 16 tickers em 414, abaixo dos 20 que o
+    // contrato promete: 20 tickers de ate 12 caracteres e as virgulas, com folga.
+    maxParamLength: 400,
   });
 
   app.addHook("onSend", (request, reply, payload, done) => {

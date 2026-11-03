@@ -67,10 +67,12 @@ export async function conectar(opts: MessagingOptions): Promise<Messaging> {
         };
 
         for (let tentativa = 1; ; tentativa++) {
+          let erroDoAdd: unknown;
           try {
             await jsm.streams.add(config);
             break;
-          } catch {
+          } catch (e) {
+            erroDoAdd = e;
             try {
               // Já existe: atualiza para o que está versionado em stream.ts,
               // para o broker não ficar com configuração de um deploy anterior.
@@ -80,7 +82,10 @@ export async function conectar(opts: MessagingOptions): Promise<Messaging> {
               // O add falhou e o stream não existe: o JetStream ainda está
               // subindo. Visto no CI, com o broker recém-criado aceitando a
               // conexão antes de aceitar comando de JetStream.
-              if (tentativa >= 20) throw erro;
+              // O erro util e o do add (limite, configuracao); o do update so
+              // diz que o stream nao existe.
+              if (tentativa >= 20)
+                throw (erro as Error).message.includes("not found") ? erroDoAdd : erro;
               await new Promise((r) => setTimeout(r, 250 * tentativa));
             }
           }

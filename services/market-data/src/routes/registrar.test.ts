@@ -182,6 +182,18 @@ describe("rotas /v1", () => {
     expect(chamadas.at(-1)).toEqual(["cotacoes", ["PETR4", "VALE3"]]);
   });
 
+  it("cotacoes aceita os 20 tickers do contrato, mesmo longos", async () => {
+    // 20 tickers de 12 caracteres: 259 no parametro. O padrao do Fastify (100)
+    // respondia 414 a partir do 17o ticker curto.
+    const tickers = Array.from(
+      { length: 20 },
+      (_, i) => `ABCDEFGHIJ${String(i).padStart(2, "0")}`,
+    );
+    const r = await get(`/v1/quotes/${tickers.join(",")}`);
+    expect(r.statusCode).not.toBe(414);
+    expect(chamadas.at(-1)).toEqual(["cotacoes", tickers]);
+  });
+
   it("historico aplica os padroes da query", async () => {
     await get("/v1/history/PETR4");
     expect(chamadas.at(-1)).toEqual([

@@ -1,13 +1,12 @@
 # ADR 0010 - Better Auth para autenticacao
 
-- **Status:** proposto
+- **Status:** aceito
 - **Data:** 2026-11-02
 - **Decisores:** @leandrojtv
 
-> **Status proposto, nao aceito.** A decisao esta registrada, mas nao
-> implementada: ela vive no `apps/web`, que ainda nao existe. O que ja esta
-> pronto e a camada de banco que a autenticacao vai alimentar (schema
-> `portfolio`, com RLS -- ver [ADR 0011](0011-rls.md)).
+> **Implementado no Prompt E** (`packages/auth`, `apps/web/lib/auth.ts`).
+> Os detalhes de uso pela RLS, LGPD e vinculo do aparelho estao no
+> [ADR 0022](0022-login-carteira-e-snapshot.md).
 
 ## Contexto
 
@@ -92,12 +91,14 @@ nao cascateia pelo banco, e precisa ser feita pelo fluxo de LGPD.
 
 ## Pendencias
 
-1. **Implementar.** Depende de `apps/web`.
-2. **Rate limit no login** e nos fluxos de recuperacao. Decidir se no Kong, na
+1. ~~Implementar~~: feito (ADR 0022).
+2. **Rate limit no login**: hoje na aplicacao (Better Auth, por IP,
+   `AUTH_RATE_LIMIT` por minuto em login, cadastro, recuperacao e 2FA).
+   Falta decidir o do Kong. e nos fluxos de recuperacao. Decidir se no Kong, na
    aplicacao, ou nos dois -- o ADR 0007 ainda esta aberto.
 3. **Auditar evento de autenticacao** em `portfolio.audit_log`: login, troca de
    senha, ativacao de 2FA, revogacao de sessao.
-4. **Fluxo de LGPD**: exportacao e exclusao, incluindo o que fazer com a
+4. ~~Fluxo de LGPD~~: feito (ADR 0022).: exportacao e exclusao, incluindo o que fazer com a
    auditoria, que e append-only por escolha.
-5. **Decidir o que acontece com a carteira** quando a conta e excluida: apagar,
+5. ~~Decidir o que acontece com a carteira~~: e apagada (ADR 0022). quando a conta e excluida: apagar,
    anonimizar ou reter por obrigacao fiscal.

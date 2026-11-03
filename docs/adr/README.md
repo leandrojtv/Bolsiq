@@ -20,6 +20,7 @@ anterior como `substituído por`.
 | [0020](0020-bff-do-web.md)                   | BFF do apps/web, chave só no servidor           | aceito       |
 | [0021](0021-identidade-provisoria-e-sino.md) | Identidade provisória e sino por SSE            | aceito       |
 | [0022](0022-login-carteira-e-snapshot.md)    | Login, RLS por transação, snapshot e LGPD       | aceito       |
+| [0024](0024-assistente-byok.md)              | Assistente com a chave do usuário (BYOK)        | aceito       |
 
 ## Números reservados
 

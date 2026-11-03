@@ -201,7 +201,8 @@ separada de `SELECT` e `INSERT`. Nem a aplicacao reescreve auditoria.
 
 Em `/configuracoes/conta`: exportar tudo em JSON e excluir a conta. A
 exclusao apaga carteira, transacoes, snapshots, importacoes, auditoria,
-alertas, watchlist e a conta (ADR 0022).
+alertas, watchlist, os dados do assistente e a conta (ADR 0022 e 0024). A chave de
+provedor cifrada não entra na exportação.
 
 ## Pendencias
 

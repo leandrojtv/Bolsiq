@@ -17,6 +17,8 @@ Decisões no [ADR 0020](../adr/0020-bff-do-web.md).
 | `/carteiras`                                    | página provisória "Em construção"                          |
 | Login                                           | **não implementado** (Prompt E)                            |
 
+O assistente "Pergunte ao Bolsiq" está em [assistant.md](assistant.md).
+
 ## Rodando
 
 ```bash
@@ -44,6 +46,7 @@ make backfill FROM=2024
 | `/api/preferencias`                               | canais, e-mail e silêncio do usuário                      |
 | `/api/push`                                       | chave VAPID pública e inscrição de Web Push               |
 | `/manifest.webmanifest`, `/icones/*`, `/sw.js`    | PWA                                                       |
+| `/api/assistente/*`                               | assistente: chat, configuração, perfil e conversas        |
 
 ## Página do ativo
 
@@ -85,6 +88,7 @@ make backfill FROM=2024
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some           |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)        |
 | `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto    |
+| `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)   |
 
 ## Testes
 

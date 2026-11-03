@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Count, IsoDate, IsoDateTime, Isin, Money, Ticker } from "../primitives.js";
+import { Cnpj, Count, IsoDate, IsoDateTime, Isin, Money, Ticker } from "../primitives.js";
 import { AssetKind } from "../market.js";
 import type { AnySchema } from "../openapi.js";
 
@@ -57,6 +57,15 @@ export const StatementPublishedV1 = z.object({
   tickers: z.array(Ticker),
   period_end: IsoDate,
   statement_kind: z.enum(["DFP", "ITR"]),
+});
+
+export const FiiReportPublishedV1 = z.object({
+  /** CNPJ da classe do FII: o informe e do fundo, nao de um papel. */
+  cnpj: Cnpj,
+  /** Tickers do fundo, ligados pelo ISIN. So emite com pelo menos um. */
+  tickers: z.array(Ticker).min(1),
+  /** Competencia mais recente que mudou (primeiro dia do mes). */
+  reference_date: IsoDate,
 });
 
 export const AssetListedV1 = z.object({
@@ -142,6 +151,19 @@ export const eventos = {
       tickers: ["PETR3", "PETR4"],
       period_end: "2026-09-30",
       statement_kind: "ITR",
+    },
+  },
+  "marketdata.fii.report.published.v1": {
+    name: "marketdata.fii.report.published.v1",
+    description:
+      "Informe mensal de FII novo ou reapresentado foi gravado. Um evento por fundo, com a competência mais recente que mudou.",
+    producer: "market-data",
+    consumers: ["analytics"],
+    payload: FiiReportPublishedV1,
+    example: {
+      cnpj: "11728688000147",
+      tickers: ["HGLG11"],
+      reference_date: "2026-09-01",
     },
   },
   "marketdata.asset.listed.v1": {

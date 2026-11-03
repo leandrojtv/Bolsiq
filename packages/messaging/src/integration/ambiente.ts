@@ -56,8 +56,18 @@ export async function subirPostgres(): Promise<{
  * precisa recriar o broker no mesmo endereço, para o cliente reconectar sozinho.
  */
 export async function subirNats(): Promise<StartedTestContainer> {
+  // Limite explicito: sem ele o JetStream reserva ate 75% do disco livre, e
+  // os streams de 8 GiB cada deixam de caber no runner do CI ("insufficient
+  // storage resources"), dependendo de quanto disco sobrou.
   return new GenericContainer("nats:2-alpine")
-    .withCommand(["-js", "-sd", "/data", "-m", "8222"])
+    .withCopyContentToContainer([
+      {
+        content:
+          "jetstream { store_dir: /data, max_file_store: 64GB }\nhttp_port: 8222\n",
+        target: "/etc/nats/teste.conf",
+      },
+    ])
+    .withCommand(["-c", "/etc/nats/teste.conf"])
     .withExposedPorts({ container: 4222, host: PORTA_NATS })
     .withStartupTimeout(60_000)
     .start();

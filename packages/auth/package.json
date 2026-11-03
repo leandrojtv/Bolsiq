@@ -1,0 +1,32 @@
+{
+  "name": "@bolsiq/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "better-auth": "1.7.11",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.13.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@bolsiq/config": "workspace:*",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

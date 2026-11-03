@@ -202,6 +202,49 @@ export const funds = marketData.table(
   (t) => [index("funds_name_idx").on(t.name), index("funds_status_idx").on(t.status)],
 );
 
+/** Percentual do informe (0,007052 = 0,7052%). Escala longa: a CVM publica até 15 casas. */
+const percentual = (nome: string) =>
+  numeric(nome, { precision: 24, scale: 12, mode: "string" });
+
+/**
+ * Informe mensal de FII da CVM (Anexo 39-I da ICVM 472), uma linha por classe
+ * e competência. `reference_date` é o primeiro dia do mês, como a CVM publica.
+ *
+ * Só a maior `version` fica: a reapresentação substitui a anterior. O ISIN é o
+ * que liga o CNPJ ao ticker do COTAHIST (`assets.isin`).
+ */
+export const fiiMonthly = marketData.table(
+  "fii_monthly",
+  {
+    cnpj: text("cnpj").notNull(),
+    referenceDate: date("reference_date").notNull(),
+    version: integer("version").notNull(),
+    isin: text("isin"),
+    name: text("name").notNull(),
+    segment: text("segment"),
+    totalAssets: money("total_assets"),
+    equity: money("equity"),
+    /** Fracionária em alguns fundos: o informe traz cotas com casas decimais. */
+    sharesOutstanding: money("shares_outstanding"),
+    navPerShare: money("nav_per_share"),
+    holders: integer("holders"),
+    dividendYieldMonth: percentual("dividend_yield_month"),
+    effectiveReturnMonth: percentual("effective_return_month"),
+    amortizationMonth: percentual("amortization_month"),
+    /** Rendimentos a distribuir no passivo (ativo_passivo). */
+    dividendsPayable: money("dividends_payable"),
+
+    source: text("source").notNull(),
+    fetchedAt: utc("fetched_at").notNull(),
+    license: text("license").notNull(),
+    sourceRef: text("source_ref").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.cnpj, t.referenceDate] }),
+    index("fii_monthly_isin_idx").on(t.isin),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Séries macro — hypertable
 // ---------------------------------------------------------------------------

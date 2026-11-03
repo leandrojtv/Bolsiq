@@ -73,14 +73,18 @@ describe("10 mil regras ativas", () => {
     // Propriedade estrutural, nao tempo de parede: medir milissegundos em
     // runner compartilhado e intermitente. A latencia real fica no teste de
     // integracao.
+    // Um expect no fim, nao 4 mil no laco: o custo do expect com cobertura
+    // passava do tempo do teste e nao mede nada do indice.
     const agora = new Date();
+    const fora: string[] = [];
     for (let q = 0; q < 2000; q++) {
       const ticker = `TK${String(q).padStart(4, "0")}`;
       const candidatas = i.candidatas(COTACAO, ticker);
-      expect(candidatas).toHaveLength(5);
-      expect(candidatas.every((c) => c.ticker === ticker)).toBe(true);
+      if (candidatas.length !== 5 || candidatas.some((c) => c.ticker !== ticker))
+        fora.push(ticker);
       avaliarCotacao(candidatas, { ticker, price: "41.00", change: "1.00" }, agora);
     }
+    expect(fora).toEqual([]);
     expect(i.candidatas(COTACAO, "XXXX3")).toHaveLength(0);
   });
 });

@@ -157,6 +157,13 @@ a chave cifrada não entra na exportação.
 
 Ainda não há tabela de planos: todo usuário é `gratis`.
 
+## Como configurar
+
+Tudo pela tela `/configuracoes/assistente`, com o usuário logado: escolher o provedor, colar
+a chave, "Testar conexão", escolher o modelo e salvar. Não precisa de variável de ambiente
+por usuário. Homologação é outra coisa: modelo não homologado funciona, com aviso de
+experimental.
+
 ## Como homologar um modelo
 
 ```bash
@@ -208,6 +215,12 @@ trava o host.
 5. Teste em `src/ferramentas.test.ts` e ao menos um caso em `eval/casos.ts`.
 
 Escrita não é ferramenta: proponha, e deixe a tela confirmar, como `criar_alerta`.
+
+## e2e
+
+O job `e2e` define `ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434`, e a chave de teste vai
+para o provedor falso do compose (`infra/docker/llm-falso.mjs`). Sem a variável, como no
+`make dev-up`, a DeepSeek é a de verdade.
 
 ## Limitações
 

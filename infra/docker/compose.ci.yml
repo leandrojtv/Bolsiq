@@ -192,8 +192,9 @@ services:
       ASSISTANT_RECOMMENDATIONS: ${ASSISTANT_RECOMMENDATIONS:-personal}
       ASSISTANT_DAILY_MESSAGES: ${ASSISTANT_DAILY_MESSAGES:-100}
       ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
-      # O e2e configura a DeepSeek com chave de teste, contra o provedor falso.
-      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-http://llm-falso:11434}
+      # Vazio usa a DeepSeek de verdade, como no `make dev-up`. So o job e2e aponta
+      # para o provedor falso (ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434).
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
     ports:
       - "3000:3000"
     depends_on:

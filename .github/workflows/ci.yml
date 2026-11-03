@@ -597,6 +597,8 @@ jobs:
       - name: Carrega as imagens e sobe o compose
         env:
           IMAGE_TAG: pr-${{ github.event.pull_request.number || github.run_id }}
+          # O e2e do assistente configura a DeepSeek contra o provedor falso.
+          ASSISTANT_DEEPSEEK_URL: http://llm-falso:11434
         run: |
           for tar in /tmp/imagens/*.tar; do docker load -i "$tar"; done
           docker compose -f infra/docker/compose.ci.yml up -d --wait --wait-timeout 180

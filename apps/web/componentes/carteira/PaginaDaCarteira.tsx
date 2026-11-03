@@ -193,11 +193,14 @@ function Indicador({
   valor,
   sub,
   cor,
+  alerta = false,
 }: {
   rotulo: string;
   valor: string;
   sub: string;
   cor?: string;
+  /** Subtitulo em destaque: o numero acima esta incompleto. */
+  alerta?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-card border border-border bg-surface px-4 py-3.5">
@@ -210,7 +213,7 @@ function Indicador({
       >
         {valor}
       </span>
-      <span className="text-xs text-text-3">{sub}</span>
+      <span className={cn("text-xs", alerta ? "text-warn" : "text-text-3")}>{sub}</span>
     </div>
   );
 }
@@ -226,7 +229,12 @@ function Resumo({ p }: { p: PainelDaCarteira }) {
       <Indicador
         rotulo="Patrimônio"
         valor={r.patrimonio === null ? "-" : formatarDinheiro(r.patrimonio)}
-        sub="a preço de mercado"
+        sub={
+          r.sem_cotacao.length === 0
+            ? "a preço de mercado"
+            : `sem cotação, fora da soma: ${r.sem_cotacao.join(", ")}`
+        }
+        alerta={r.sem_cotacao.length > 0}
       />
       <Indicador
         rotulo="Rentabilidade 12m (TWR)"
@@ -443,7 +451,7 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
     >
       <h2 className="m-0 text-base font-semibold">Posições</h2>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] border-collapse text-[13px]">
+        <table className="w-full min-w-[820px] border-collapse text-[13px]">
           <thead>
             <tr className="text-text-3">
               <th scope="col" className="p-2 text-left font-medium">
@@ -482,6 +490,11 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
                   {formatarNumero(x.quantidade, Number(x.quantidade) % 1 ? 4 : 0)}
                 </td>
                 <td className={num}>{formatarDinheiro(x.preco_medio)}</td>
+                <td className={num}>
+                  {x.preco_atual === null
+                    ? "sem cotação"
+                    : formatarDinheiro(x.preco_atual)}
+                </td>
                 <td className={num}>{formatarDinheiro(x.custo_total)}</td>
                 <td className={num}>
                   {x.valor_de_mercado === null

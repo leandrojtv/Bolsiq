@@ -257,10 +257,18 @@ async function ou<T>(caminho: string, validade: number): Promise<T | null> {
 async function cotacoes(tickers: string[]): Promise<Map<string, LiveQuote>> {
   const lotes: string[][] = [];
   for (let i = 0; i < tickers.length; i += 20) lotes.push(tickers.slice(i, i + 20));
+  const lote = (l: string[]) =>
+    ou<{ data: LiveQuote[] }>(`quotes/${l.join(",")}`, VALIDADE.quotes);
   const respostas = await Promise.all(
-    lotes.map((l) => ou<{ data: LiveQuote[] }>(`quotes/${l.join(",")}`, VALIDADE.quotes)),
+    // Lote que falha (um ticker invalido, limite do /v1) e refeito ativo por
+    // ativo: sem isso um erro tirava 20 ativos do patrimonio de uma vez.
+    lotes.map(
+      async (l) =>
+        (await lote(l))?.data ??
+        (await Promise.all(l.map((t) => lote([t])))).flatMap((r) => r?.data ?? []),
+    ),
   );
-  return new Map(respostas.flatMap((r) => r?.data ?? []).map((q) => [q.ticker, q]));
+  return new Map(respostas.flat().map((q) => [q.ticker, q]));
 }
 
 async function cadastros(tickers: string[]): Promise<Map<string, AssetDetail>> {
@@ -288,6 +296,8 @@ export interface PainelDaCarteira {
     proventos_12m: string;
     twr_12m: number | null;
     cdi_12m: number | null;
+    /** Posicoes abertas sem cotacao: ficam fora do patrimonio e do nao realizado. */
+    sem_cotacao: string[];
   };
   posicoes: PosicaoNaTela[];
   alocacao: Record<"classe" | "setor" | "ativo", FatiaDeAlocacao[]>;
@@ -422,6 +432,9 @@ export async function painel(uid: string, id: string): Promise<PainelDaCarteira>
       proventos_12m: moeda(proventos12m),
       twr_12m: retornoDaSerie(serie.map((s) => s.carteira)),
       cdi_12m: retornoDaSerie(nivelCdi),
+      sem_cotacao: posicoes
+        .filter((p) => p.valor_de_mercado === null)
+        .map((p) => p.ticker),
     },
     posicoes,
     alocacao: {

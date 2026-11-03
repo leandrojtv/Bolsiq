@@ -419,4 +419,54 @@ describe("CvmAdapter", () => {
     expect(acoes[0]).toMatchObject({ total: 13044496930n, treasuryTotal: 155764169n });
     expect(await cvm.demonstracoes("ITR", 2024)).toBeNull();
   });
+
+  it("le classes de fundo e cotas da classe, sem subclasse", async () => {
+    const registro = await criarZip({
+      "registro_classe.csv":
+        "CNPJ_Classe;Tipo_Classe;Denominacao_Social;Situacao;Classificacao;Classificacao_Anbima;Patrimonio_Liquido;Data_Patrimonio_Liquido\n" +
+        "00017024000153;Classes de Cotas de Fundos FIF;FUNDO TESTE;Em Funcionamento Normal;Renda Fixa;;1214792.63;2026-09-30\n" +
+        "invalido;x;SEM CNPJ;;;;;\n",
+      "registro_fundo.csv": "ignorado",
+    });
+    const informe = await criarZip({
+      "inf_diario_fi_202609.csv":
+        "TP_FUNDO_CLASSE;CNPJ_FUNDO_CLASSE;ID_SUBCLASSE;DT_COMPTC;VL_TOTAL;VL_QUOTA;VL_PATRIM_LIQ;CAPTC_DIA;RESG_DIA;NR_COTST\n" +
+        "CLASSES - FIF;00.017.024/0001-53;;2026-09-01;1107741.39;44.636723400000;1214792.63;0.00;0.00;1\n" +
+        "CLASSES - FIF;00.017.024/0001-53;SUB1;2026-09-01;1;44.6;1;0;0;1\n" +
+        "CLASSES - FIF;00.017.024/0001-53;;2026-09-02;;0;1;;;\n" +
+        "CLASSES - FIF;00.017.024/0001-53;;2026-09-03;1;10;999999999999999999;;;\n",
+    });
+    const cvm = new CvmAdapter(
+      buscarFalso({
+        "registro_fundo_classe.zip": () => binario(registro),
+        "inf_diario_fi_202609.zip": () => binario(informe),
+      }),
+    );
+    const cad = await cvm.cadastroDeFundos();
+    const classes = [];
+    for await (const c of cad?.classes() ?? []) classes.push(c);
+    expect(classes).toEqual([
+      expect.objectContaining({
+        cnpj: "00017024000153",
+        name: "FUNDO TESTE",
+        aum: "1214792.63",
+        anbimaClass: null,
+      }),
+    ]);
+    const arq = await cvm.informeDiario("202609");
+    const cotas = [];
+    for await (const c of arq?.cotas() ?? []) cotas.push(c);
+    // Subclasse e cota zero ficam de fora.
+    expect(cotas).toEqual([
+      expect.objectContaining({
+        cnpj: "00017024000153",
+        date: "2026-09-01",
+        nav: "44.6367234",
+        holders: 1,
+        inflows: "0",
+      }),
+    ]);
+    expect(arq?.descartadas()).toBe(1);
+    expect(await cvm.informeDiario("209901")).toBeNull();
+  });
 });

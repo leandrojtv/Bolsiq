@@ -175,6 +175,19 @@ describe("controles", () => {
     ).toBe("false");
   });
 
+  it("ToggleChip com icone proprio", () => {
+    render(
+      <ToggleChip
+        pressed
+        onPressedChange={() => undefined}
+        icon={<svg data-testid="icone" />}
+      >
+        CDI
+      </ToggleChip>,
+    );
+    expect(screen.getByTestId("icone")).toBeTruthy();
+  });
+
   it("ToggleChip alterna aria-pressed", () => {
     const mudar = vi.fn();
     render(
@@ -298,6 +311,34 @@ describe("DataTable", () => {
     fireEvent.click(within(th).getByRole("button"));
     expect(th.getAttribute("aria-sort")).toBe("ascending");
     expect(screen.getAllByRole("cell")[0]?.className).toMatch(/sticky/);
+  });
+
+  it("ordenacao controlada nao reordena e avisa o clique", () => {
+    const mudar = vi.fn();
+    render(
+      <DataTable
+        caption="Controlada"
+        columns={colunas}
+        rows={linhas}
+        rowKey={(l) => l.t}
+        sort={{ key: "pl", direction: "asc" }}
+        onSortChange={mudar}
+      />,
+    );
+    expect(
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => r.firstChild?.textContent),
+    ).toEqual(["B", "A", "C"]);
+    fireEvent.click(
+      within(screen.getByRole("columnheader", { name: /P\/L/ })).getByRole("button"),
+    );
+    expect(mudar).toHaveBeenCalledWith({ key: "pl", direction: "desc" });
+    fireEvent.click(
+      within(screen.getByRole("columnheader", { name: /Ativo/ })).getByRole("button"),
+    );
+    expect(mudar).toHaveBeenCalledWith({ key: "t", direction: "desc" });
   });
 
   it("vazia mostra a mensagem", () => {

@@ -9,3 +9,4 @@ export * from "./recalculo.js";
 export * from "./executarScreener.js";
 export * from "./worker.js";
 export * from "./db/schema.js";
+export * from "./comparador.js";

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AssetSearchQuery,
+  CnpjParam,
   HistoryQuery,
   MacroParams,
   ResponseMeta,
@@ -59,5 +60,12 @@ describe("parametros do /v1", () => {
     };
     expect(ResponseMeta.parse(meta)).toEqual(meta);
     expect(ResponseMeta.safeParse({ ...meta, delay_minutes: -1 }).success).toBe(false);
+  });
+
+  it("CNPJ de fundo com ou sem pontuacao", () => {
+    expect(CnpjParam.parse({ cnpj: "00.017.024/0001-53" })).toEqual({
+      cnpj: "00017024000153",
+    });
+    expect(CnpjParam.safeParse({ cnpj: "123" }).success).toBe(false);
   });
 });

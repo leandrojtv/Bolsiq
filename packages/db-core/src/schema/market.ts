@@ -175,6 +175,33 @@ export const fundDaily = marketData.table(
   ],
 );
 
+/**
+ * Cadastro das classes de fundo (registro_fundo_classe da CVM, RCVM 175).
+ *
+ * O informe diario identifica pela classe (CNPJ_FUNDO_CLASSE), entao e a
+ * classe, nao o fundo, que vira item do comparador. Fundo nao tem ticker: o
+ * CNPJ e o identificador.
+ */
+export const funds = marketData.table(
+  "funds",
+  {
+    cnpj: text("cnpj").primaryKey(),
+    name: text("name").notNull(),
+    classType: text("class_type"),
+    classification: text("classification"),
+    anbimaClass: text("anbima_class"),
+    status: text("status"),
+    aum: money("aum"),
+    aumDate: date("aum_date"),
+
+    source: text("source").notNull(),
+    fetchedAt: utc("fetched_at").notNull(),
+    license: text("license").notNull(),
+    sourceRef: text("source_ref").notNull(),
+  },
+  (t) => [index("funds_name_idx").on(t.name), index("funds_status_idx").on(t.status)],
+);
+
 // ---------------------------------------------------------------------------
 // Séries macro — hypertable
 // ---------------------------------------------------------------------------

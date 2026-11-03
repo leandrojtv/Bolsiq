@@ -230,6 +230,54 @@ export const MacroResponse = resposta(
 );
 
 // ---------------------------------------------------------------------------
+// Fundos (CVM)
+// ---------------------------------------------------------------------------
+
+/** CNPJ da classe no path, aceito com ou sem pontuacao. */
+export const CnpjParam = z.object({
+  cnpj: z.preprocess((v) => (typeof v === "string" ? v.replace(/\D/g, "") : v), Cnpj),
+});
+
+export const FundSearchQuery = z.object({
+  q: z.string().trim().min(2).max(80),
+});
+
+export const FundSummary = z.object({
+  cnpj: Cnpj,
+  name: z.string(),
+  class_type: z.string().nullable(),
+  classification: z.string().nullable(),
+  status: z.string().nullable(),
+});
+
+export const FundSearchResponse = resposta(z.array(FundSummary).max(20));
+
+export const FundDetail = FundSummary.extend({
+  anbima_class: z.string().nullable(),
+  aum: Money.nullable(),
+  aum_date: IsoDate.nullable(),
+  provenance: Provenance,
+});
+
+export const FundDetailResponse = resposta(FundDetail);
+
+export const FundHistoryResponse = resposta(
+  z.object({
+    cnpj: Cnpj,
+    points: z.array(
+      z.object({
+        date: IsoDate,
+        /** Valor da cota. */
+        nav: Money,
+        /** Patrimonio liquido. */
+        aum: Money,
+        holders: Count.nullable(),
+      }),
+    ),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
 
@@ -269,3 +317,5 @@ export type Dividend = z.infer<typeof Dividend>;
 export type FundamentalsPeriod = z.infer<typeof FundamentalsPeriod>;
 export type MacroSeriesName = z.infer<typeof MacroSeriesName>;
 export type JobInfo = z.infer<typeof JobInfo>;
+export type FundSummary = z.infer<typeof FundSummary>;
+export type FundDetail = z.infer<typeof FundDetail>;

@@ -9,10 +9,6 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-// Declarado aqui, e não importado, pelo mesmo motivo de api.ts: o drizzle-kit
-// carrega os arquivos de schema em CJS e não resolve o sufixo `.js`.
-const marketData = pgSchema("market_data");
-
 const utc = (nome: string) => timestamp(nome, { withTimezone: true, mode: "string" });
 
 /**
@@ -35,32 +31,43 @@ const pendenteDePublicacao = sql`published_at IS NULL AND dead_at IS NULL`;
  * O `id` vai no header `Nats-Msg-Id`, e é por ele que o JetStream descarta
  * repetição dentro da janela de deduplicação.
  */
-export const outbox = marketData.table(
-  "outbox",
-  {
-    id: text("id").primaryKey(),
-    eventName: text("event_name").notNull(),
-    payload: jsonb("payload").notNull(),
-    occurredAt: utc("occurred_at").notNull(),
-    producer: text("producer").notNull(),
-    createdAt: utc("created_at").notNull().defaultNow(),
-    /** Nulo enquanto não publicado. É o que o publisher procura. */
-    publishedAt: utc("published_at"),
-    attempts: integer("attempts").notNull().default(0),
-    lastError: text("last_error"),
-    /**
-     * Preenchido quando a linha desiste: payload inválido, ou tentativas
-     * esgotadas. Distinto de `published_at` de propósito.
-     */
-    deadAt: utc("dead_at"),
-  },
-  (t) => [
-    // Índice parcial: o publisher varre só o que falta publicar, e o índice
-    // não cresce com o histórico já publicado.
-    index("outbox_pendente_idx").on(t.createdAt).where(pendenteDePublicacao),
-    index("outbox_event_name_idx").on(t.eventName),
-  ],
-);
+export function tabelaDeOutbox(nomeDoSchema: string) {
+  return pgSchema(nomeDoSchema).table(
+    "outbox",
+    {
+      id: text("id").primaryKey(),
+      eventName: text("event_name").notNull(),
+      payload: jsonb("payload").notNull(),
+      occurredAt: utc("occurred_at").notNull(),
+      producer: text("producer").notNull(),
+      createdAt: utc("created_at").notNull().defaultNow(),
+      /** Nulo enquanto não publicado. É o que o publisher procura. */
+      publishedAt: utc("published_at"),
+      attempts: integer("attempts").notNull().default(0),
+      lastError: text("last_error"),
+      /**
+       * Preenchido quando a linha desiste: payload inválido, ou tentativas
+       * esgotadas. Distinto de `published_at` de propósito.
+       */
+      deadAt: utc("dead_at"),
+    },
+    (t) => [
+      // Índice parcial: o publisher varre só o que falta publicar, e o índice
+      // não cresce com o histórico já publicado.
+      index("outbox_pendente_idx").on(t.createdAt).where(pendenteDePublicacao),
+      index("outbox_event_name_idx").on(t.eventName),
+    ],
+  );
+}
+
+export type TabelaDeOutbox = ReturnType<typeof tabelaDeOutbox>;
+
+/**
+ * Outbox do market-data. Fabrica por schema, como as tabelas de consumidor:
+ * cada servico que produz evento grava no proprio schema (o analytics tem o
+ * seu), e o mesmo publisher le de qualquer um.
+ */
+export const outbox = tabelaDeOutbox("market_data");
 
 /**
  * Tabelas de consumidor: idempotencia e dead-letter.

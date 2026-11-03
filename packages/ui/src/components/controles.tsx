@@ -107,13 +107,22 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-export type CorDeSerie = "series-1" | "series-2" | "series-3" | "series-4" | "benchmark";
+export type CorDeSerie =
+  | "series-1"
+  | "series-2"
+  | "series-3"
+  | "series-4"
+  | "series-5"
+  | "series-6"
+  | "benchmark";
 
 const AMOSTRA: Record<CorDeSerie, string> = {
   "series-1": "bg-series-1",
   "series-2": "bg-series-2",
   "series-3": "bg-series-3",
   "series-4": "bg-series-4",
+  "series-5": "bg-series-5",
+  "series-6": "bg-series-6",
   benchmark: "bg-benchmark",
 };
 
@@ -125,6 +134,8 @@ export interface ToggleChipProps extends Omit<
   onPressedChange: (pressed: boolean) => void;
   /** Cor da amostra, pelo nome do token da serie. */
   swatch?: CorDeSerie;
+  /** Amostra propria no lugar da barra (ex. linha tracejada de benchmark). */
+  icon?: ReactNode;
 }
 
 /** Liga e desliga uma serie do grafico (MM 20, IFR 14, CDI). */
@@ -132,6 +143,7 @@ export function ToggleChip({
   pressed,
   onPressedChange,
   swatch,
+  icon,
   className,
   children,
   ...resto
@@ -149,7 +161,8 @@ export function ToggleChip({
       )}
       {...resto}
     >
-      {swatch && (
+      {icon}
+      {swatch && !icon && (
         <span
           aria-hidden="true"
           className={cn("h-[3px] w-2.5 rounded-sm", AMOSTRA[swatch])}

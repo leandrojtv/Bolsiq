@@ -24,6 +24,12 @@ export interface DataTableProps<T> {
   /** Fixa a primeira coluna na rolagem horizontal. Padrao: true. */
   stickyFirstColumn?: boolean;
   initialSort?: { key: string; direction: "asc" | "desc" };
+  /**
+   * Ordenacao controlada: com `sort` e `onSortChange`, a tabela nao reordena
+   * as linhas; so mostra a ordem e avisa o clique. Para ordenacao no servidor.
+   */
+  sort?: { key: string; direction: "asc" | "desc" };
+  onSortChange?: (sort: { key: string; direction: "asc" | "desc" }) => void;
   /** Largura minima: abaixo dela a tabela rola na horizontal. */
   minWidth?: number;
   empty?: ReactNode;
@@ -64,19 +70,28 @@ export function DataTable<T>({
   caption,
   stickyFirstColumn = true,
   initialSort,
+  sort,
+  onSortChange,
   minWidth = 640,
   empty,
   className,
 }: DataTableProps<T>) {
-  const [ordem, setOrdem] = useState<Ordem>(initialSort ?? null);
-  const linhas = useMemo(() => ordenar(rows, columns, ordem), [rows, columns, ordem]);
+  const [interna, setInterna] = useState<Ordem>(initialSort ?? null);
+  const controlada = sort !== undefined && onSortChange !== undefined;
+  const ordem: Ordem = controlada ? sort : interna;
+  const linhas = useMemo(
+    () => (controlada ? rows : ordenar(rows, columns, ordem)),
+    [rows, columns, ordem, controlada],
+  );
 
-  const alternar = (key: string) =>
-    setOrdem((atual) =>
-      atual?.key === key
-        ? { key, direction: atual.direction === "asc" ? "desc" : "asc" }
-        : { key, direction: "desc" },
-    );
+  const alternar = (key: string) => {
+    const proxima: { key: string; direction: "asc" | "desc" } =
+      ordem?.key === key
+        ? { key, direction: ordem.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "desc" };
+    if (controlada) onSortChange(proxima);
+    else setInterna(proxima);
+  };
 
   const fixa = (i: number) =>
     stickyFirstColumn && i === 0 && "sticky left-0 z-10 bg-surface";
@@ -156,7 +171,7 @@ export function DataTable<T>({
                       "px-2 py-2.5",
                       (c.align === "right" || (c.numeric && c.align !== "left")) &&
                         "text-right",
-                      c.numeric && "font-mono tabular-nums",
+                      c.numeric && "font-mono whitespace-nowrap tabular-nums",
                       fixa(i),
                     )}
                   >

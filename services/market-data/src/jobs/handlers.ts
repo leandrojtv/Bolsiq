@@ -7,7 +7,10 @@ import type { CvmAdapter } from "../fontes/cvm.js";
 import {
   carregarCadastro,
   carregarCotahist,
+  carregarCadastroDeFundos,
   carregarDemonstracoes,
+  carregarInformeDiario,
+  ultimosMeses,
   gravarSerieMacro,
   ultimaDataDaSerie,
   type Log,
@@ -113,12 +116,28 @@ export async function executarJob(
       return resultados;
     }
 
-    case "cvm-fundos":
+    case "cvm-fundos": {
+      // Cadastro e o mes corrente e o anterior (o informe do mes anterior
+      // ainda recebe retificacao). `meses` amplia, para a carga historica.
+      const meses =
+        d.meses === undefined
+          ? 2
+          : z.coerce.number().int().min(1).max(120).parse(d.meses);
+      const cadastro = await carregarCadastroDeFundos(ctx.db, ctx.cvm, { log: ctx.log });
+      const informes: Record<string, unknown> = {};
+      for (const aaaamm of ultimosMeses(hojeEmSp(agora), meses)) {
+        informes[aaaamm] = await carregarInformeDiario(ctx.db, ctx.cvm, {
+          aaaamm,
+          log: ctx.log,
+        });
+      }
+      return { cadastro, informes };
+    }
+
     case "ajuste-proventos":
-      // cvm-fundos: informe diário de fundos ainda não tem adapter (nenhuma
-      // tela o consome). ajuste-proventos: o ajuste é calculado na leitura de
-      // /v1/history, então não há coluna a recalcular. Os dois seguem no
-      // registro para a agenda e o /admin/jobs não mudarem de forma.
+      // O ajuste é calculado na leitura de /v1/history, então não há coluna a
+      // recalcular. Segue no registro para a agenda e o /admin/jobs não
+      // mudarem de forma.
       ctx.log("warn", `job ${nome} sem efeito nesta versão`);
       return { sem_efeito: true };
 

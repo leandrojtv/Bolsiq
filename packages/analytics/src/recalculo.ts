@@ -230,6 +230,7 @@ export function recalcular(dados: DadosDoAtivo): LinhaDeIndicadores | null {
   const comum = {
     ticker: dados.ticker,
     kind: dados.kind,
+    preco,
     retorno_periodo: razao(indicadoresDeDesempenho.retorno_periodo),
     volatilidade_anual: razao(indicadoresDeDesempenho.volatilidade_anual),
     drawdown_maximo: razao(indicadoresDeDesempenho.drawdown_maximo),

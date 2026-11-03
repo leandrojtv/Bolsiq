@@ -2,6 +2,8 @@ import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import {
   assets,
   financialStatements,
+  fundDaily,
+  funds,
   macroSeries,
   outbox,
   quotesDaily,
@@ -611,4 +613,154 @@ export async function ultimaDataDaSerie(db: Db, code: string): Promise<string | 
     .orderBy(desc(macroSeries.date))
     .limit(1);
   return r?.date ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// CVM: fundos
+// ---------------------------------------------------------------------------
+
+/** Cadastro das classes de fundo. Upsert: o arquivo e o retrato atual. */
+export async function carregarCadastroDeFundos(
+  db: Db,
+  cvm: CvmAdapter,
+  opcoes: { log: Log },
+): Promise<ResultadoDeCarga> {
+  const cadastro = await cvm.cadastroDeFundos();
+  if (!cadastro) return { pulado: true, linhas: 0, eventos: 0 };
+  const carga = await abrirCarga(db, {
+    source: "cvm-fundos-cadastro",
+    sourceRef: "registro_fundo_classe.zip",
+    sha256: cadastro.arquivo.sha256,
+    bytes: cadastro.arquivo.bytes,
+  });
+  if (carga.jaCarregado) return { pulado: true, linhas: 0, eventos: 0 };
+
+  try {
+    const fetchedAt = agoraIso();
+    let linhas = 0;
+    let buffer: (typeof funds.$inferInsert)[] = [];
+    const gravar = async () => {
+      if (buffer.length === 0) return;
+      // O registro repete a classe quando ela muda de fundo: vale a ultima.
+      const unicos = [...new Map(buffer.map((f) => [f.cnpj, f])).values()];
+      await db
+        .insert(funds)
+        .values(unicos)
+        .onConflictDoUpdate({
+          target: funds.cnpj,
+          set: {
+            name: sql`excluded.name`,
+            classType: sql`excluded.class_type`,
+            classification: sql`excluded.classification`,
+            anbimaClass: sql`excluded.anbima_class`,
+            status: sql`excluded.status`,
+            aum: sql`excluded.aum`,
+            aumDate: sql`excluded.aum_date`,
+            fetchedAt: sql`excluded.fetched_at`,
+          },
+        });
+      linhas += unicos.length;
+      buffer = [];
+    };
+    for await (const c of cadastro.classes()) {
+      buffer.push({
+        ...c,
+        source: "cvm-fundos",
+        fetchedAt,
+        license: CVM_LICENSE,
+        sourceRef: "registro_fundo_classe.zip#registro_classe.csv",
+      });
+      if (buffer.length >= LOTE) await gravar();
+    }
+    await gravar();
+    await concluirCarga(db, carga, linhas);
+    opcoes.log("info", "cadastro de fundos carregado", { classes: linhas });
+    return { pulado: false, linhas, eventos: 0 };
+  } catch (erro) {
+    await falharCarga(db, carga, erro);
+    throw erro;
+  }
+}
+
+/**
+ * Informe diario de um mes em `fund_daily`.
+ *
+ * O arquivo do mes corrente cresce todo dia: o hash muda e ele e recarregado
+ * (correto); meses fechados nao mudam e sao pulados.
+ */
+export async function carregarInformeDiario(
+  db: Db,
+  cvm: CvmAdapter,
+  opcoes: { aaaamm: string; log: Log },
+): Promise<ResultadoDeCarga> {
+  const arquivo = await cvm.informeDiario(opcoes.aaaamm);
+  if (!arquivo) return { pulado: true, linhas: 0, eventos: 0 };
+  const carga = await abrirCarga(db, { source: "cvm-fundos", ...arquivo });
+  if (carga.jaCarregado) return { pulado: true, linhas: 0, eventos: 0 };
+
+  try {
+    const fetchedAt = agoraIso();
+    let linhas = 0;
+    let buffer = new Map<string, typeof fundDaily.$inferInsert>();
+    const gravar = async () => {
+      if (buffer.size === 0) return;
+      const valores = [...buffer.values()];
+      buffer = new Map();
+      await db
+        .insert(fundDaily)
+        .values(valores)
+        .onConflictDoUpdate({
+          target: [fundDaily.cnpjFundo, fundDaily.date],
+          set: {
+            nav: sql`excluded.nav`,
+            aum: sql`excluded.aum`,
+            inflows: sql`excluded.inflows`,
+            outflows: sql`excluded.outflows`,
+            holders: sql`excluded.holders`,
+            totalPortfolio: sql`excluded.total_portfolio`,
+            fetchedAt: sql`excluded.fetched_at`,
+            sourceRef: sql`excluded.source_ref`,
+          },
+        });
+      linhas += valores.length;
+    };
+    for await (const c of arquivo.cotas()) {
+      buffer.set(`${c.cnpj}|${c.date}`, {
+        cnpjFundo: c.cnpj,
+        date: c.date,
+        nav: c.nav,
+        aum: c.aum,
+        inflows: c.inflows,
+        outflows: c.outflows,
+        holders: c.holders,
+        totalPortfolio: c.totalPortfolio,
+        source: "cvm-fundos",
+        fetchedAt,
+        license: CVM_LICENSE,
+        sourceRef: arquivo.sourceRef,
+      });
+      if (buffer.size >= LOTE) await gravar();
+    }
+    await gravar();
+    await concluirCarga(db, carga, linhas);
+    opcoes.log("info", "informe diario de fundos carregado", {
+      mes: opcoes.aaaamm,
+      linhas,
+    });
+    return { pulado: false, linhas, eventos: 0 };
+  } catch (erro) {
+    await falharCarga(db, carga, erro);
+    throw erro;
+  }
+}
+
+/** Meses AAAAMM do mais antigo ao atual, `n` meses ao todo. */
+export function ultimosMeses(hoje: string, n: number): string[] {
+  const [a, m] = hoje.split("-").map(Number) as [number, number];
+  const saida: string[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(a, m - 1 - i, 1));
+    saida.push(`${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+  return saida;
 }

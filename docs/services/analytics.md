@@ -9,16 +9,16 @@ no [ADR 0009](../adr/0009-analytics-como-modulo.md).
 
 ## Estado atual
 
-| Parte                                     | Estado                                              |
-| ----------------------------------------- | --------------------------------------------------- |
-| Formulas dos indicadores                  | pronto, conferido contra o DFP 2024 da CVM          |
-| Schema `analytics` e migrations           | pronto, 6 tabelas, 2 hypertables                    |
-| Filtro do screener em Zod, com presets    | pronto                                              |
-| Execucao do screener (`executarScreener`) | pronto, testado contra Postgres real                |
-| Recalculo por evento                      | pronto, no processo `analytics-worker` (ADR 0018)   |
-| `analytics.indicators.updated`            | **nao emitido**: o analytics nao tem outbox proprio |
-| Telas `/comparar` e `/screener`           | **nao implementadas**, dependem de `apps/web`       |
-| `POST /api/screener`                      | **nao implementado**, e BFF do `apps/web`           |
+| Parte                                     | Estado                                               |
+| ----------------------------------------- | ---------------------------------------------------- |
+| Formulas dos indicadores                  | pronto, conferido contra o DFP 2024 da CVM           |
+| Schema `analytics` e migrations           | pronto, 6 tabelas, 2 hypertables                     |
+| Filtro do screener em Zod, com presets    | pronto                                               |
+| Execucao do screener (`executarScreener`) | pronto, testado contra Postgres real                 |
+| Recalculo por evento                      | pronto, no processo `analytics-worker` (ADR 0018)    |
+| `analytics.indicators.updated`            | pronto: outbox no schema `analytics`, so quando muda |
+| Telas `/comparar` e `/screener`           | prontas no `apps/web`                                |
+| `POST /api/screener`                      | pronto, BFF do `apps/web`, abaixo de 300 ms          |
 
 ## Recalculo
 
@@ -217,3 +217,33 @@ autor, nao recomendacao.
 Indices parciais em `pl`, `pvp`, `roe`, `dy_medio_5a`, `ev_ebit` e
 `liquidez_diaria` cobrem os filtros mais usados. A meta de 300 ms para o
 universo inteiro **ainda nao foi medida**: depende de haver universo carregado.
+
+## Eventos que o analytics publica
+
+`analytics.indicators.updated.v1` sai do outbox do schema `analytics`
+(`analytics.outbox`), gravado na mesma transacao do upsert do indicador, e e
+publicado pelo mesmo publisher do market-data (`@bolsiq/messaging`), lendo a
+tabela do schema do analytics. So sai quando um dos campos do evento (precos
+justos, DY, P/L, P/VP) mudou: o recalculo diario de 2.200 papeis nao vira 2.200
+eventos iguais. O alerts consome para os alertas fundamentalistas.
+
+## Comparador
+
+`src/comparador.ts`, sem banco:
+
+- `SENTIDO`: qual valor e o melhor em cada indicador. `maior`, `menor` ou
+  `menor_positivo` (multiplos de preco: P/L negativo e prejuizo, nao
+  pechincha). Beta nao tem melhor. O destaque "melhor da linha" do comparador
+  usa `melhoresDaLinha`, entao a regra e a mesma para a tela e para quem chamar.
+- `base100`, `nivelDeTaxa` (CDI e IPCA acumulados em decimal) e
+  `estatisticas` (retorno, volatilidade so em serie diaria, drawdown).
+- Identificadores da URL: ticker, CNPJ de fundo (14 digitos, aceito com
+  pontuacao) e indice (`IBOV`, `CDI`, `IPCA`), ate 6.
+
+`@bolsiq/analytics/puro` exporta so o que nao usa banco nem NATS, para o
+navegador. O indice do pacote tambem exporta o worker.
+
+## Preco gravado com o indicador
+
+`analytics.indicators.preco` e o fechamento usado no calculo. O screener mostra
+o preco sem consultar a cotacao de cada linha.

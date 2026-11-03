@@ -52,6 +52,9 @@ const etapas: [string, Record<string, unknown>][] = [
     ["cvm-itr", { ano }],
   ]),
   ["bcb-sgs", { from: `${de}-01-01` }],
+  // Fundos: ~540 mil linhas por mes. O padrao de 13 meses cobre o periodo 1A
+  // do comparador; FUNDOS_MESES amplia.
+  ["cvm-fundos", { meses: Number(process.env.FUNDOS_MESES ?? 13) }],
 ];
 
 try {

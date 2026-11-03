@@ -85,3 +85,26 @@ projeto `e2e` contra http://localhost:3000.
 
 Lighthouse mobile em `/ativo/PETR4`, cache quente, mediana de 5 rodadas:
 performance 98, acessibilidade 100.
+
+## Comparador
+
+`/comparar?t=PETR4,PRIO3,HGLG11,07455507000189&p=1A`. A URL é o estado: chips,
+período e ordem de cor. Cor fixa por posição (`series-1` a `series-6`).
+
+- Séries montadas no servidor (`lib/comparar.ts`): ativos pelo histórico
+  ajustado, fundos pela cota da CVM, CDI e IPCA acumulados, IBOV pelo `/v1/macro`.
+- Benchmarks tracejados como no design (CDI 6-4, IPCA 2-4, IBOV 12-4).
+- ECharts com import modular (linha, eixo, tooltip, linha de referência).
+- "Melhor da linha" vem de `melhoresDaLinha` do analytics, não do front.
+
+## Screener
+
+`/screener?preset=graham&tipos=stock&f=pl:0:15;pvp::1.5&liq=1000000&indef=1&ord=pl&dir=asc&pag=2&cols=pl,pvp`.
+`lib/screener-url.ts` lê e escreve esse estado; o preset preenche as faixas do
+autor, e qualquer mudança de filtro sai do preset.
+
+- Primeira pintura no servidor com `executarScreener`; depois, `POST
+/api/screener`.
+- Ordenação no servidor (a coluna clicada vira `ord`/`dir`); 50 por página.
+- Seleção de até 6 linhas abre o comparador; o CSV exporta até 1.000 linhas
+  com as colunas escolhidas.

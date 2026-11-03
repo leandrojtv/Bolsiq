@@ -10,6 +10,8 @@ export interface SheetProps {
   onOpenChange: (aberto: boolean) => void;
   title: ReactNode;
   description?: ReactNode;
+  /** Abaixo de 768 px ocupa a tela inteira, em vez de subir ate 90% da altura. */
+  fullscreenOnMobile?: boolean;
   children: ReactNode;
 }
 
@@ -17,7 +19,14 @@ export interface SheetProps {
  * Painel sobreposto: lateral direita no desktop, de baixo no celular. Radix
  * Dialog por baixo: foco preso, Esc fecha, foco volta para quem abriu.
  */
-export function Sheet({ open, onOpenChange, title, description, children }: SheetProps) {
+export function Sheet({
+  open,
+  onOpenChange,
+  title,
+  description,
+  fullscreenOnMobile = false,
+  children,
+}: SheetProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -25,7 +34,9 @@ export function Sheet({ open, onOpenChange, title, description, children }: Shee
         <Dialog.Content
           className={cn(
             "fixed z-50 flex flex-col gap-4 overflow-y-auto border-border bg-surface p-5 text-text",
-            "inset-x-0 bottom-0 max-h-[90vh] rounded-t-card border-t",
+            fullscreenOnMobile
+              ? "inset-0"
+              : "inset-x-0 bottom-0 max-h-[90vh] rounded-t-card border-t",
             "md:inset-y-0 md:right-0 md:left-auto md:max-h-none md:w-[440px] md:rounded-none md:border-t-0 md:border-l",
           )}
           {...(description === undefined ? { "aria-describedby": undefined } : {})}

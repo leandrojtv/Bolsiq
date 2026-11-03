@@ -445,6 +445,22 @@ describe("AppShell com busca propria", () => {
 });
 
 describe("Sheet", () => {
+  it("ocupa a tela inteira no celular so quando pedido", () => {
+    const { rerender } = render(
+      <Sheet open onOpenChange={() => undefined} title="Painel">
+        conteudo
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog").className).toContain("max-h-[90vh]");
+    rerender(
+      <Sheet open onOpenChange={() => undefined} title="Painel" fullscreenOnMobile>
+        conteudo
+      </Sheet>,
+    );
+    expect(screen.getByRole("dialog").className).toContain("inset-0");
+    expect(screen.getByRole("dialog").className).not.toContain("max-h-[90vh]");
+  });
+
   it("abre com titulo e fecha pelo botao", () => {
     const mudar = vi.fn();
     render(

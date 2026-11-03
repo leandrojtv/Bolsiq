@@ -109,9 +109,10 @@ export function ConfiguracaoDoAssistente() {
 
       <form onSubmit={enviar} className="flex flex-col gap-5" noValidate>
         <Card title="Provedor">
-          <label className="flex flex-col gap-1.5 text-xs text-text-3">
-            Provedor
+          <div className="flex flex-col gap-1.5 text-xs text-text-3">
+            <label htmlFor="assistente-provedor">Provedor</label>
             <select
+              id="assistente-provedor"
               value={provedor}
               onChange={(e) => {
                 setProvedor(e.target.value as Provedor);
@@ -128,7 +129,7 @@ export function ConfiguracaoDoAssistente() {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
           {info.url && (
             <Campo
               rotulo="URL do Ollama"
@@ -171,9 +172,10 @@ export function ConfiguracaoDoAssistente() {
 
         <Card title="Modelo">
           {modelos ? (
-            <label className="flex flex-col gap-1.5 text-xs text-text-3">
-              Modelo
+            <div className="flex flex-col gap-1.5 text-xs text-text-3">
+              <label htmlFor="assistente-modelo">Modelo</label>
               <select
+                id="assistente-modelo"
                 value={modelo}
                 onChange={(e) => setModelo(e.target.value)}
                 className={CAMPO}
@@ -184,7 +186,7 @@ export function ConfiguracaoDoAssistente() {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           ) : (
             <p className="m-0 text-sm text-text-2">
               {estado.modelo ? (

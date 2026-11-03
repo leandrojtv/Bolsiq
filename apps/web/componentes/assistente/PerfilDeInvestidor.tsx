@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import {
   CLASSES,
   HORIZONTES,
@@ -67,17 +67,23 @@ function Opcoes({
   opcoes: Record<string, string>;
   aoMudar: (v: string) => void;
 }) {
+  const id = useId();
   return (
-    <label className={ROTULO}>
-      {rotulo}
-      <select value={valor} onChange={(e) => aoMudar(e.target.value)} className={CAMPO}>
+    <div className={ROTULO}>
+      <label htmlFor={id}>{rotulo}</label>
+      <select
+        id={id}
+        value={valor}
+        onChange={(e) => aoMudar(e.target.value)}
+        className={CAMPO}
+      >
         {Object.entries(opcoes).map(([k, r]) => (
           <option key={k} value={k}>
             {r}
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }
 

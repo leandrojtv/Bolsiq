@@ -162,7 +162,7 @@ test("chave recusada não vaza em resposta nem em log", async ({ page }) => {
   await page.getByLabel("Provedor", { exact: true }).selectOption("deepseek");
   await page.getByLabel("Chave de API").fill(errada);
   await page.getByRole("button", { name: "Testar conexão" }).click();
-  await expect(page.getByRole("alert")).toContainText("recusou a chave");
+  await expect(page.getByText("O provedor recusou a chave.")).toBeVisible();
 
   for (const c of corpos) expect(c).not.toContain(errada);
 
@@ -187,7 +187,7 @@ test("modelo sem ferramentas fica bloqueado; Ollama fora da lista é recusado", 
   await page.getByLabel("Provedor", { exact: true }).selectOption("ollama");
   await page.getByLabel("URL do Ollama").fill("http://169.254.169.254");
   await page.getByRole("button", { name: "Testar conexão" }).click();
-  await expect(page.getByRole("alert")).toContainText("fora da lista");
+  await expect(page.getByText(/fora da lista permitida/)).toBeVisible();
 
   await page.getByLabel("URL do Ollama").fill("http://llm-falso:11434");
   await page.getByRole("button", { name: "Testar conexão" }).click();

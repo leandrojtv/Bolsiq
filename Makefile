@@ -151,6 +151,24 @@ build-image-clean:
 	docker build --no-cache -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
 
 # ---------------------------------------------------------------------------
+# Assistente
+# ---------------------------------------------------------------------------
+
+## eval-assistente: avalia o assistente (EVAL_PROVEDOR, EVAL_MODELO, EVAL_CHAVE, EVAL_URL); sem eles, roteiro
+eval-assistente:
+	$(call exige_monorepo)
+	docker run --rm -i $(DOCKER_TTY) \
+		-v "$(CURDIR)":/app \
+		-v bolsiq-pnpm-store:/pnpm-store \
+		-w /app \
+		-e CI=true \
+		-e PNPM_HOME=/pnpm \
+		-e npm_config_store_dir=/pnpm-store \
+		-e EVAL_PROVEDOR -e EVAL_MODELO -e EVAL_CHAVE -e EVAL_URL -e EVAL_CASOS \
+		$(NODE_IMAGE) \
+		bash -lc 'corepack enable >/dev/null 2>&1 && pnpm install --frozen-lockfile >/dev/null && pnpm turbo run build --filter=@bolsiq/assistant --output-logs=errors-only && pnpm --filter @bolsiq/assistant run eval'
+
+# ---------------------------------------------------------------------------
 # Ambiente local completo — para testar na mão
 # ---------------------------------------------------------------------------
 
@@ -259,6 +277,6 @@ check-deps:
 check: check-workflows check-actions check-links check-secrets check-deps
 
 .PHONY: help up down logs install lint format typecheck test test-integration \
-        test-e2e ci db-generate db-migrate db-reset smoke gh-protect \
+        test-e2e ci eval-assistente db-generate db-migrate db-reset smoke gh-protect \
         gh-protect-dry gh-protect-solo gh-status check-workflows check-actions \
         check-links check-secrets check

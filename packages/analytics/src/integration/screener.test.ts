@@ -186,12 +186,20 @@ describe("recalculo e screener", () => {
     expect(porPl.linhas[0]?.indicadores.pl).toBeCloseTo(10.5, 0);
     expect(Number(porPl.linhas[0]?.preco)).toBeCloseTo(30, 0);
 
-    // FII nao tem P/L: fica fora de um filtro por P/L.
+    // FII nao tem P/L. Ordenar por P/L (o padrao) nao o esconde: vem depois
+    // das acoes. Uma faixa de P/L, sim, o deixa de fora.
     const fiiPorPl = await executarScreener(
       db,
       FiltroDeScreener.parse({ tipos: ["fii"] }),
     );
-    expect(fiiPorPl.total).toBe(0);
+    expect(fiiPorPl.linhas.map((l) => l.ticker)).toEqual(["HGLG11"]);
+    const mistos = await executarScreener(db, FiltroDeScreener.parse({}));
+    expect(mistos.linhas.map((l) => l.ticker)).toEqual(["PETR4", "HGLG11"]);
+    const fiiNaFaixa = await executarScreener(
+      db,
+      FiltroDeScreener.parse({ tipos: ["fii"], faixas: { pl: { max: 15 } } }),
+    );
+    expect(fiiNaFaixa.total).toBe(0);
 
     const graham = await executarScreener(db, filtroDoPreset("graham"));
     expect(graham.linhas.map((l) => l.ticker)).toEqual(["PETR4"]);

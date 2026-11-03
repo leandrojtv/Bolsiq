@@ -184,7 +184,8 @@ negativos, e e o caso em que um sinal trocado passaria despercebido.
 2. **Aliquota do ROIC** e nominal, nao efetiva. Empresa com incentivo fiscal
    aparece com ROIC subestimado.
 3. **Indicador indefinido nao e zero.** Toda coluna e nula por escolha, e o
-   screener exclui nulos da ordenacao por padrao.
+   screener exclui nulos da ordenacao por padrao -- exceto FII, ETF e BDR
+   quando o indicador e de balanco (ver Screener).
 4. **Sem ajuste por proventos** no retorno enquanto o `adj_close` do
    `market-data` nao existir: o desempenho fica subestimado para pagador de
    dividendo.
@@ -213,6 +214,13 @@ Filtro validado por Zod em `src/screener.ts`, com faixas por indicador, setor,
 tipo e liquidez minima. Presets: `graham`, `bazin`, `magic_formula`,
 `dividendos_consistentes` -- filtros nomeados com os numeros publicados por cada
 autor, nao recomendacao.
+
+**Ordenacao por indicador de balanco** (`SO_DE_ACOES`: P/L, P/VP, ROE,
+margens, endividamento, CAGR, Graham): sem "incluir indefinidos", descarta so a
+acao sem o valor (prejuizo nao tem P/L). FII, ETF e BDR, que nunca terao esses
+indicadores, entram depois das acoes, por liquidez. Antes, a ordenacao padrao
+(P/L) escondia todo FII. P/VP sai do conjunto quando houver valor patrimonial de
+FII na base.
 
 Indices parciais em `pl`, `pvp`, `roe`, `dy_medio_5a`, `ev_ebit` e
 `liquidez_diaria` cobrem os filtros mais usados. A meta de 300 ms para o

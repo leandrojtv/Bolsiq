@@ -160,6 +160,15 @@ services:
       NATS_URL: nats://nats:4222
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       FEATURE_TELEGRAM: ${FEATURE_TELEGRAM:-false}
+      # Login (ADR 0010 e 0022). Segredo de desenvolvimento; em producao vem do ambiente.
+      APP_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-segredo-de-desenvolvimento-nao-usar-em-producao}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      # O e2e cria varios usuarios do mesmo IP em segundos.
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-100}
     ports:
       - "3000:3000"
     depends_on:
@@ -171,3 +180,31 @@ services:
         condition: service_completed_successfully
       nats:
         condition: service_healthy
+      portfolio-migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+
+  portfolio-migrate:
+    image: bolsiq-portfolio-worker:${IMAGE_TAG:-local}
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  portfolio-worker:
+    image: bolsiq-portfolio-worker:${IMAGE_TAG:-local}
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      MARKET_DATA_URL: http://market-data:3001
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-mdk_test_chave_interna_de_desenvolvimento}
+    depends_on:
+      market-data:
+        condition: service_healthy
+      portfolio-migrate:
+        condition: service_completed_successfully

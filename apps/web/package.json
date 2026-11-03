@@ -15,6 +15,7 @@
     "capturas": "playwright test --project=capturas"
   },
   "dependencies": {
+    "@bolsiq/alerts": "workspace:*",
     "@bolsiq/analytics": "workspace:*",
     "@bolsiq/contracts": "workspace:*",
     "@bolsiq/db-core": "workspace:*",
@@ -24,6 +25,7 @@
     "echarts": "6.1.0",
     "lightweight-charts": "5.2.1",
     "lucide-react": "1.59.0",
+    "nats": "^2.29.3",
     "next": "16.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",

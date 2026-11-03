@@ -5,3 +5,6 @@ export * from "./twr.js";
 export * from "./eventos.js";
 export * from "./csv.js";
 export * from "./alocacao.js";
+export * from "./snapshot.js";
+export * from "./db/sessao.js";
+export * as schema from "./db/schema.js";

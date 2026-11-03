@@ -24,10 +24,15 @@ export interface PontoDeTwr {
  * investidor usa resultado realizado e nao realizado, que ja estao em
  * `apurar`.
  *
- * **Convencao: fluxo no inicio do dia.** O aporte do dia entra no denominador,
- * ou seja, o capital aportado ja participa do retorno daquele dia. A convencao
- * oposta (fluxo no fim) daria numeros diferentes, e a escolha precisa estar
- * documentada porque nao e deduzivel do resultado.
+ * **Convencao: aporte no inicio do dia, retirada no fim.** O aporte do dia
+ * entra no denominador, ou seja, o capital aportado ja participa do retorno
+ * daquele dia. A retirada (venda, provento) sai no fim do dia e volta ao
+ * numerador: com a retirada no inicio, vender a carteira inteira daria
+ * `0 / (V - venda) - 1`, um retorno de -100% ou sem sentido no dia da venda.
+ *
+ * $$r_t = \frac{V_t + S_t}{V_{t-1} + A_t} - 1$$
+ *
+ * com $A_t$ o fluxo liquido positivo e $S_t$ o negativo, em modulo.
  *
  * O primeiro dia nao tem retorno: nao existe $V_{t-1}$. Devolve `null` em vez
  * de zero, porque zero significaria "nao rendeu".
@@ -46,8 +51,11 @@ export function twrDiario(dias: DiaDaCarteira[]): PontoDeTwr[] {
     }
 
     const anterior = dias[i - 1];
-    const denominador = d(anterior?.valor ?? "0").plus(d(hoje.fluxo_caixa));
-    const r = dividir(d(hoje.valor), denominador);
+    const fluxo = d(hoje.fluxo_caixa);
+    const aporte = fluxo.gt(0) ? fluxo : d(0);
+    const saida = fluxo.lt(0) ? fluxo.neg() : d(0);
+    const denominador = d(anterior?.valor ?? "0").plus(aporte);
+    const r = dividir(d(hoje.valor).plus(saida), denominador);
 
     if (r === null) {
       // Carteira comecou o dia em zero: nao ha capital a render.

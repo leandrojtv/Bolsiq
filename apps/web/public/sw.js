@@ -87,9 +87,13 @@ self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   const url = e.notification.data?.url ?? "/alertas";
   e.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((abertas) => {
-      const aba = abertas.find((c) => new URL(c.url).origin === self.location.origin);
-      return aba ? aba.navigate(url).then((c) => c?.focus()) : self.clients.openWindow(url);
-    }),
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((abertas) => {
+        const aba = abertas.find((c) => new URL(c.url).origin === self.location.origin);
+        return aba
+          ? aba.navigate(url).then((c) => c?.focus())
+          : self.clients.openWindow(url);
+      }),
   );
 });

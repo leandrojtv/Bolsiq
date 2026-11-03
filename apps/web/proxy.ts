@@ -15,7 +15,10 @@ export function proxy(req: NextRequest) {
   const id = `dev_${crypto.randomUUID()}`;
   // O handler desta mesma requisicao ja precisa do id: vai no header e no cookie.
   const cabecalhos = new Headers(req.headers);
-  cabecalhos.set("cookie", `${req.headers.get("cookie") ?? ""}; ${COOKIE_DO_USUARIO}=${id}`.replace(/^; /, ""));
+  cabecalhos.set(
+    "cookie",
+    `${req.headers.get("cookie") ?? ""}; ${COOKIE_DO_USUARIO}=${id}`.replace(/^; /, ""),
+  );
   const res = NextResponse.next({ request: { headers: cabecalhos } });
   res.cookies.set(COOKIE_DO_USUARIO, id, {
     httpOnly: true,
@@ -28,5 +31,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|icones|sw.js|manifest.webmanifest|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|icones|sw.js|manifest.webmanifest|favicon.ico).*)",
+  ],
 };

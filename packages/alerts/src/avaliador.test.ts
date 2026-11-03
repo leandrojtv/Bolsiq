@@ -50,7 +50,7 @@ describe("preco_acima e preco_abaixo", () => {
       agora,
     );
     expect(r.disparos.map((d) => d.regra.id)).toEqual(["r1"]);
-    expect(r.disparos[0]?.titulo).toBe("PETR4 acima de R$ 40.00");
+    expect(r.disparos[0]?.titulo).toBe("PETR4 acima de R$ 40,00");
   });
 
   it("no limite exato nao dispara", () => {
@@ -96,7 +96,7 @@ describe("preco_acima e preco_abaixo", () => {
       { ticker: "PETR4", price: "34.50", change: "-1" },
       agora,
     );
-    expect(r.disparos[0]?.titulo).toBe("PETR4 abaixo de R$ 35.00");
+    expect(r.disparos[0]?.titulo).toBe("PETR4 abaixo de R$ 35,00");
   });
 });
 
@@ -110,7 +110,7 @@ describe("variacao_diaria", () => {
       { ticker: "PETR4", price: "42.10", change: "2.10" },
       agora,
     );
-    expect(r.disparos[0]?.titulo).toMatch(/sobe 5\.25%/);
+    expect(r.disparos[0]?.titulo).toMatch(/sobe 5,25%/);
   });
 
   it("dispara em queda acima do percentual", () => {
@@ -188,7 +188,7 @@ describe("fundamentalistas", () => {
 
   it("DY acima independe do preco", () => {
     const r = avaliarIndicadores([dy], ind, undefined, agora);
-    expect(r.disparos[0]?.titulo).toMatch(/12\.00%/);
+    expect(r.disparos[0]?.titulo).toMatch(/12,00%/);
   });
 
   it("DY abaixo ou nulo nao dispara", () => {
@@ -223,17 +223,17 @@ describe("proventos", () => {
 
   it("anuncio dispara com o valor por acao", () => {
     const r = avaliarProvento([anunciado], p, agora);
-    expect(r.disparos[0]?.corpo).toMatch(/1\.2500 por acao/);
+    expect(r.disparos[0]?.corpo).toMatch(/R\$ 1,2500 por ação/);
   });
 
   it("anuncio sem valor dispara so com a data", () => {
     const r = avaliarProvento([anunciado], { ...p, value_per_share: null }, agora);
-    expect(r.disparos[0]?.corpo).toBe("Data com 2026-11-05.");
+    expect(r.disparos[0]?.corpo).toBe("Data ex 05/11/2026.");
   });
 
   it("data com dentro da janela dispara", () => {
     const r = avaliarProvento([proxima], p, agora);
-    expect(r.disparos[0]?.titulo).toBe("Data com de PETR4 em 3 dia(s)");
+    expect(r.disparos[0]?.titulo).toBe("Data ex de PETR4 em 3 dias");
   });
 
   it("data com distante ou passada nao dispara", () => {
@@ -263,7 +263,7 @@ describe("demonstrativo", () => {
       { tickers: ["PETR3", "PETR4"], period_end: "2026-09-30", statement_kind: "ITR" },
       agora,
     );
-    expect(r.disparos[0]?.titulo).toBe("PETR4 publicou ITR de 2026-09-30");
+    expect(r.disparos[0]?.titulo).toBe("PETR4 publicou ITR de 30/09/2026");
   });
 
   it("respeita cooldown", () => {

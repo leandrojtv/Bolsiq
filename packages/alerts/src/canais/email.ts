@@ -24,7 +24,7 @@ export function canalEmail(cfg: ConfigDeEmail): CanalDeEnvio {
       if (!destino.email) {
         return { ok: false, erro: "usuario sem e-mail", definitivo: true };
       }
-      const t = templateDeEmail(n, cfg.urlBase);
+      const t = await templateDeEmail(n, cfg.urlBase);
       try {
         await transporte.sendMail({
           from: cfg.from,

@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, ChevronLeft, Star } from "lucide-react";
+import { ChevronLeft, Star } from "lucide-react";
 import type { AssetDetail, LiveQuote, ResponseMeta } from "@bolsiq/contracts";
 import { Button, Change, Price, SourceLine, StaleBadge } from "@bolsiq/ui";
+import { CriarAlertaRapido } from "../alertas/CriarAlertaRapido";
 import { useWatchlist } from "../watchlist";
 import { nomeDaFonte, TIPO_DO_ATIVO } from "./tipos";
 
@@ -41,13 +42,7 @@ export function TopoMobile({ ticker }: { ticker: string }) {
             className={na ? "fill-warn text-warn" : ""}
           />
         </button>
-        <Link
-          href={`/alertas?t=${ticker}`}
-          aria-label="Criar alerta"
-          className="flex size-touch items-center justify-center text-text"
-        >
-          <Bell aria-hidden="true" size={20} />
-        </Link>
+        <CriarAlertaRapido ticker={ticker} icone />
       </div>
     </header>
   );
@@ -116,9 +111,7 @@ export function Cabecalho({ ativo, cotacao, meta }: CabecalhoProps) {
         <Button asChild>
           <Link href={`/comparar?t=${ativo.ticker}`}>Comparar</Link>
         </Button>
-        <Button asChild variant="primary">
-          <Link href={`/alertas?t=${ativo.ticker}`}>Criar alerta</Link>
-        </Button>
+        <CriarAlertaRapido ticker={ativo.ticker} />
       </div>
     </section>
   );

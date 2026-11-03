@@ -31,12 +31,21 @@ describe("templates", () => {
     );
   });
 
-  it("monta assunto, texto e html com link", () => {
-    const t = templateDeEmail({ ...n, titulo: "<b>x</b>" }, "http://app");
+  it("monta assunto, texto e html com link, escapando o titulo", async () => {
+    const t = await templateDeEmail({ ...n, titulo: "<b>x</b>" }, "http://app");
     expect(t.assunto).toBe("<b>x</b>");
     expect(t.html).toContain("&lt;b&gt;x&lt;/b&gt;");
-    expect(t.html).toContain("http://app/notificacoes/n1");
-    expect(t.texto).toContain("http://app/notificacoes/n1");
+    expect(t.html).not.toContain("<b>x</b>");
+    expect(t.html).toContain("http://app/alertas?n=n1");
+    expect(t.html).toContain("http://app/configuracoes/notificacoes");
+    expect(t.texto).toContain("http://app/alertas?n=n1");
+  });
+
+  it("usa as cores dos tokens", async () => {
+    const t = await templateDeEmail(n, "http://app");
+    // bg e accent de tokens.css (#0B0F14, #6C9CFF), em estilo inline.
+    expect(t.html.toLowerCase()).toContain("#0b0f14");
+    expect(t.html.toLowerCase()).toContain("#6c9cff");
   });
 });
 
@@ -67,6 +76,17 @@ describe("push", () => {
       definitivo: true,
       remover_push: ["https://push/1"],
     });
+  });
+
+  it("expirada some mesmo quando outra inscricao entrega", async () => {
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(Object.assign(new Error("gone"), { statusCode: 410 }));
+    const r = await canalPush({ sendNotification: send }).enviar(n, {
+      push: [sub, { ...sub, endpoint: "https://push/2" }],
+    });
+    expect(r).toEqual({ ok: true, remover_push: ["https://push/2"] });
   });
 
   it("falha transitoria nao e definitiva", async () => {

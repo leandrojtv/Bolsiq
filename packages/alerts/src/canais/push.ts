@@ -44,7 +44,8 @@ export function canalPush(enviador: EnviadorDePush): CanalDeEnvio {
         }
       }
 
-      if (algumOk) return remover.length ? { ok: true } : { ok: true };
+      if (algumOk)
+        return remover.length ? { ok: true, remover_push: remover } : { ok: true };
       return {
         ok: false,
         erro: ultimoErro || "falha em todas as inscricoes",

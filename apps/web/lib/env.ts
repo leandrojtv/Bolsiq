@@ -19,6 +19,15 @@ const Env = z.object({
     .string()
     .url()
     .default("postgres://bolsiq:bolsiq@localhost:5432/bolsiq"),
+  /** NATS core: o sino assina alerts.inapp.<user_id>. */
+  NATS_URL: z.string().default("nats://localhost:4222"),
+  /** Chave publica VAPID. Sem ela o canal Push fica indisponivel na tela. */
+  VAPID_PUBLIC_KEY: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.string().optional(),
+  ),
+  /** Telegram so aparece com a flag ligada (mesma do alerts-worker). */
+  FEATURE_TELEGRAM: z.string().optional(),
 });
 
 export const env = Env.parse(process.env);

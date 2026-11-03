@@ -156,6 +156,10 @@ services:
       MARKET_DATA_URL: http://market-data:3001
       MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-mdk_test_chave_interna_de_desenvolvimento}
       DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      # Sino: o BFF assina alerts.inapp.<user_id> e repassa por SSE.
+      NATS_URL: nats://nats:4222
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      FEATURE_TELEGRAM: ${FEATURE_TELEGRAM:-false}
     ports:
       - "3000:3000"
     depends_on:
@@ -163,3 +167,7 @@ services:
         condition: service_healthy
       analytics-migrate:
         condition: service_completed_successfully
+      alerts-migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy

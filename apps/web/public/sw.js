@@ -5,7 +5,7 @@
 // - Ultima cotacao: /api/v1/quotes vai a rede primeiro e guarda a resposta;
 //   sem rede, devolve a ultima guardada.
 // O nome do cache muda com a versao para o activate limpar o antigo.
-const VERSAO = "bolsiq-v1";
+const VERSAO = "bolsiq-v2";
 const SHELL = ["/offline", "/manifest.webmanifest", "/icones/192.png", "/icones/512.png"];
 
 self.addEventListener("install", (e) => {
@@ -66,4 +66,34 @@ self.addEventListener("fetch", (e) => {
   } else if (url.pathname.startsWith("/api/v1/quotes/")) {
     e.respondWith(redePrimeiro(req));
   }
+});
+
+// Web Push do alerts-worker: { title, body, id }. O clique abre a central com
+// a notificacao em destaque (marcada como lida pela pagina).
+self.addEventListener("push", (e) => {
+  const dados = e.data ? e.data.json() : {};
+  e.waitUntil(
+    self.registration.showNotification(dados.title ?? "Bolsiq", {
+      body: dados.body ?? "",
+      icon: "/icones/192.png",
+      badge: "/icones/192.png",
+      tag: dados.id,
+      data: { url: dados.id ? `/alertas?n=${dados.id}` : "/alertas" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = e.notification.data?.url ?? "/alertas";
+  e.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((abertas) => {
+        const aba = abertas.find((c) => new URL(c.url).origin === self.location.origin);
+        return aba
+          ? aba.navigate(url).then((c) => c?.focus())
+          : self.clients.openWindow(url);
+      }),
+  );
 });

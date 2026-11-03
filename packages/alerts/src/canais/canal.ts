@@ -16,7 +16,7 @@ export interface Destino {
 }
 
 export type ResultadoDeEnvio =
-  | { ok: true }
+  | { ok: true; remover_push?: string[] }
   /** `definitivo`: nao adianta repetir (endereco invalido, inscricao expirada). */
   | { ok: false; erro: string; definitivo: boolean; remover_push?: string[] };
 

@@ -88,7 +88,8 @@ ON CONFLICT DO NOTHING;
 -- Os indicadores desses FIIs nao sao semeados: o e2e publica
 -- fii.report.published e confere o que o analytics-worker calculou.
 INSERT INTO market_data.fii_monthly (cnpj, reference_date, version, isin, name, segment, total_assets, equity, shares_outstanding, nav_per_share, holders, dividend_yield_month, effective_return_month, amortization_month, source, fetched_at, license, source_ref)
-SELECT v.*, 'cvm-fii-mensal', now(), 'ODbL-1.0', 'seed-e2e'
+SELECT v.cnpj, v.reference_date::date, v.version, v.isin, v.name, v.segment, v.total_assets, v.equity, v.shares_outstanding, v.nav_per_share, v.holders, v.dividend_yield_month, v.effective_return_month, v.amortization_month,
+       'cvm-fii-mensal', now(), 'ODbL-1.0', 'seed-e2e'
 FROM (VALUES
   ('11728688000147', '2025-10-01', 1, 'BRHGLGCTF004', 'PÁTRIA LOG - FUNDO DE INVESTIMENTO IMOBILIÁRIO', 'Multicategoria', 6357064276.08, 5481659231.32, 33787575, 162.238907, 512965, 0.006769, 0.005173, 0),
   ('11728688000147', '2025-11-01', 1, 'BRHGLGCTF004', 'PÁTRIA LOG - FUNDO DE INVESTIMENTO IMOBILIÁRIO', 'Multicategoria', 8315604330.71, 7030245156.84, 42404675, 165.789389, 516205, 0.005901, 0.027785, 0),

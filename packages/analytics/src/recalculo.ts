@@ -1,4 +1,9 @@
-import type { Candle, Dividend, FundamentalsPeriod } from "@bolsiq/contracts";
+import type {
+  Candle,
+  Dividend,
+  FiiMonthlyReport,
+  FundamentalsPeriod,
+} from "@bolsiq/contracts";
 import { d, paraMoeda } from "./decimal.js";
 import { bazin } from "./precoJusto.js";
 import { beta, desempenho, sharpe } from "./desempenho.js";
@@ -27,6 +32,8 @@ export interface DadosDoAtivo {
   ibov: Ponto[];
   /** Data de hoje, YYYY-MM-DD, para as janelas de proventos. */
   hoje: string;
+  /** FII: informe mensal da CVM, da competencia mais antiga para a mais recente. */
+  informesFii?: FiiMonthlyReport[];
 }
 
 /** Linha de `analytics.indicators`, com razoes como string para o `numeric`. */
@@ -90,6 +97,72 @@ export function proventos12m(proventos: Dividend[], hoje: string): string {
     .filter((p) => emDinheiro(p) && p.ex_date > inicio && p.ex_date <= hoje)
     .reduce((acc, p) => acc.plus(p.value_per_share as string), d(0))
     .toFixed();
+}
+
+function mesesAntes(data: string, meses: number): string {
+  const x = new Date(`${data}T00:00:00Z`);
+  x.setUTCMonth(x.getUTCMonth() - meses);
+  return x.toISOString().slice(0, 10);
+}
+
+/**
+ * Rendimento por cota dos 12 meses do informe, terminando na competencia mais
+ * recente: soma de DY do mes vezes o VP da cota. O DY do informe e calculado
+ * pelo administrador sobre o valor patrimonial, entao o produto devolve o
+ * rendimento em reais por cota. Mes com DY negativo (erro de preenchimento,
+ * que a CVM publica como veio) conta zero: rendimento distribuido nao e
+ * negativo. `null` sem nenhum mes utilizavel.
+ */
+export function rendimentoFii12m(informes: FiiMonthlyReport[]): string | null {
+  const ordenados = [...informes].sort((a, b) =>
+    a.reference_date.localeCompare(b.reference_date),
+  );
+  const ultimo = ordenados.at(-1);
+  if (!ultimo) return null;
+  const inicio = mesesAntes(ultimo.reference_date, 12);
+  const meses = ordenados.filter(
+    (i) =>
+      i.reference_date > inicio &&
+      i.dividend_yield_month !== null &&
+      i.nav_per_share !== null,
+  );
+  if (meses.length === 0) return null;
+  return meses
+    .reduce((acc, i) => {
+      const dy = d(i.dividend_yield_month as string);
+      return dy.gt(0) ? acc.plus(dy.times(i.nav_per_share as string)) : acc;
+    }, d(0))
+    .toFixed();
+}
+
+/**
+ * Indicadores de FII que vem do informe mensal: P/VP, patrimonio, cotistas e,
+ * quando a brapi nao tem proventos do fundo, o DY 12m.
+ */
+function indicadoresDeFii(
+  informes: FiiMonthlyReport[],
+  preco: string,
+  proventos12m: string,
+): Record<string, string | number | null> | null {
+  const ultimo = [...informes]
+    .sort((a, b) => a.reference_date.localeCompare(b.reference_date))
+    .at(-1);
+  if (!ultimo) return null;
+  const vp = ultimo.nav_per_share;
+  const precoPositivo = d(preco).gt(0);
+  const pvp = vp !== null && d(vp).gt(0) ? d(preco).div(vp).toNumber() : null;
+  const rendimento = rendimentoFii12m(informes);
+  const usarInforme = d(proventos12m).eq(0) && rendimento !== null;
+  return {
+    vpa: vp,
+    pvp: razao(pvp),
+    patrimonio_liquido: ultimo.equity,
+    cotistas: ultimo.holders,
+    ...(usarInforme && precoPositivo
+      ? { dy_12m: razao(d(rendimento).div(preco).toNumber()) }
+      : {}),
+    fonte_demonstrativo: `cvm-fii-mensal:${ultimo.reference_date}:v${ultimo.version}`,
+  };
 }
 
 /** Demonstrativo do analytics a partir das contas do /v1/fundamentals. */
@@ -250,6 +323,10 @@ export function recalcular(dados: DadosDoAtivo): LinhaDeIndicadores | null {
             .div(preco)
             .toNumber()
         : null;
+    const fii =
+      dados.kind === "fii"
+        ? indicadoresDeFii(dados.informesFii ?? [], preco, p12m)
+        : null;
     return {
       ...comum,
       reference_date: ultima.date,
@@ -258,6 +335,7 @@ export function recalcular(dados: DadosDoAtivo): LinhaDeIndicadores | null {
       preco_bazin: b.valor,
       margem_bazin: razao(b.margem_seguranca),
       fonte_demonstrativo: null,
+      ...fii,
     };
   }
 

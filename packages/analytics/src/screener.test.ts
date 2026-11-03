@@ -86,6 +86,14 @@ describe("presets", () => {
     expect(f.faixas.roic?.min).toBe(0.15);
   });
 
+  it("FIIs descontados: so FII, P/VP abaixo de 1 e DY 12m acima de 8%", () => {
+    const f = filtroDoPreset("fii_desconto");
+    expect(f.tipos).toEqual(["fii"]);
+    expect(f.faixas.pvp).toEqual({ min: 0, max: 1 });
+    expect(f.faixas.dy_12m).toEqual({ min: 0.08 });
+    expect(f.ordenar_por).toBe("dy_12m");
+  });
+
   it("nenhum preset inclui indefinidos", () => {
     // Empresa sem lucro no topo de uma ordenacao por P/L crescente seria o
     // pior resultado possivel de um screener.

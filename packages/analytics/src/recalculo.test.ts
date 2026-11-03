@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Candle, Dividend, FundamentalsPeriod } from "@bolsiq/contracts";
+import type {
+  Candle,
+  Dividend,
+  FiiMonthlyReport,
+  FundamentalsPeriod,
+} from "@bolsiq/contracts";
 import { DFP_2024 } from "./cvm.fixtures.js";
 import {
   acoesNaEscalaCerta,
@@ -7,6 +12,7 @@ import {
   proventos12m,
   proventosPorAno,
   recalcular,
+  rendimentoFii12m,
   type DadosDoAtivo,
 } from "./recalculo.js";
 
@@ -193,5 +199,86 @@ describe("recalcular", () => {
     const r = recalcular(dados({ anuais: [{ ...periodo, ebit: "1" }] }));
     expect(r?.ev_ebit).toBeNull();
     expect(r?.pl).not.toBeNull();
+  });
+});
+
+/** Informe de FII: VP 40, DY 1% ao mes. */
+function informe(
+  reference_date: string,
+  sobre: Partial<FiiMonthlyReport> = {},
+): FiiMonthlyReport {
+  return {
+    reference_date,
+    version: 1,
+    total_assets: "1100000000",
+    equity: "1000000000",
+    shares_outstanding: "25000000",
+    nav_per_share: "40",
+    holders: 150000,
+    dividend_yield_month: "0.01",
+    effective_return_month: "0.01",
+    amortization_month: "0",
+    dividends_payable: null,
+    provenance: {
+      source: "cvm-fii-mensal",
+      fetched_at: "2026-10-20T00:00:00.000Z",
+      license: "ODbL-1.0",
+      source_ref: "inf_mensal_fii_2026.zip#inf_mensal_fii_geral",
+    },
+    ...sobre,
+  };
+}
+
+/** 2024-09 (fora da janela) e de 2025-10 a 2026-09, com marco negativo. */
+const informes = [
+  informe("2024-09-01", { dividend_yield_month: "0.5" }),
+  ...Array.from({ length: 12 }, (_, i) => {
+    const mes = new Date(Date.UTC(2025, 9 + i, 1)).toISOString().slice(0, 10);
+    return informe(mes, mes === "2026-03-01" ? { dividend_yield_month: "-0.05" } : {});
+  }),
+].reverse();
+
+describe("FII pelo informe mensal", () => {
+  it("rendimento de 12 meses ate a ultima competencia, sem mes negativo", () => {
+    // 11 meses de 1% sobre VP 40; a ordem de entrada nao importa.
+    expect(rendimentoFii12m(informes)).toBe("4.4");
+    expect(rendimentoFii12m([])).toBeNull();
+    expect(rendimentoFii12m([informe("2026-09-01", { nav_per_share: null })])).toBeNull();
+  });
+
+  it("calcula P/VP, patrimonio, cotistas e DY pelo informe sem proventos da brapi", () => {
+    const r = recalcular(
+      dados({
+        ticker: "HGLG11",
+        kind: "fii",
+        anuais: [],
+        proventos: [],
+        informesFii: informes,
+      }),
+    );
+    // Preco 34 (ultima vela) sobre VP 40.
+    expect(Number(r?.pvp)).toBeCloseTo(0.85, 6);
+    expect(r?.vpa).toBe("40");
+    expect(r?.patrimonio_liquido).toBe("1000000000");
+    expect(r?.cotistas).toBe(150000);
+    expect(Number(r?.dy_12m)).toBeCloseTo(4.4 / 34, 6);
+    expect(r?.fonte_demonstrativo).toBe("cvm-fii-mensal:2026-09-01:v1");
+  });
+
+  it("com proventos da brapi, o DY 12m continua sendo o da brapi", () => {
+    const comBrapi = recalcular(
+      dados({ kind: "fii", anuais: [], informesFii: informes }),
+    );
+    const semInforme = recalcular(dados({ kind: "fii", anuais: [] }));
+    expect(comBrapi?.dy_12m).toBe(semInforme?.dy_12m);
+    expect(Number(comBrapi?.pvp)).toBeCloseTo(0.85, 6);
+  });
+
+  it("sem informe, FII fica sem P/VP e acao nao usa informe", () => {
+    const fii = recalcular(dados({ kind: "fii", anuais: [], proventos: [] }));
+    expect(fii?.pvp).toBeUndefined();
+    expect(Number(fii?.dy_12m)).toBe(0);
+    const acao = recalcular(dados({ informesFii: informes }));
+    expect(acao?.fonte_demonstrativo).toMatch(/^cvm-dfp:/);
   });
 });

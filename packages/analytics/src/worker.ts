@@ -12,6 +12,7 @@ import {
 import {
   AssetDetailResponse,
   DividendsResponse,
+  FiiMonthlyResponse,
   FundamentalsResponse,
   HistoryResponse,
   MacroResponse,
@@ -56,6 +57,7 @@ export function clienteDoMarketData(base: string, buscar: Buscar = fetch) {
       obter(`/v1/fundamentals/${t}?period=annual`, FundamentalsResponse),
     proventos: (t: string, de: string) =>
       obter(`/v1/dividends/${t}?from=${de}`, DividendsResponse),
+    informesFii: (t: string) => obter(`/v1/fiis/${t}/monthly`, FiiMonthlyResponse),
     macro: (serie: "cdi" | "ibov") => obter(`/v1/macro/${serie}`, MacroResponse),
   };
 }
@@ -124,11 +126,13 @@ export async function recalcularTicker(
 
   const hoje = hojeEmSp();
   const cincoAnos = `${Number(hoje.slice(0, 4)) - 6}-01-01`;
-  const [brutas, ajustadas, fundamentos, proventos] = await Promise.all([
+  const [brutas, ajustadas, fundamentos, proventos, informesFii] = await Promise.all([
     cliente.historico(ticker, false),
     cliente.historico(ticker, true),
     a.cvm_code ? cliente.fundamentos(ticker) : Promise.resolve(null),
     cliente.proventos(ticker, cincoAnos),
+    // 404 quando o FII ainda nao tem informe ligado: segue sem P/VP.
+    a.kind === "fii" ? cliente.informesFii(ticker) : Promise.resolve(null),
   ]);
 
   const linha = recalcular({
@@ -141,6 +145,7 @@ export async function recalcularTicker(
     cdi: macro.cdi,
     ibov: macro.ibov,
     hoje,
+    informesFii: informesFii?.data.reports ?? [],
   });
   if (!linha) return "sem_preco";
 
@@ -247,6 +252,9 @@ export async function iniciarWorkerDeAnalytics(deps: {
           break;
         case "marketdata.statement.published.v1":
           await enfileirar(tx, p.tickers as string[], "statement.published", evento.id);
+          break;
+        case "marketdata.fii.report.published.v1":
+          await enfileirar(tx, p.tickers as string[], "fii.report.published", evento.id);
           break;
         case "marketdata.daily.closed.v1":
         case "marketdata.dividend.announced.v1": {

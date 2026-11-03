@@ -35,3 +35,17 @@ export function consultar(sql: string): string[][] {
     .filter((l) => l !== "")
     .map((l) => l.split("|"));
 }
+
+/** Cotacao como o market-data publicaria: linha no outbox, o publisher leva ao NATS. */
+export function publicarCotacao(ticker: string, preco: string) {
+  const payload = JSON.stringify({
+    ticker,
+    price: preco,
+    change: "0.00",
+    ts: new Date().toISOString(),
+  });
+  consultar(
+    `insert into market_data.outbox (id, event_name, payload, occurred_at, producer)
+     values (gen_random_uuid()::text, 'marketdata.quote.updated.v1', '${payload}'::jsonb, now(), 'e2e')`,
+  );
+}

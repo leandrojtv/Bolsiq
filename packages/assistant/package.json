@@ -1,0 +1,49 @@
+{
+  "name": "@bolsiq/assistant",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./puro": {
+      "types": "./dist/src/puro.d.ts",
+      "default": "./dist/src/puro.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src eval prompts",
+    "test:unit": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:generate": "drizzle-kit generate",
+    "eval": "node dist/eval/rodar.js"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.96",
+    "@ai-sdk/google": "4.0.111",
+    "@ai-sdk/openai": "4.0.108",
+    "@ai-sdk/openai-compatible": "3.0.84",
+    "@bolsiq/analytics": "workspace:*",
+    "@bolsiq/portfolio": "workspace:*",
+    "ai": "7.0.162",
+    "decimal.js": "^10.4.3",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@bolsiq/config": "workspace:*",
+    "@types/pg": "^8.11.10",
+    "@vitest/coverage-v8": "4.1.12",
+    "drizzle-kit": "^0.31.11",
+    "pg": "^8.13.1",
+    "testcontainers": "^10.16.0",
+    "typescript": "^5.7.2",
+    "vitest": "4.1.12"
+  }
+}

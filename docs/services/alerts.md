@@ -15,8 +15,8 @@ Nao le `market_data`, `analytics` nem `portfolio`. Tudo chega por evento
 | Canais in-app, e-mail, Web Push, Telegram (flag)            | prontos; e-mail verificado no Mailpit                               |
 | Imagem dedicada e compose                                   | pronto, healthy de ponta a ponta                                    |
 | Resumo diario ou semanal da carteira                        | **nao implementado**: depende de o portfolio publicar evento ou API |
-| Templates React Email                                       | **trocados por funcao de template**; React entra com o `apps/web`   |
-| Telas: gerenciamento, criacao rapida, central, preferencias | **nao implementadas**, dependem de `apps/web`                       |
+| Templates React Email                                       | pronto: `canais/templates.tsx`, cores de `@bolsiq/ui/tokens.json`   |
+| Telas: gerenciamento, criacao rapida, central, preferencias | prontas no `apps/web` ([web.md](web.md#alertas))                    |
 
 ## Tipos de alerta
 
@@ -121,7 +121,7 @@ O motor nao muda. E esse o ponto do contrato.
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `inapp`    | a notificacao no banco e a central; o canal empurra o aviso para o sino em `alerts.inapp.<user_id>` no NATS core. Perder o empurrao nao perde a notificacao |
 | `email`    | SMTP; Mailpit em dev (http://localhost:8025). Titulo e corpo passam por escape de HTML, porque carregam dado de evento                                      |
-| `push`     | Web Push com VAPID. Inscricao que responde 404 ou 410 e apagada                                                                                             |
+| `push`     | Web Push com VAPID. Inscricao que responde 404 ou 410 e apagada, mesmo quando outra entrega                                                                 |
 | `telegram` | so com `FEATURE_TELEGRAM=true` e `TELEGRAM_BOT_TOKEN`. 4xx e definitivo, 5xx repete                                                                         |
 
 ## Pendencias
@@ -130,11 +130,10 @@ O motor nao muda. E esse o ponto do contrato.
    nao le o schema `portfolio`.
 2. **Watchlist**: `provento_anunciado` hoje e por ticker escolhido; "ativo da
    carteira ou watchlist" depende de um evento do portfolio com as posicoes.
-3. **React Email**, quando o React entrar com o `apps/web`. A troca e local a
-   `templates.ts`.
-4. **Data com reavaliada diariamente**: hoje `data_com_proxima` avalia no
+3. **Data com reavaliada diariamente**: hoje `data_com_proxima` avalia no
    anuncio; um anuncio com data com a 30 dias e regra de 5 dias nao avisa depois.
    Precisa de um job diario.
-5. **Telas e endpoints de CRUD**, no `apps/web`.
-6. **k6**: o criterio pedia k6, e o teste de carga foi feito de outro jeito -- ver
+4. **Identidade provisoria**: as telas usam o cookie `bolsiq_uid` ate o login
+   ([ADR 0021](../adr/0021-identidade-provisoria-e-sino.md)).
+5. **k6**: o criterio pedia k6, e o teste de carga foi feito de outro jeito -- ver
    o ADR 0012.

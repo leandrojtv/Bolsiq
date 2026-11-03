@@ -2,10 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ComponentProps, ReactNode } from "react";
 import { AppShell, navegacaoPadrao, type LinkComponent } from "@bolsiq/ui";
 import { buscarCotacoes } from "@/lib/api";
+import { useSino } from "./alertas/useSino";
 import { BuscaGlobal, ID_DA_BUSCA } from "./BuscaGlobal";
 import { useWatchlist } from "./watchlist";
 
@@ -18,6 +19,8 @@ const LinkNext: LinkComponent = (props) => (
 /** AppShell em todas as rotas, com a busca global e a watchlist com cotacao. */
 export function Casca({ children }: { children: ReactNode }) {
   const caminho = usePathname();
+  const router = useRouter();
+  const naoLidas = useSino();
   const { lista } = useWatchlist();
   const { data } = useQuery({
     queryKey: ["cotacoes", lista],
@@ -38,7 +41,8 @@ export function Casca({ children }: { children: ReactNode }) {
           changePercent: c ? Number(c.change_percent) / 100 : 0,
         };
       })}
-      notifications={0}
+      notifications={naoLidas}
+      onNotificationsClick={() => router.push("/alertas")}
       search={<BuscaGlobal />}
       searchInputId={ID_DA_BUSCA}
       hideHeaderOnMobile={caminho.startsWith("/ativo/")}

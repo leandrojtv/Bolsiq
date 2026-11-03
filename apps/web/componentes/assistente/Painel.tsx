@@ -258,6 +258,13 @@ export default function PainelDoAssistente({
             >
               <History aria-hidden="true" size={16} /> Histórico
             </Button>
+            <Link
+              href="/configuracoes/assistente"
+              onClick={() => aoMudar(false)}
+              className="ml-auto text-sm"
+            >
+              Configurações
+            </Link>
           </div>
 
           {estado.modo === "educational" && (
@@ -305,7 +312,7 @@ export default function PainelDoAssistente({
                     {SUGESTOES.map((s) => (
                       <li key={s}>
                         <Button
-                          className="w-full justify-start text-left"
+                          className="h-auto min-h-touch w-full justify-start py-2 text-left"
                           onClick={() => enviar(s)}
                         >
                           {s}

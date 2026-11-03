@@ -23,6 +23,7 @@ export default defineConfig({
         "lib/indicadores-tecnicos.ts",
         "lib/market-data.ts",
         "componentes/watchlist.ts",
+        "lib/carteira-modelo.ts",
       ],
       thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 },
     },

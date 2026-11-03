@@ -4,6 +4,7 @@ import {
   AssetSearchResponse,
   CnpjParam,
   DividendsResponse,
+  FiiMonthlyResponse,
   FundamentalsQuery,
   FundamentalsResponse,
   FundDetailResponse,
@@ -121,6 +122,16 @@ export const rotas: RouteSpec[] = [
     params: CnpjParam,
     query: RangeQuery,
     response: FundHistoryResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/fiis/{ticker}/monthly",
+    summary:
+      "Informe mensal de um FII (CVM): patrimônio, cota patrimonial, cotistas e rendimento",
+    tags: ["fiis"],
+    params: TickerParam,
+    query: RangeQuery,
+    response: FiiMonthlyResponse,
   },
   {
     method: "get",

@@ -5,6 +5,7 @@ import {
   assets,
   dividends,
   fetchLog,
+  fiiMonthly,
   financialStatements,
   fundDaily,
   funds,
@@ -22,6 +23,7 @@ import {
   type AssetSummary,
   type Candle,
   type Dividend,
+  type FiiMonthlyReport,
   type FundDetail,
   type FundSummary,
   type FundamentalsPeriod,
@@ -92,6 +94,18 @@ export interface ServicoDeDados {
     Resposta<{
       cnpj: string;
       points: { date: string; nav: string; aum: string; holders: number | null }[];
+    }>
+  >;
+  informesFii(
+    ticker: string,
+    q: { from?: string; to?: string },
+  ): Promise<
+    Resposta<{
+      ticker: string;
+      cnpj: string;
+      name: string;
+      segment: string | null;
+      reports: FiiMonthlyReport[];
     }>
   >;
   macro(
@@ -1247,6 +1261,92 @@ export function criarServicoDeDados(deps: {
     };
   }
 
+  // -------------------------------------------------------------------------
+  // FIIs: informe mensal, carga em lote pelo job cvm-fii-mensal
+  // -------------------------------------------------------------------------
+
+  /** O informe do mes sai ate 15 dias depois do fim do mes. */
+  const INFORME_FII_DELAY_MINUTES = 45 * 24 * 60;
+
+  async function informesFii(ticker: string, q: { from?: string; to?: string }) {
+    const ate = q.to ?? hoje(agora());
+    const de = q.from ?? umAnoAntes(umAnoAntes(ate));
+    if (de > ate) throw new BolsiqError("validation_error", "from posterior a to");
+    const [a] = await db
+      .select({ cnpj: assets.cnpj, kind: assets.kind })
+      .from(assets)
+      .where(eq(assets.ticker, ticker));
+    if (!a) naoEncontrado(`ativo ${ticker} nao esta no universo`);
+    if (a.kind !== "fii" || !a.cnpj)
+      naoEncontrado(`${ticker} nao tem informe mensal de FII ligado`);
+
+    const linhas = await db
+      .select()
+      .from(fiiMonthly)
+      .where(
+        and(
+          eq(fiiMonthly.cnpj, a.cnpj),
+          gte(fiiMonthly.referenceDate, de),
+          lte(fiiMonthly.referenceDate, ate),
+        ),
+      )
+      .orderBy(asc(fiiMonthly.referenceDate));
+    const [ultimo] =
+      linhas.length > 0
+        ? linhas.slice(-1)
+        : await db
+            .select()
+            .from(fiiMonthly)
+            .where(eq(fiiMonthly.cnpj, a.cnpj))
+            .orderBy(desc(fiiMonthly.referenceDate))
+            .limit(1);
+    if (!ultimo) naoEncontrado(`${ticker} nao tem informe mensal de FII ligado`);
+
+    const fetchedAt = paraIso(
+      linhas
+        .map((l) => l.fetchedAt)
+        .sort()
+        .pop() ?? ultimo.fetchedAt,
+    );
+    return {
+      data: {
+        ticker,
+        cnpj: a.cnpj,
+        name: ultimo.name,
+        segment: ultimo.segment,
+        reports: linhas.map((l) => ({
+          reference_date: l.referenceDate,
+          version: l.version,
+          total_assets: nn(l.totalAssets),
+          equity: nn(l.equity),
+          shares_outstanding: nn(l.sharesOutstanding),
+          nav_per_share: nn(l.navPerShare),
+          holders: l.holders,
+          dividend_yield_month: nn(l.dividendYieldMonth),
+          effective_return_month: nn(l.effectiveReturnMonth),
+          amortization_month: nn(l.amortizationMonth),
+          dividends_payable: nn(l.dividendsPayable),
+          provenance: {
+            source: l.source,
+            fetched_at: paraIso(l.fetchedAt),
+            license: l.license,
+            source_ref: l.sourceRef,
+          },
+        })),
+      },
+      meta: {
+        source: "cvm-fii-mensal",
+        fetched_at: fetchedAt,
+        license: CVM_LICENSE,
+        // Competencia mais recente com mais de tres meses: carga atrasada.
+        stale:
+          ate >= somarDias(hoje(agora()), -1) &&
+          ultimo.referenceDate < somarDias(hoje(agora()), -100),
+        delay_minutes: INFORME_FII_DELAY_MINUTES,
+      },
+    };
+  }
+
   return {
     buscarAtivos,
     ativo,
@@ -1257,6 +1357,7 @@ export function criarServicoDeDados(deps: {
     buscarFundos,
     fundo,
     historicoDeFundo,
+    informesFii,
     macro,
   };
 }

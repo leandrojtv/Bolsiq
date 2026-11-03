@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { BolsiqError, buildOpenApi } from "@bolsiq/contracts";
+import { BolsiqError, buildOpenApi, FiiMonthlyResponse } from "@bolsiq/contracts";
 import { criarApp } from "../app.js";
 import { carregarEnv } from "../config.js";
 import type { ServicoDeDados } from "../dados/servico.js";
@@ -102,6 +102,39 @@ const servico: ServicoDeDados = {
   historicoDeFundo: (c, q) => {
     chamadas.push(["historicoDeFundo", c, q]);
     return Promise.resolve({ data: { cnpj: c, points: [] }, meta });
+  },
+  informesFii: (t, q) => {
+    chamadas.push(["informesFii", t, q]);
+    return Promise.resolve({
+      data: {
+        ticker: t,
+        cnpj: "11728688000147",
+        name: "PATRIA LOG",
+        segment: "Logística",
+        reports: [
+          {
+            reference_date: "2026-09-01",
+            version: 1,
+            total_assets: "8835655334.84",
+            equity: "7546017797.39",
+            shares_outstanding: "45601713",
+            nav_per_share: "165.476630173739",
+            holders: 613837,
+            dividend_yield_month: "0.007052",
+            effective_return_month: "0.004191",
+            amortization_month: "0",
+            dividends_payable: null,
+            provenance: {
+              source: "cvm-fii-mensal",
+              fetched_at: meta.fetched_at,
+              license: "ODbL-1.0",
+              source_ref: "inf_mensal_fii_2026.zip#inf_mensal_fii_geral",
+            },
+          },
+        ],
+      },
+      meta,
+    });
   },
   macro: (s, q) => {
     chamadas.push(["macro", s, q]);
@@ -235,6 +268,14 @@ describe("rotas /v1", () => {
       { from: "2025-01-01" },
     ]);
     expect((await get("/v1/funds/123/history")).statusCode).toBe(422);
+  });
+
+  it("informe mensal de FII: ticker normalizado, periodo e resposta no contrato", async () => {
+    const r = await get("/v1/fiis/hglg11/monthly?from=2025-10-01");
+    expect(r.statusCode).toBe(200);
+    expect(chamadas.at(-1)).toEqual(["informesFii", "HGLG11", { from: "2025-10-01" }]);
+    expect(FiiMonthlyResponse.safeParse(r.json()).success).toBe(true);
+    expect((await get("/v1/fiis/HGLG11/monthly?to=2026-02-30")).statusCode).toBe(422);
   });
 
   it("Swagger UI em /docs", async () => {

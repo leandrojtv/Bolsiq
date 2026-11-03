@@ -22,6 +22,7 @@ describe("registro de jobs", () => {
         "cvm-dfp",
         "cvm-itr",
         "cvm-fundos",
+        "cvm-fii-mensal",
         "bcb-sgs",
         "ajuste-proventos",
       ]),

@@ -1,6 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { IndicadorFiltravel, type FiltroDeScreener } from "./screener.js";
+import { IndicadorFiltravel, SO_DE_ACOES, type FiltroDeScreener } from "./screener.js";
 
 export interface LinhaDoScreener {
   ticker: string;
@@ -63,7 +63,15 @@ export async function executarScreener(
     condicoes.push(sql`i.liquidez_diaria >= ${filtro.liquidez_minima}`);
   }
   const ordem = coluna(filtro.ordenar_por);
-  if (!filtro.incluir_indefinidos) condicoes.push(sql`i.${ordem} IS NOT NULL`);
+  if (!filtro.incluir_indefinidos) {
+    // Indicador de balanco: descarta a acao sem o valor, nao o FII, ETF ou
+    // BDR, que nunca o terao. Eles vem depois, por liquidez.
+    condicoes.push(
+      SO_DE_ACOES.has(filtro.ordenar_por)
+        ? sql`(i.${ordem} IS NOT NULL OR m.kind <> 'stock')`
+        : sql`i.${ordem} IS NOT NULL`,
+    );
+  }
 
   const onde = sql.join(condicoes, sql` AND `);
   const direcao = filtro.ordem === "desc" ? sql`DESC` : sql`ASC`;
@@ -85,7 +93,7 @@ export async function executarScreener(
     FROM ultimos i
     JOIN analytics.assets_mirror m ON m.ticker = i.ticker
     WHERE ${onde}
-    ORDER BY i.${ordem} ${direcao} NULLS LAST, i.ticker
+    ORDER BY i.${ordem} ${direcao} NULLS LAST, i.liquidez_diaria DESC NULLS LAST, i.ticker
     LIMIT ${filtro.limite} OFFSET ${filtro.deslocamento}`;
 
   const r = await db.execute<Record<string, unknown>>(consulta);

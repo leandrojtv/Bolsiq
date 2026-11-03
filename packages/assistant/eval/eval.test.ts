@@ -47,6 +47,7 @@ describe("medidas do eval", () => {
       9965.6, 38.42,
     ]);
     expect(extrairNumeros("PETR4 em 31/10/2026").length).toBe(0);
+    expect(extrairNumeros("em 28 de outubro de 2026 e em 28/10").length).toBe(0);
     expect(extrairNumeros("[R$ 1,00](/ativo/PETR4)").map((e) => e.valor)).toEqual([1]);
   });
 

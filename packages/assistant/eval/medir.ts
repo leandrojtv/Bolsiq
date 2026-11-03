@@ -8,6 +8,8 @@ export function limparTexto(texto: string): string {
     .replace(/\b[A-Z]{4}\d{1,2}\b/g, " ")
     .replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, " ")
     .replace(/\b\d{1,2}\/\d{4}\b/g, " ")
+    .replace(/\b\d{1,2}\/\d{1,2}\b/g, " ")
+    .replace(/\b\d{1,2}º? de [a-zç]+( de \d{4})?/gi, " ")
     .replace(/\b\d{4}-\d{2}(-\d{2})?(T[\d:.]+Z?)?\b/g, " ")
     .replace(/^\s*\d+[.)]\s/gm, " ");
 }

@@ -16,3 +16,6 @@ packages/ui/tokens.css
 **/storybook-static/**
 **/test-results/**
 **/playwright-report/**
+
+# Gerado pelo make eval-assistente.
+packages/assistant/homologacao/

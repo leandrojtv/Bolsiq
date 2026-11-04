@@ -1,0 +1,42 @@
+# Ambiente local duradouro, por cima do compose.ci.yml (make local-up).
+#
+# O compose.ci.yml e descartavel: o banco nao tem volume e morre com o container.
+# Aqui o banco fica em volume nomeado, que sobrevive a `make local-down` e a
+# recriar os containers, e os servicos voltam sozinhos quando o Docker reinicia.
+# Com o worker no ar, os jobs agendados mantem cotacao, CVM e BCB em dia.
+
+services:
+  postgres:
+    restart: unless-stopped
+    volumes:
+      - pgdata:/home/postgres/pgdata
+  nats:
+    restart: unless-stopped
+  mailpit:
+    restart: unless-stopped
+    ports: !override
+      - "8225:8025"
+  market-data:
+    restart: unless-stopped
+    ports: !override
+      - "8200:3001"
+  market-data-worker:
+    restart: unless-stopped
+  analytics-worker:
+    restart: unless-stopped
+  alerts-worker:
+    restart: unless-stopped
+  portfolio-worker:
+    restart: unless-stopped
+  llm-falso:
+    restart: unless-stopped
+  web:
+    restart: unless-stopped
+    ports: !override
+      - "3200:3000"
+    environment:
+      APP_URL: http://localhost:3200
+
+volumes:
+  pgdata:
+    name: bolsiq-assist-pgdata

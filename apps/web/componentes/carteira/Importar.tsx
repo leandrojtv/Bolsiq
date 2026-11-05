@@ -258,10 +258,13 @@ function Revisao({
                 <span>
                   {t.corretora}{" "}
                   <span className="text-text-3">
-                    extrato de {dataCompleta(t.data_posicao)}, {t.linhas} linhas
+                    extrato de {dataCompleta(t.data_posicao)}, {t.linhas}{" "}
+                    {t.linhas === 1 ? "linha" : "linhas"}
                   </span>
                 </span>
-                <span className="font-mono">{formatarDinheiro(t.saldo_bruto)}</span>
+                <span className="font-mono whitespace-nowrap">
+                  {formatarDinheiro(t.saldo_bruto)}
+                </span>
               </li>
             ))}
           </ul>

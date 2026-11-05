@@ -460,6 +460,7 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
               {[
                 "Qtd.",
                 "Preço médio",
+                "Cotação",
                 "Custo",
                 "Atual",
                 "Não realizado",

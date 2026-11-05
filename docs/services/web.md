@@ -183,6 +183,9 @@ Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
   corporativo ("Desdobramento 1:2 aplicado"); proventos por mês.
 - Nova transação e importação em sheet (embaixo no celular), com relatório
   das linhas rejeitadas.
+- Colunas de Posições: Ativo, Qtd., Preço médio, Cotação, Custo, Atual (valor de
+  mercado), Não realizado, Realizado e Proventos. Segue o design, mais a Cotação,
+  que o design não prevê.
 - Toda leitura e escrita passa por `comoUsuario` (RLS). Carteira de outro
   usuário responde 404.
 

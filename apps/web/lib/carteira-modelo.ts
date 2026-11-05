@@ -52,6 +52,33 @@ export const NovaCarteira = z.object({
 
 export type Agrupamento = "classe" | "setor" | "ativo";
 
+/** O layout de posicao se reconhece pelo cabecalho (docs/services/portfolio.md). */
+export function ehLayoutDePosicao(conteudo: string): boolean {
+  const cabecalho = conteudo.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
+  const colunas = cabecalho.split(/[;,]/).map((c) => c.trim().toLowerCase());
+  return colunas.includes("data_posicao") && colunas.includes("classe");
+}
+
+/** Data do banco ("2026-11-05") sem passar por `Date`, que mudaria o dia pelo fuso. */
+export const diaEMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+export const dataCompleta = (iso: string) => iso.split("-").reverse().join("/");
+
+/** "120% CDI", "IPCA + 7,95%" ou "14,69% a.a.": o que a linha de renda fixa rende. */
+export function indexadorETaxa(p: {
+  indexador: string | null;
+  pct_indexador: string | null;
+  taxa_aa: string | null;
+}): string {
+  const pct = (v: string) =>
+    `${(Number(v) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
+  const indexador = p.indexador === "PRE" ? null : p.indexador;
+  if (p.pct_indexador !== null)
+    return `${pct(p.pct_indexador)}${indexador ? ` ${indexador}` : ""}`;
+  if (p.taxa_aa !== null)
+    return indexador ? `${indexador} + ${pct(p.taxa_aa)}` : `${pct(p.taxa_aa)} a.a.`;
+  return indexador ?? "-";
+}
+
 export const CLASSE: Record<string, string> = {
   stock: "Ações",
   fii: "FIIs",

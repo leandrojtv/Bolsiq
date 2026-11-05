@@ -101,6 +101,8 @@ export async function exportarDados(uid: string) {
   const carteira = await comoUsuario(db, uid, async (tx) => ({
     carteiras: await tx.select().from(portfolio.portfolios),
     transacoes: await tx.select().from(portfolio.transactions),
+    posicoes: await tx.select().from(portfolio.posicoes),
+    cargas_de_posicao: await tx.select().from(portfolio.cargas_de_posicao),
     importacoes: await tx.select().from(portfolio.imports),
     auditoria: await tx.select().from(portfolio.audit_log),
   }));
@@ -140,7 +142,7 @@ export async function excluirDados(uid: string): Promise<void> {
   await comoUsuario(db, uid, async (tx) => {
     await tx.delete(portfolio.snapshots).where(eq(portfolio.snapshots.user_id, uid));
     await tx.delete(portfolio.imports).where(eq(portfolio.imports.user_id, uid));
-    // transactions cai junto, pela FK com cascade.
+    // transactions, posicoes e cargas_de_posicao caem junto, pela FK com cascade.
     await tx.delete(portfolio.portfolios).where(eq(portfolio.portfolios.user_id, uid));
   });
   const { alertRules, notifications, deliveries, userPrefs, pushSubscriptions } = alertas;

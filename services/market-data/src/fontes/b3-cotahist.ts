@@ -11,6 +11,12 @@ import { linhasDoZip } from "./zip.js";
 export const COTAHIST_SOURCE = "b3-cotahist";
 export const COTAHIST_LICENSE = "proprietaria B3, sem direito de redistribuicao";
 
+/** Nome do arquivo diario, que tambem e o `source_ref` no `fetch_log`. */
+export function refDoDia(data: string): string {
+  const [a, m, d] = data.split("-");
+  return `COTAHIST_D${d}${m}${a}.ZIP`;
+}
+
 export interface RegistroDoUniverso extends CotahistRecord {
   kind: TipoDeAtivo;
   classe: string;
@@ -38,10 +44,12 @@ export class B3CotahistAdapter {
     return this.baixar(`COTAHIST_A${ano}.ZIP`);
   }
 
-  /** `null` em dia sem pregao: a B3 responde 404, e feriado nao e erro. */
+  /**
+   * `null` quando a B3 responde 404, que e feriado ou arquivo que ainda nao
+   * saiu: a fonte nao distingue os dois casos.
+   */
   dia(data: string): Promise<ArquivoCotahist | null> {
-    const [a, m, d] = data.split("-");
-    return this.baixar(`COTAHIST_D${d}${m}${a}.ZIP`);
+    return this.baixar(refDoDia(data));
   }
 
   private async baixar(nome: string): Promise<ArquivoCotahist | null> {

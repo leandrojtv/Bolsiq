@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { CONFERENCIA, cadastrar, emailNovo } from "./conta";
 
 async function importar(page: Page, nome: string, conteudo: string) {
@@ -13,6 +13,33 @@ async function importar(page: Page, nome: string, conteudo: string) {
   return sheet;
 }
 
+// Acha a celula pelo titulo da coluna: conferir so a linha nao pega cabecalho
+// desalinhado (#27).
+async function celula(posicoes: Locator, ticker: string, coluna: string) {
+  const linha = posicoes.getByRole("row", { name: new RegExp(ticker) });
+  await expect(linha).toBeVisible();
+  const titulos = await posicoes.getByRole("columnheader").allTextContents();
+  expect(titulos, `coluna ${coluna}`).toContain(coluna);
+  return linha.locator("th, td").nth(titulos.indexOf(coluna));
+}
+
+async function conferir(
+  posicoes: Locator,
+  ticker: string,
+  valores: Record<string, string | RegExp>,
+) {
+  for (const [coluna, valor] of Object.entries(valores))
+    await expect(
+      await celula(posicoes, ticker, coluna),
+      `${ticker}, ${coluna}`,
+    ).toHaveText(valor);
+}
+
+async function dinheiro(posicoes: Locator, ticker: string, coluna: string) {
+  const texto = await (await celula(posicoes, ticker, coluna)).innerText();
+  return Number(texto.replace(/[^\d,]/g, "").replace(",", "."));
+}
+
 test("carteira de conferência aparece com os mesmos números", async ({ page }) => {
   await cadastrar(page, emailNovo("conferencia"));
   const sheet = await importar(page, "conferencia.csv", CONFERENCIA);
@@ -22,11 +49,43 @@ test("carteira de conferência aparece com os mesmos números", async ({ page })
   const posicoes = page.getByRole("region", { name: "Posições" });
   const petr = posicoes.getByRole("row", { name: /PETR4/ });
   await expect(petr).toContainText("Desdobramento 1:2 aplicado");
-  for (const v of ["180", "R$ 18,03", "R$ 3.244,80", "R$ 350,80", "R$ 201,00"])
-    await expect(petr).toContainText(v);
-  const vale = posicoes.getByRole("row", { name: /VALE3/ });
-  for (const v of ["50", "R$ 61,26", "R$ 3.063,00", "R$ 182,00", "R$ 120,00"])
-    await expect(vale).toContainText(v);
+  await expect(posicoes.getByRole("columnheader")).toHaveText([
+    "Ativo",
+    "Qtd.",
+    "Preço médio",
+    "Cotação",
+    "Custo",
+    "Atual",
+    "Não realizado",
+    "Realizado",
+    "Proventos",
+  ]);
+  const comPreco = {
+    Cotação: /^R\$\s[\d.,]+$/,
+    Atual: /^R\$\s[\d.,]+$/,
+    "Não realizado": /^[▲▼]/,
+  };
+  await conferir(posicoes, "PETR4", {
+    ...comPreco,
+    "Qtd.": "180",
+    "Preço médio": "R$ 18,03",
+    Custo: "R$ 3.244,80",
+    Realizado: "R$ 350,80",
+    Proventos: "R$ 201,00",
+  });
+  await conferir(posicoes, "VALE3", {
+    ...comPreco,
+    "Qtd.": "50",
+    "Preço médio": "R$ 61,26",
+    Custo: "R$ 3.063,00",
+    Realizado: "R$ 182,00",
+    Proventos: "R$ 120,00",
+  });
+  // Cotacao e valor de mercado tem o mesmo formato; a conta e que os separa.
+  expect(await dinheiro(posicoes, "VALE3", "Atual")).toBeCloseTo(
+    50 * (await dinheiro(posicoes, "VALE3", "Cotação")),
+    0,
+  );
   await expect(page.getByRole("region", { name: "Resumo" })).toContainText("R$ 532,80");
 
   // O portfolio-worker grava os snapshots e o grafico aparece sem recarregar.
@@ -116,7 +175,8 @@ test("nova transação pelo formulário rápido", async ({ page }) => {
   await sheet.getByLabel("Preço (R$)").fill("30,50");
   await sheet.getByRole("button", { name: "Salvar transação" }).click();
   await expect(sheet).toBeHidden();
-  await expect(
-    page.getByRole("region", { name: "Posições" }).getByRole("row", { name: /ITUB4/ }),
-  ).toContainText("R$ 30,50");
+  await conferir(page.getByRole("region", { name: "Posições" }), "ITUB4", {
+    "Preço médio": "R$ 30,50",
+    Custo: "R$ 305,00",
+  });
 });

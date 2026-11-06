@@ -5,12 +5,14 @@ import {
   ORDEM_EXERC_VALIDA,
 } from "@bolsiq/domain";
 import { BolsiqError } from "@bolsiq/contracts";
+import { Decimal } from "decimal.js";
 import { baixarParaArquivo, type ArquivoBaixado, type Buscar } from "./http.js";
 import { linhasDoZip } from "./zip.js";
 
 export const CVM_LICENSE = "ODbL-1.0";
 const BASE = "https://dados.cvm.gov.br/dados/CIA_ABERTA";
 const BASE_FI = "https://dados.cvm.gov.br/dados/FI";
+const BASE_FII = "https://dados.cvm.gov.br/dados/FII";
 
 export interface ClasseDeFundo {
   cnpj: string;
@@ -49,6 +51,32 @@ export interface ArquivoDeCotas extends ArquivoBaixado {
  */
 export function cabeNoNumeric(...valores: (string | null)[]): boolean {
   return valores.every((v) => v === null || Math.abs(Number(v)) < 1e14);
+}
+
+/** Uma competencia do informe mensal de FII, ja unida dos tres CSVs. */
+export interface InformeMensalFii {
+  cnpj: string;
+  /** Primeiro dia do mes de competencia, como a CVM publica. */
+  referenceDate: string;
+  version: number;
+  isin: string | null;
+  name: string;
+  segment: string | null;
+  totalAssets: string | null;
+  equity: string | null;
+  sharesOutstanding: string | null;
+  navPerShare: string | null;
+  holders: number | null;
+  dividendYieldMonth: string | null;
+  effectiveReturnMonth: string | null;
+  amortizationMonth: string | null;
+  dividendsPayable: string | null;
+  sourceRef: string;
+}
+
+export interface ArquivoDeInformeFii extends ArquivoBaixado {
+  sourceRef: string;
+  informes: () => Promise<InformeMensalFii[]>;
 }
 
 export interface Companhia {
@@ -231,6 +259,25 @@ export class CvmAdapter {
     };
   }
 
+  /**
+   * Informe mensal de FII de um ano: um zip com `geral`, `complemento` e
+   * `ativo_passivo`, unidos aqui por CNPJ e competencia. `null` se o ano nao
+   * foi publicado.
+   */
+  async informeMensalFii(ano: number): Promise<ArquivoDeInformeFii | null> {
+    const nome = `inf_mensal_fii_${ano}.zip`;
+    const arquivo = await baixarParaArquivo(
+      this.buscar,
+      `${BASE_FII}/DOC/INF_MENSAL/DADOS/${nome}`,
+    );
+    if (!arquivo) return null;
+    return {
+      ...arquivo,
+      sourceRef: nome,
+      informes: () => lerInformesFii(arquivo.caminho, nome),
+    };
+  }
+
   /** DFP (anual) ou ITR (trimestral) de um ano. `null` se o ano nao existe. */
   async demonstracoes(
     tipo: "DFP" | "ITR",
@@ -410,4 +457,86 @@ async function* lerCotas(
       totalPortfolio,
     };
   }
+}
+
+/**
+ * Decimal do informe de FII. Diferente do informe diario, vem tambem em
+ * notacao cientifica ("8.17058518048235E-06"), que o `numeric` aceitaria mas o
+ * contrato (string decimal) nao. Fora da escala da coluna vira null.
+ */
+export function decimalDoInforme(v: string, limite = 1e14): string | null {
+  if (!/^-?\d+(\.\d+)?(E[-+]?\d+)?$/i.test(v)) return null;
+  const x = new Decimal(v);
+  return x.abs().lt(limite) ? x.toFixed() : null;
+}
+
+function isinOuNulo(v: string): string | null {
+  return /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(v) ? v : null;
+}
+
+/**
+ * Le os tres CSVs do zip e une por CNPJ e competencia, ficando com a maior
+ * Versao de cada um. Os CSVs somam poucos MB por ano: cabem em memoria.
+ */
+async function lerInformesFii(
+  caminho: string,
+  nomeDoZip: string,
+): Promise<InformeMensalFii[]> {
+  type Linha = { versao: number; c: (col: string) => string };
+  const porArquivo = new Map<string, Map<string, Linha>>();
+  let entradaAtual = "";
+  let ler: ReturnType<typeof leitorDeColunas> | null = null;
+
+  for await (const { entrada, linha } of linhasDoZip(caminho, (n) =>
+    /_(geral|complemento|ativo_passivo)_\d{4}\.csv$/.test(n),
+  )) {
+    if (entrada !== entradaAtual) {
+      entradaAtual = entrada;
+      ler = leitorDeColunas(linha);
+      continue;
+    }
+    if (!ler || linha.trim() === "") continue;
+    const c = ler(linha);
+    const cnpj = tentarCnpj(c("CNPJ_Fundo_Classe"));
+    if (!cnpj) continue;
+    const tipo = /_(geral|complemento|ativo_passivo)_/.exec(entrada)?.[1] ?? "";
+    const linhas = porArquivo.get(tipo) ?? new Map<string, Linha>();
+    porArquivo.set(tipo, linhas);
+    const chave = `${cnpj}|${c("Data_Referencia")}`;
+    const versao = Number(c("Versao")) || 1;
+    if ((linhas.get(chave)?.versao ?? 0) <= versao) linhas.set(chave, { versao, c });
+  }
+
+  const complemento = porArquivo.get("complemento") ?? new Map<string, Linha>();
+  const ativoPassivo = porArquivo.get("ativo_passivo") ?? new Map<string, Linha>();
+  const saida: InformeMensalFii[] = [];
+  for (const [chave, g] of porArquivo.get("geral") ?? []) {
+    const [cnpj = "", referenceDate = ""] = chave.split("|");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) continue;
+    const cp = complemento.get(chave)?.c;
+    const ap = ativoPassivo.get(chave)?.c;
+    const dinheiro = (v: string | undefined) => (v ? decimalDoInforme(v) : null);
+    const pct = (v: string | undefined) => (v ? decimalDoInforme(v, 1e12) : null);
+    const cotistas = cp?.("Total_Numero_Cotistas") ?? "";
+    saida.push({
+      cnpj,
+      referenceDate,
+      version: g.versao,
+      isin: isinOuNulo(g.c("Codigo_ISIN")),
+      name: g.c("Nome_Fundo_Classe") || cnpj,
+      segment: g.c("Segmento_Atuacao") || null,
+      totalAssets: dinheiro(cp?.("Valor_Ativo")),
+      equity: dinheiro(cp?.("Patrimonio_Liquido")),
+      sharesOutstanding:
+        dinheiro(cp?.("Cotas_Emitidas")) ?? dinheiro(g.c("Quantidade_Cotas_Emitidas")),
+      navPerShare: dinheiro(cp?.("Valor_Patrimonial_Cotas")),
+      holders: /^\d+$/.test(cotistas) ? Number(cotistas) : null,
+      dividendYieldMonth: pct(cp?.("Percentual_Dividend_Yield_Mes")),
+      effectiveReturnMonth: pct(cp?.("Percentual_Rentabilidade_Efetiva_Mes")),
+      amortizationMonth: pct(cp?.("Percentual_Amortizacao_Cotas_Mes")),
+      dividendsPayable: dinheiro(ap?.("Rendimentos_Distribuir")),
+      sourceRef: `${nomeDoZip}#inf_mensal_fii_geral`,
+    });
+  }
+  return saida;
 }

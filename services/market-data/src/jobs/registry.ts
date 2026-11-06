@@ -58,6 +58,15 @@ export const jobs: JobDefinition[] = [
     expireInMinutes: 60,
   },
   {
+    name: "cvm-fii-mensal",
+    description: "Informe mensal de FII; reprocessa só se o hash mudou",
+    // Os administradores entregam ao longo do mês: conferir todo dia é barato.
+    cron: "30 6 * * *",
+    retryLimit: 3,
+    retryDelaySeconds: 300,
+    expireInMinutes: 30,
+  },
+  {
     name: "bcb-sgs",
     description: "Séries do SGS usadas como benchmark",
     cron: "0 6 * * *",

@@ -36,6 +36,14 @@ export function consultar(sql: string): string[][] {
     .map((l) => l.split("|"));
 }
 
+/** Evento como o market-data publicaria: linha no outbox, o publisher leva ao NATS. */
+export function publicarEvento(nome: string, payload: unknown) {
+  consultar(
+    `insert into market_data.outbox (id, event_name, payload, occurred_at, producer)
+     values (gen_random_uuid()::text, '${nome}', '${JSON.stringify(payload)}'::jsonb, now(), 'e2e')`,
+  );
+}
+
 /** Cotacao como o market-data publicaria: linha no outbox, o publisher leva ao NATS. */
 export function publicarCotacao(ticker: string, preco: string) {
   const payload = JSON.stringify({

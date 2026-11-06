@@ -10,7 +10,9 @@ import {
   carregarCadastroDeFundos,
   carregarDemonstracoes,
   carregarInformeDiario,
+  carregarInformeFii,
   diasSemCotahist,
+  ligarFiisAosTickers,
   marcarSemPregao,
   ultimosMeses,
   gravarSerieMacro,
@@ -154,6 +156,21 @@ export async function executarJob(
         });
       }
       return { cadastro, informes };
+    }
+
+    case "cvm-fii-mensal": {
+      // Como no DFP: o ano anterior ainda recebe reapresentacao.
+      const anos = d.ano === undefined ? [anoAtual - 1, anoAtual] : [Ano.parse(d.ano)];
+      const resultados: Record<string, unknown> = {};
+      for (const ano of anos) {
+        resultados[ano] = await carregarInformeFii(ctx.db, ctx.cvm, {
+          ano,
+          log: ctx.log,
+        });
+      }
+      // Arquivo pulado pelo hash nao liga ticker que o COTAHIST criou depois.
+      resultados.tickers_ligados = await ligarFiisAosTickers(ctx.db);
+      return resultados;
     }
 
     case "ajuste-proventos":

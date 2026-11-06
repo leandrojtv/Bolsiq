@@ -30,6 +30,7 @@ export const METODOS = {
   graham: "Graham",
   bazin: "Bazin",
   magic_formula: "Magic Formula",
+  fii_desconto: "FIIs descontados",
   dividendos_consistentes: "Dividendos consistentes",
   filtro_salvo: "Filtro salvo do screener",
 } as const satisfies Record<NomeDePreset | "filtro_salvo", string>;

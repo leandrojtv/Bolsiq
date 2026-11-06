@@ -57,6 +57,7 @@ function formatar(indicador: IndicadorFiltravel, v: number | null) {
   const f = INDICADORES[indicador].formato;
   if (f === "percentual") return formatarPercentual(v, { casas: 1 });
   if (f === "moeda") return `R$ ${formatarCompacto(v)}`;
+  if (f === "quantidade") return formatarCompacto(v);
   return formatarNumero(v);
 }
 

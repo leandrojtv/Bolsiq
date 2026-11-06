@@ -14,6 +14,7 @@ redistribuição e mapeamento de campos.
 | CVM — cadastro                 | Companhias abertas: CNPJ, nome, setor           | CSV, latin1, `;`         | diária                    | ODbL                      | Sim, com atribuição e share-alike |
 | CVM — DFP/ITR                  | Demonstrações anuais e trimestrais              | ZIP de CSVs, latin1, `;` | DFP anual, ITR trimestral | ODbL                      | Sim, com atribuição e share-alike |
 | CVM — informe diário de fundos | NAV, patrimônio, aplicações, resgates, cotistas | ZIP mensal de CSV        | diária (arquivo mensal)   | ODbL                      | Sim, com atribuição e share-alike |
+| CVM — informe mensal de FII    | PL, VP da cota, cotistas, DY do mês, ISIN       | ZIP anual de CSVs        | mensal (arquivo anual)    | ODbL                      | Sim, com atribuição e share-alike |
 | B3 — COTAHIST                  | Preços históricos de todo o universo            | largura fixa, 245 bytes  | anual e diário            | Termos de Uso da B3       | **Não**                           |
 | BCB — SGS                      | Selic, CDI, IPCA, IGP-M                         | JSON (API)               | diária e mensal           | aberta (confirmar termos) | Sim, com atribuição               |
 | CVM — FCA                      | Ligação ticker → CNPJ                           | ZIP de CSVs, latin1, `;` | anual, com reapresentação | ODbL                      | Sim, com atribuição e share-alike |
@@ -342,6 +343,72 @@ brapi exige token para `^BVSP`. Com token, `/v1/macro/ibov` usa a brapi; sem,
 usa o fechamento do BOVA11 do COTAHIST, com a unidade dizendo que é
 aproximação. Para benchmark de retorno, a diferença é a taxa do ETF.
 
+## 7. CVM — informe mensal de FII
+
+- **URL:** `https://dados.cvm.gov.br/dados/FII/DOC/INF_MENSAL/DADOS/inf_mensal_fii_{AAAA}.zip`
+- **Catálogo:** https://dados.cvm.gov.br/dataset/fii-doc-inf_mensal
+- **Formato:** ZIP anual com três CSVs, `latin1`, separador `;`:
+  `inf_mensal_fii_geral_{AAAA}.csv`, `..._complemento_{AAAA}.csv` e
+  `..._ativo_passivo_{AAAA}.csv`. Publicado desde 2016.
+- **Frequência:** uma competência por mês e fundo (Anexo 39-I da ICVM 472),
+  entregue até 15 dias depois do fim do mês. O arquivo do ano cresce a cada
+  entrega e recebe reapresentações (`Versao` maior).
+- **Licença:** ODbL
+- **Job:** `cvm-fii-mensal`, todo dia às 06:30, ano corrente e anterior. O hash
+  do `fetch_log` pula o arquivo que não mudou.
+
+Os três CSVs são unidos por `(CNPJ_Fundo_Classe, Data_Referencia)`, ficando a
+maior `Versao` de cada um. `Data_Referencia` é o primeiro dia do mês.
+
+### Mapeamento para `fii_monthly`
+
+| CSV           | Coluna no CSV                          | Coluna em `fii_monthly`  | Observação                                  |
+| ------------- | -------------------------------------- | ------------------------ | ------------------------------------------- |
+| geral         | `CNPJ_Fundo_Classe`                    | `cnpj`                   | só dígitos; parte da chave                  |
+| geral         | `Data_Referencia`                      | `reference_date`         | competência; parte da chave                 |
+| geral         | `Versao`                               | `version`                | só a maior fica                             |
+| geral         | `Codigo_ISIN`                          | `isin`                   | liga ao ticker; `0` e vazio viram nulo      |
+| geral         | `Nome_Fundo_Classe`                    | `name`                   |                                             |
+| geral         | `Segmento_Atuacao`                     | `segment`                |                                             |
+| complemento   | `Valor_Ativo`                          | `total_assets`           | `numeric`                                   |
+| complemento   | `Patrimonio_Liquido`                   | `equity`                 | `numeric`                                   |
+| complemento   | `Cotas_Emitidas`                       | `shares_outstanding`     | fracionário em alguns fundos; `numeric`     |
+| complemento   | `Valor_Patrimonial_Cotas`              | `nav_per_share`          | VP da cota; 6 casas                         |
+| complemento   | `Total_Numero_Cotistas`                | `holders`                | inteiro                                     |
+| complemento   | `Percentual_Dividend_Yield_Mes`        | `dividend_yield_month`   | fração (0,007 = 0,7%), sobre o VP; 12 casas |
+| complemento   | `Percentual_Rentabilidade_Efetiva_Mes` | `effective_return_month` | fração                                      |
+| complemento   | `Percentual_Amortizacao_Cotas_Mes`     | `amortization_month`     | fração                                      |
+| ativo_passivo | `Rendimentos_Distribuir`               | `dividends_payable`      | saldo a distribuir no passivo               |
+
+### Ligação CNPJ → ticker
+
+O FCA, que liga companhia a ticker, não cobre fundo. A ponte é o ISIN: o
+informe traz o da cota (`BRHGLGCTF004`) e o COTAHIST, o de cada papel. A carga
+grava o CNPJ em `assets.cnpj` dos papéis `fii` com o mesmo ISIN, e repete a
+ligação a cada execução, porque o COTAHIST pode criar o ticker depois. Em
+2026-09, 1.119 das 1.374 competências traziam ISIN válido; fundo sem ISIN (em
+geral, sem cota negociada em bolsa) fica sem ticker.
+
+### Armadilhas
+
+- **Notação científica.** O `complemento` traz `8.17058518048235E-06`; o adapter
+  converte para decimal antes de gravar.
+- **DY do mês negativo.** Cerca de 10% das linhas de 2026 têm
+  `Percentual_Dividend_Yield_Mes` negativo (XPML11 em jan/2026: -5,9%), erro de
+  preenchimento do administrador. O market-data grava como veio; o analytics
+  conta zero nesses meses.
+- **Sem vacância.** O informe mensal não tem ocupação. Ela está no informe
+  trimestral (por imóvel), ainda não ingerido: `analytics.indicators.vacancia`
+  segue nula.
+
+### Proveniência
+
+| Campo        | Valor                                          |
+| ------------ | ---------------------------------------------- |
+| `source`     | `cvm-fii-mensal`                               |
+| `license`    | `ODbL-1.0`                                     |
+| `source_ref` | `inf_mensal_fii_2026.zip#inf_mensal_fii_geral` |
+
 ## Licenças e redistribuição
 
 O projeto pretende vender o `market-data` como API pública. Isso transforma a
@@ -408,11 +475,11 @@ pública.
 
 ### Resumo
 
-| Fonte                           | Uso interno | Redistribuir na API                     |
-| ------------------------------- | ----------- | --------------------------------------- |
-| CVM (cadastro, DFP/ITR, fundos) | Sim         | Sim, com atribuição; checar share-alike |
-| BCB (SGS)                       | Sim         | Sim, com atribuição; confirmar termos   |
-| B3 (COTAHIST)                   | Informativo | **Não, sem contrato**                   |
+| Fonte                                | Uso interno | Redistribuir na API                     |
+| ------------------------------------ | ----------- | --------------------------------------- |
+| CVM (cadastro, DFP/ITR, fundos, FII) | Sim         | Sim, com atribuição; checar share-alike |
+| BCB (SGS)                            | Sim         | Sim, com atribuição; confirmar termos   |
+| B3 (COTAHIST)                        | Informativo | **Não, sem contrato**                   |
 
 ---
 
@@ -426,6 +493,8 @@ pública.
 4. **Share-alike da ODbL.** Pergunta jurídica, melhor respondida antes do
    primeiro cliente.
 5. **Termos do BCB.** Confirmar na fonte oficial.
+6. **Vacância de FII.** Informe trimestral da CVM
+   (`FII/DOC/INF_TRIMESTRAL`), por imóvel. O informe mensal não traz.
 
 ## Fontes
 
@@ -436,5 +505,6 @@ pública.
 - [CVM — DFP](https://dados.cvm.gov.br/dataset/groups/cia_aberta-doc-dfp)
 - [CVM — ITR](https://dados.cvm.gov.br/dataset/groups/cia_aberta-doc-itr)
 - [CVM — informe diário de fundos](https://dados.cvm.gov.br/dataset/groups/fi-doc-inf_diario)
+- [CVM — informe mensal de FII](https://dados.cvm.gov.br/dataset/fii-doc-inf_mensal)
 - [CVM — índice de arquivos](https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/)
 - [BCB — portal de dados abertos](https://dadosabertos.bcb.gov.br/)

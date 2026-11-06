@@ -278,6 +278,43 @@ export const FundHistoryResponse = resposta(
 );
 
 // ---------------------------------------------------------------------------
+// FIIs: informe mensal (CVM)
+// ---------------------------------------------------------------------------
+
+/**
+ * Uma competencia do informe mensal de FII, como a CVM publica.
+ *
+ * Percentuais em fracao decimal, como string (0.007052 = 0,7052% no mes).
+ * O dividend yield do mes e o informado pelo administrador, sobre o valor
+ * patrimonial; nao e o DY sobre o preco de mercado.
+ */
+export const FiiMonthlyReport = z.object({
+  reference_date: IsoDate,
+  version: z.number().int().positive(),
+  total_assets: Money.nullable(),
+  equity: Money.nullable(),
+  shares_outstanding: Money.nullable(),
+  nav_per_share: Money.nullable(),
+  holders: Count.nullable(),
+  dividend_yield_month: Money.nullable(),
+  effective_return_month: Money.nullable(),
+  amortization_month: Money.nullable(),
+  dividends_payable: Money.nullable(),
+  provenance: Provenance,
+});
+
+export const FiiMonthlyResponse = resposta(
+  z.object({
+    ticker: Ticker,
+    cnpj: Cnpj,
+    name: z.string(),
+    segment: z.string().nullable(),
+    /** Da competencia mais antiga para a mais recente. */
+    reports: z.array(FiiMonthlyReport),
+  }),
+);
+
+// ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
 
@@ -319,3 +356,4 @@ export type MacroSeriesName = z.infer<typeof MacroSeriesName>;
 export type JobInfo = z.infer<typeof JobInfo>;
 export type FundSummary = z.infer<typeof FundSummary>;
 export type FundDetail = z.infer<typeof FundDetail>;
+export type FiiMonthlyReport = z.infer<typeof FiiMonthlyReport>;

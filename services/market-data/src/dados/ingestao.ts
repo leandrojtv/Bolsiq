@@ -4,6 +4,7 @@ import {
   assets,
   fetchLog,
   financialStatements,
+  fiiMonthly,
   fundDaily,
   funds,
   macroSeries,
@@ -836,6 +837,146 @@ export async function carregarInformeDiario(
     await falharCarga(db, carga, erro);
     throw erro;
   }
+}
+
+// ---------------------------------------------------------------------------
+// CVM: informe mensal de FII
+// ---------------------------------------------------------------------------
+
+/**
+ * Informe mensal de FII de um ano em `fii_monthly`.
+ *
+ * Emite `fii.report.published` com a competencia mais recente de cada fundo
+ * que mudou (nova ou reapresentada) e tem ticker. As competencias antigas do
+ * mesmo fundo nao viram evento: o recalculo do analytics le a serie inteira.
+ */
+export async function carregarInformeFii(
+  db: Db,
+  cvm: CvmAdapter,
+  opcoes: { ano: number; log: Log },
+): Promise<ResultadoDeCarga> {
+  const arquivo = await cvm.informeMensalFii(opcoes.ano);
+  if (!arquivo) return { pulado: true, linhas: 0, eventos: 0 };
+  const carga = await abrirCarga(db, { source: "cvm-fii-mensal", ...arquivo });
+  if (carga.jaCarregado) return { pulado: true, linhas: 0, eventos: 0 };
+
+  try {
+    const fetchedAt = agoraIso();
+    const informes = await arquivo.informes();
+    const mudaram = new Map<string, string>();
+    const marcar = (cnpj: string, data: string) => {
+      if ((mudaram.get(cnpj) ?? "") < data) mudaram.set(cnpj, data);
+    };
+
+    for (const lote of lotes(informes, 1000)) {
+      const gravadas = await db
+        .insert(fiiMonthly)
+        .values(
+          lote.map((i) => ({
+            ...i,
+            source: "cvm-fii-mensal",
+            fetchedAt,
+            license: CVM_LICENSE,
+          })),
+        )
+        .onConflictDoUpdate({
+          target: [fiiMonthly.cnpj, fiiMonthly.referenceDate],
+          set: {
+            version: sql`excluded.version`,
+            isin: sql`excluded.isin`,
+            name: sql`excluded.name`,
+            segment: sql`excluded.segment`,
+            totalAssets: sql`excluded.total_assets`,
+            equity: sql`excluded.equity`,
+            sharesOutstanding: sql`excluded.shares_outstanding`,
+            navPerShare: sql`excluded.nav_per_share`,
+            holders: sql`excluded.holders`,
+            dividendYieldMonth: sql`excluded.dividend_yield_month`,
+            effectiveReturnMonth: sql`excluded.effective_return_month`,
+            amortizationMonth: sql`excluded.amortization_month`,
+            dividendsPayable: sql`excluded.dividends_payable`,
+            fetchedAt: sql`excluded.fetched_at`,
+            sourceRef: sql`excluded.source_ref`,
+          },
+          // Versao menor nunca sobrescreve; a mesma versao so quando o numero mudou.
+          setWhere: sql`excluded.version > ${fiiMonthly.version}
+            OR (excluded.version = ${fiiMonthly.version}
+                AND (excluded.equity, excluded.nav_per_share, excluded.holders, excluded.dividend_yield_month, excluded.isin)
+                    IS DISTINCT FROM (${fiiMonthly.equity}, ${fiiMonthly.navPerShare}, ${fiiMonthly.holders}, ${fiiMonthly.dividendYieldMonth}, ${fiiMonthly.isin}))`,
+        })
+        .returning({ cnpj: fiiMonthly.cnpj, referenceDate: fiiMonthly.referenceDate });
+      for (const g of gravadas) marcar(g.cnpj, g.referenceDate);
+    }
+    if (carga.recuperacao) for (const i of informes) marcar(i.cnpj, i.referenceDate);
+
+    let eventos = 0;
+    let ligados = 0;
+    await db.transaction(async (tx) => {
+      ligados = await ligarFiisAosTickers(tx);
+      eventos = await emitirInformesFii(tx, mudaram);
+      await concluirCarga(tx, carga, informes.length);
+    });
+
+    opcoes.log("info", "informe mensal de FII carregado", {
+      arquivo: arquivo.sourceRef,
+      linhas: informes.length,
+      fundos: new Set(informes.map((i) => i.cnpj)).size,
+      tickersLigados: ligados,
+      eventos,
+    });
+    return { pulado: false, linhas: informes.length, eventos };
+  } catch (erro) {
+    await falharCarga(db, carga, erro);
+    throw erro;
+  }
+}
+
+/**
+ * Liga o CNPJ do FII aos tickers pelo ISIN: o informe traz o ISIN da cota, e
+ * o COTAHIST, o de cada papel. O FCA, que liga as companhias, nao cobre fundo.
+ * Roda a cada carga (mesmo com o arquivo pulado), porque o COTAHIST pode ter
+ * criado o ticker depois do informe.
+ */
+export async function ligarFiisAosTickers(tx: Pick<Db, "execute">): Promise<number> {
+  const r = await tx.execute(sql`
+    UPDATE market_data.assets a SET cnpj = f.cnpj, updated_at = now()
+    FROM (
+      SELECT DISTINCT ON (isin) isin, cnpj FROM market_data.fii_monthly
+      WHERE isin IS NOT NULL ORDER BY isin, reference_date DESC
+    ) f
+    WHERE a.isin = f.isin AND a.kind = 'fii' AND a.cnpj IS DISTINCT FROM f.cnpj`);
+  return r.rowCount ?? 0;
+}
+
+async function emitirInformesFii(tx: Tx, mudaram: Map<string, string>): Promise<number> {
+  if (mudaram.size === 0) return 0;
+  const tickersPorCnpj = new Map<string, string[]>();
+  for (const lote of lotes([...mudaram.keys()], 1000)) {
+    const linhas = await tx
+      .select({ cnpj: assets.cnpj, ticker: assets.ticker })
+      .from(assets)
+      .where(and(inArray(assets.cnpj, lote), eq(assets.kind, "fii")));
+    for (const l of linhas) {
+      if (!l.cnpj || !l.ticker) continue;
+      tickersPorCnpj.set(l.cnpj, [...(tickersPorCnpj.get(l.cnpj) ?? []), l.ticker]);
+    }
+  }
+  // Fundo sem ticker na bolsa nao tem quem recalcular.
+  const eventos = [...mudaram]
+    .filter(([cnpj]) => tickersPorCnpj.has(cnpj))
+    .map(([cnpj, referenceDate]) =>
+      linhaDeOutbox({
+        name: "marketdata.fii.report.published.v1",
+        producer: PRODUTOR,
+        payload: {
+          cnpj,
+          tickers: (tickersPorCnpj.get(cnpj) ?? []).sort(),
+          reference_date: referenceDate,
+        },
+      }),
+    );
+  for (const lote of lotes(eventos, 1000)) await tx.insert(outbox).values(lote);
+  return eventos.length;
 }
 
 /** Meses AAAAMM do mais antigo ao atual, `n` meses ao todo. */

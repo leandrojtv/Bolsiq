@@ -11,7 +11,7 @@ import {
 import { B3CotahistAdapter, refDoDia } from "./b3-cotahist.js";
 import { BcbAdapter } from "./bcb.js";
 import { BrapiAdapter, dataEmSaoPaulo, multiplicadorDeAcoes } from "./brapi.js";
-import { CvmAdapter, normalizarCodigoCvm } from "./cvm.js";
+import { CvmAdapter, decimalDoInforme, normalizarCodigoCvm } from "./cvm.js";
 import { baixarParaArquivo, obter } from "./http.js";
 import { linhasDoZip } from "./zip.js";
 
@@ -422,6 +422,71 @@ describe("CvmAdapter", () => {
     for await (const c of arq?.composicao() ?? []) acoes.push(c);
     expect(acoes[0]).toMatchObject({ total: 13044496930n, treasuryTotal: 155764169n });
     expect(await cvm.demonstracoes("ITR", 2024)).toBeNull();
+  });
+
+  it("une os tres CSVs do informe mensal de FII pela maior versao", async () => {
+    const geral =
+      "Tipo_Fundo_Classe;CNPJ_Fundo_Classe;Data_Referencia;Versao;Data_Entrega;Nome_Fundo_Classe;Codigo_ISIN;Quantidade_Cotas_Emitidas;Segmento_Atuacao\n" +
+      "FII;11.728.688/0001-47;2026-08-01;1;2026-09-15;PÁTRIA LOG FII;BRHGLGCTF004;45601713;Logística\n" +
+      "FII;11.728.688/0001-47;2026-08-01;2;2026-09-23;PÁTRIA LOG FII;BRHGLGCTF004;45601713;Logística\n" +
+      "FII;03.855.441/0001-63;2026-08-01;1;2026-09-15;RB LOGISTICA FII;0;144210661;\n" +
+      "FII;invalido;2026-08-01;1;;X;;;\n";
+    const complemento =
+      "CNPJ_Fundo_Classe;Data_Referencia;Versao;Total_Numero_Cotistas;Valor_Ativo;Patrimonio_Liquido;Cotas_Emitidas;Valor_Patrimonial_Cotas;Percentual_Rentabilidade_Efetiva_Mes;Percentual_Dividend_Yield_Mes;Percentual_Amortizacao_Cotas_Mes\n" +
+      "11.728.688/0001-47;2026-08-01;1;600000;1;1;1;1;0;0.5;0\n" +
+      "11.728.688/0001-47;2026-08-01;2;608345;8850561499.23;7567668488.14;45601713;165.951408188109;0.004143;7.027E-03;0\n";
+    const ativoPassivo =
+      "CNPJ_Fundo_Classe;Data_Referencia;Versao;Rendimentos_Distribuir\n" +
+      "11.728.688/0001-47;2026-08-01;2;51545312.10\n";
+    const zip = await criarZip({
+      "inf_mensal_fii_geral_2026.csv": geral,
+      "inf_mensal_fii_complemento_2026.csv": complemento,
+      "inf_mensal_fii_ativo_passivo_2026.csv": ativoPassivo,
+    });
+    const cvm = new CvmAdapter(
+      buscarFalso({
+        "FII/DOC/INF_MENSAL/DADOS/inf_mensal_fii_2026.zip": () => binario(zip),
+      }),
+    );
+    const arq = await cvm.informeMensalFii(2026);
+    const informes = await arq?.informes();
+    expect(informes).toEqual([
+      {
+        cnpj: "11728688000147",
+        referenceDate: "2026-08-01",
+        version: 2,
+        isin: "BRHGLGCTF004",
+        name: "PÁTRIA LOG FII",
+        segment: "Logística",
+        totalAssets: "8850561499.23",
+        equity: "7567668488.14",
+        sharesOutstanding: "45601713",
+        navPerShare: "165.951408188109",
+        holders: 608345,
+        dividendYieldMonth: "0.007027",
+        effectiveReturnMonth: "0.004143",
+        amortizationMonth: "0",
+        dividendsPayable: "51545312.1",
+        sourceRef: "inf_mensal_fii_2026.zip#inf_mensal_fii_geral",
+      },
+      // Sem complemento: so o que o geral traz. ISIN "0" nao e ISIN.
+      expect.objectContaining({
+        cnpj: "03855441000163",
+        isin: null,
+        segment: null,
+        equity: null,
+        sharesOutstanding: "144210661",
+        holders: null,
+      }),
+    ]);
+    expect(await cvm.informeMensalFii(2015)).toBeNull();
+  });
+
+  it("decimal do informe aceita notacao cientifica e descarta fora da escala", () => {
+    expect(decimalDoInforme("8.17058518048235E-06")).toBe("0.00000817058518048235");
+    expect(decimalDoInforme("-0.001103")).toBe("-0.001103");
+    expect(decimalDoInforme("1e15")).toBeNull();
+    expect(decimalDoInforme("abc")).toBeNull();
   });
 
   it("le classes de fundo e cotas da classe, sem subclasse", async () => {

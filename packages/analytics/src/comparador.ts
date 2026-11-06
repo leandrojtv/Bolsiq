@@ -47,6 +47,8 @@ export const SENTIDO: Partial<Record<IndicadorFiltravel, Sentido>> = {
   drawdown_maximo: "maior",
   sharpe: "maior",
   liquidez_diaria: "maior",
+  patrimonio_liquido: "maior",
+  cotistas: "maior",
 };
 
 /**

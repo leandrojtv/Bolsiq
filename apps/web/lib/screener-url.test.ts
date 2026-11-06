@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COLUNAS_FII,
   estadoDaUrl,
   estadoDoPreset,
   estadoInicial,
@@ -35,6 +36,26 @@ describe("estado do screener na URL", () => {
       new URLSearchParams("preset=graham&f=pl::12;roe:0.15:;xpto:1:2;pvp::"),
     );
     expect(e.faixas).toEqual({ pl: { max: 12 }, roe: { min: 0.15 } });
+  });
+
+  it("so FII abre com as colunas de fundo; preset de FII tambem", () => {
+    const e = estadoDaUrl(new URLSearchParams("tipos=fii&ord=pvp"));
+    expect(e.colunas).toEqual(COLUNAS_FII);
+    expect(e.ordenarPor).toBe("pvp");
+    expect(estadoDaUrl(new URLSearchParams("tipos=fii,stock")).colunas).toEqual(
+      estadoInicial().colunas,
+    );
+    const p = estadoDoPreset("fii_desconto");
+    expect(p.tipos).toEqual(["fii"]);
+    expect(p.faixas).toEqual({ pvp: { min: 0, max: 1 }, dy_12m: { min: 0.08 } });
+    expect(p.colunas).toEqual([
+      "dy_12m",
+      "pvp",
+      "patrimonio_liquido",
+      "cotistas",
+      "liquidez_diaria",
+    ]);
+    expect(estadoDaUrl(new URLSearchParams(urlDoEstado(p)))).toEqual(p);
   });
 
   it("valores invalidos caem no padrao", () => {

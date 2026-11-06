@@ -75,6 +75,8 @@ export function manipuladores(
     "get /v1/funds/{cnpj}": ({ params }) => servico.fundo(s(params.cnpj)),
     "get /v1/funds/{cnpj}/history": ({ params, query }) =>
       servico.historicoDeFundo(s(params.cnpj), query),
+    "get /v1/fiis/{ticker}/monthly": ({ params, query }) =>
+      servico.informesFii(s(params.ticker), query),
     "get /v1/macro/{serie}": ({ params, query }) =>
       servico.macro(params.serie as Parameters<ServicoDeDados["macro"]>[0], query),
     "get /admin/jobs": async () => {

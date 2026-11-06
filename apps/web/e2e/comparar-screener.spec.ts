@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { filtroDoPreset } from "@bolsiq/analytics/puro";
-import { consultar } from "./banco";
+import { consultar, publicarEvento } from "./banco";
 
 const FUNDO = "07455507000189";
 
@@ -110,6 +110,91 @@ test.describe("screener", () => {
          order by ticker, reference_date desc) u where margem_graham >= 0.2 and pl > 15 limit 5`,
     ).map(([t]) => t);
     for (const t of fora) expect(r.linhas.map((l) => l.ticker)).not.toContain(t);
+  });
+
+  test("FII com P/VP e DY 12m do informe mensal da CVM, sem brapi", async ({
+    page,
+    request,
+  }) => {
+    // O que o market-data publica ao gravar um informe: o analytics-worker
+    // consome, le /v1/fiis/{ticker}/monthly e recalcula.
+    const fiis = {
+      HGLG11: "11728688000147",
+      KNCR11: "16706958000132",
+      XPML11: "28757546000100",
+    };
+    for (const [ticker, cnpj] of Object.entries(fiis)) {
+      publicarEvento("marketdata.fii.report.published.v1", {
+        cnpj,
+        tickers: [ticker],
+        reference_date: "2026-09-01",
+      });
+    }
+
+    type Resultado = {
+      linhas: {
+        ticker: string;
+        preco: string;
+        indicadores: Record<string, number | null>;
+      }[];
+    };
+    const porPvp = async () =>
+      (await (
+        await request.post("/api/screener", {
+          data: { tipos: ["fii"], ordenar_por: "pvp", ordem: "asc" },
+        })
+      ).json()) as Resultado;
+    await expect
+      .poll(async () => (await porPvp()).linhas.map((l) => l.ticker).sort(), {
+        timeout: 60_000,
+      })
+      .toEqual(Object.keys(fiis).sort());
+
+    // Conferido contra o banco: preco do ultimo pregao sobre o VP da ultima
+    // competencia, e 12 meses de DY x VP (mes negativo conta zero) sobre o preco.
+    for (const l of (await porPvp()).linhas) {
+      const [linha] = consultar(
+        `with f as (select * from market_data.fii_monthly where cnpj = '${fiis[l.ticker as keyof typeof fiis]}'),
+              u as (select * from f order by reference_date desc limit 1),
+              p as (select close from market_data.quotes_daily where ticker = '${l.ticker}' order by date desc limit 1)
+         select p.close / u.nav_per_share,
+                (select sum(greatest(dividend_yield_month, 0) * nav_per_share) from f
+                  where reference_date > u.reference_date - interval '12 months') / p.close,
+                u.equity, u.holders
+         from u, p`,
+      );
+      const [pvp, dy, pl, cotistas] = (linha ?? []).map(Number) as [
+        number,
+        number,
+        number,
+        number,
+      ];
+      expect(l.indicadores.pvp, l.ticker).toBeCloseTo(pvp, 4);
+      expect(l.indicadores.dy_12m, l.ticker).toBeCloseTo(dy, 4);
+      expect(l.indicadores.patrimonio_liquido, l.ticker).toBeCloseTo(pl, 0);
+      expect(l.indicadores.cotistas, l.ticker).toBe(cotistas);
+      expect(dy).toBeGreaterThan(0.05);
+    }
+
+    // Preset de FII: so quem passa nas faixas.
+    const filtro = filtroDoPreset("fii_desconto");
+    const preset = (await (
+      await request.post("/api/screener", { data: filtro })
+    ).json()) as Resultado;
+    expect(preset.linhas.length).toBeGreaterThan(0);
+    for (const l of preset.linhas) {
+      expect(l.indicadores.pvp).toBeLessThanOrEqual(1);
+      expect(l.indicadores.dy_12m).toBeGreaterThanOrEqual(0.08);
+    }
+
+    // Tela: ordenada por DY 12m, com as colunas de fundo.
+    await page.goto("/screener?tipos=fii&ord=dy_12m&dir=desc");
+    const tabela = page.getByRole("table", { name: "Resultado do screener" });
+    await expect(tabela.getByRole("columnheader", { name: "P/VP" })).toBeVisible();
+    await expect(tabela.getByRole("columnheader", { name: "Cotistas" })).toBeVisible();
+    for (const t of Object.keys(fiis)) {
+      await expect(tabela.getByRole("row", { name: new RegExp(t) })).toBeVisible();
+    }
   });
 
   test("FII aparece com a ordenacao padrao por P/L, depois das acoes", async ({

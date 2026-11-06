@@ -3,7 +3,8 @@
  *
  * Roda os mesmos manipuladores do worker, em ordem, num processo só. A ordem
  * importa: o COTAHIST cria o universo, o cadastro liga ticker a companhia, e
- * só então o DFP/ITR sabe quais tickers citar no `statement.published`.
+ * só então o DFP/ITR sabe quais tickers citar no `statement.published` (e o
+ * informe mensal de FII, no `fii.report.published`).
  *
  * Não fala com o NATS: os eventos vão para o outbox, e o worker publica.
  */
@@ -50,6 +51,12 @@ const etapas: [string, Record<string, unknown>][] = [
   ...anos.flatMap((ano): [string, Record<string, unknown>][] => [
     ["cvm-dfp", { ano }],
     ["cvm-itr", { ano }],
+  ]),
+  // Informe mensal de FII depois do COTAHIST, que cria os tickers que o ISIN
+  // liga. Um ano antes de FROM, para o DY 12m ter janela cheia desde o inicio.
+  ...[de - 1, ...anos].map((ano): [string, Record<string, unknown>] => [
+    "cvm-fii-mensal",
+    { ano },
   ]),
   ["bcb-sgs", { from: `${de}-01-01` }],
   // Fundos: ~540 mil linhas por mes. O padrao de 13 meses cobre o periodo 1A

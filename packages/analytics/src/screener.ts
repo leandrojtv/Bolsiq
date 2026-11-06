@@ -27,6 +27,8 @@ export const IndicadorFiltravel = z.enum([
   "sharpe",
   "beta",
   "liquidez_diaria",
+  "patrimonio_liquido",
+  "cotistas",
 ]);
 export type IndicadorFiltravel = z.infer<typeof IndicadorFiltravel>;
 
@@ -123,6 +125,16 @@ export const presets = {
       ordem: "desc",
     },
   },
+  fii_desconto: {
+    descricao:
+      "FIIs negociados abaixo do valor patrimonial (P/VP < 1) com DY 12m acima de 8%",
+    filtro: {
+      faixas: { pvp: { min: 0, max: 1 }, dy_12m: { min: 0.08 } },
+      tipos: ["fii"],
+      ordenar_por: "dy_12m",
+      ordem: "desc",
+    },
+  },
   dividendos_consistentes: {
     descricao: "Dividendo alto com endividamento sob controle e lucro crescente",
     filtro: {
@@ -144,7 +156,7 @@ export function filtroDoPreset(nome: NomeDePreset): FiltroDeScreener {
   return FiltroDeScreener.parse(presets[nome].filtro);
 }
 
-export type FormatoDoIndicador = "razao" | "percentual" | "moeda";
+export type FormatoDoIndicador = "razao" | "percentual" | "moeda" | "quantidade";
 
 /** Rotulo e formato de exibicao de cada indicador filtravel. */
 export const INDICADORES: Record<
@@ -176,6 +188,8 @@ export const INDICADORES: Record<
   sharpe: { rotulo: "Sharpe", formato: "razao" },
   beta: { rotulo: "Beta", formato: "razao" },
   liquidez_diaria: { rotulo: "Liquidez diária", formato: "moeda" },
+  patrimonio_liquido: { rotulo: "Patrimônio líquido", formato: "moeda" },
+  cotistas: { rotulo: "Cotistas", formato: "quantidade" },
 };
 
 /** Nome legivel de cada preset, para os cards. */
@@ -183,5 +197,6 @@ export const NOME_DO_PRESET: Record<NomeDePreset, string> = {
   graham: "Graham",
   bazin: "Bazin",
   magic_formula: "Magic Formula",
+  fii_desconto: "FIIs descontados",
   dividendos_consistentes: "Dividendos consistentes",
 };

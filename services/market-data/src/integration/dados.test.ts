@@ -20,6 +20,7 @@ import {
   carregarCadastro,
   carregarCotahist,
   carregarDemonstracoes,
+  carregarInformeFii,
   diasSemCotahist,
   marcarSemPregao,
 } from "../dados/ingestao.js";
@@ -608,5 +609,109 @@ describe("fundos", () => {
 
   it("ultimos meses", () => {
     expect(ultimosMeses("2026-02-10", 3)).toEqual(["202512", "202601", "202602"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("informe mensal de FII", () => {
+  const cabGeral =
+    "Tipo_Fundo_Classe;CNPJ_Fundo_Classe;Data_Referencia;Versao;Nome_Fundo_Classe;Codigo_ISIN;Quantidade_Cotas_Emitidas;Segmento_Atuacao\n";
+  const cabComplemento =
+    "CNPJ_Fundo_Classe;Data_Referencia;Versao;Total_Numero_Cotistas;Valor_Ativo;Patrimonio_Liquido;Cotas_Emitidas;Valor_Patrimonial_Cotas;Percentual_Rentabilidade_Efetiva_Mes;Percentual_Dividend_Yield_Mes;Percentual_Amortizacao_Cotas_Mes\n";
+  const zipDoAno = (versaoDeSetembro: number, dySetembro: string) =>
+    criarZip({
+      "inf_mensal_fii_geral_2026.csv":
+        cabGeral +
+        "FII;11.728.688/0001-47;2026-08-01;1;PATRIA LOG FII;BRHGLGCTF004;45601713;Logistica\n" +
+        `FII;11.728.688/0001-47;2026-09-01;${versaoDeSetembro};PATRIA LOG FII;BRHGLGCTF004;45601713;Logistica\n` +
+        "FII;03.855.441/0001-63;2026-09-01;1;RB LOGISTICA FII;;144210661;\n",
+      "inf_mensal_fii_complemento_2026.csv":
+        cabComplemento +
+        "11.728.688/0001-47;2026-08-01;1;608345;8850561499.23;7567668488.14;45601713;165.951408188109;0.004143;0.007027;0\n" +
+        `11.728.688/0001-47;2026-09-01;${versaoDeSetembro};613837;8835655334.84;7546017797.39;45601713;165.476630173739;0.004191;${dySetembro};0\n`,
+      "inf_mensal_fii_ativo_passivo_2026.csv":
+        "CNPJ_Fundo_Classe;Data_Referencia;Versao;Rendimentos_Distribuir\n",
+    });
+
+  it("grava, liga o ticker pelo ISIN, emite e serve pelo /v1", async () => {
+    const cotahist = await criarZip({
+      "COTAHIST_A2025.TXT": linhaCotahist({
+        data: "2025-12-30",
+        ticker: "HGLG11",
+        codbdi: "12",
+        especi: "CI",
+        fechamento: 158.2,
+        isin: "BRHGLGCTF004",
+      }),
+    });
+    const b3 = new B3CotahistAdapter(
+      buscarFalso({ COTAHIST_A2025: () => binario(cotahist) }),
+      "https://b3",
+    );
+    await carregarCotahist(db, (await b3.ano(2025))!, { diario: false, log });
+
+    const zip = await zipDoAno(1, "0.007052");
+    const cvm = new CvmAdapter(
+      buscarFalso({ "inf_mensal_fii_2026.zip": () => binario(zip) }),
+    );
+    expect(await carregarInformeFii(db, cvm, { ano: 2026, log })).toEqual({
+      pulado: false,
+      linhas: 3,
+      eventos: 1,
+    });
+    const [hglg] = await db.select().from(assets).where(eq(assets.ticker, "HGLG11"));
+    expect(hglg?.cnpj).toBe("11728688000147");
+
+    // Um evento por fundo com ticker, com a competencia mais recente. O fundo
+    // sem ISIN fica de fora.
+    const publicados = await eventos("marketdata.fii.report.published.v1");
+    expect(publicados.map((e) => e.payload)).toEqual([
+      { cnpj: "11728688000147", tickers: ["HGLG11"], reference_date: "2026-09-01" },
+    ]);
+    expect((await carregarInformeFii(db, cvm, { ano: 2026, log })).pulado).toBe(true);
+
+    const s = criarServicoDeDados({
+      db,
+      brapi: new BrapiAdapter(buscarFalso({}), undefined, "https://b"),
+      bcb: new BcbAdapter(buscarFalso({})),
+      log,
+      agora: () => new Date("2026-10-20T12:00:00Z"),
+    });
+    const r = await s.informesFii("HGLG11", {});
+    expect(r.data).toMatchObject({ cnpj: "11728688000147", segment: "Logistica" });
+    expect(r.data.reports.map((x) => x.reference_date)).toEqual([
+      "2026-08-01",
+      "2026-09-01",
+    ]);
+    expect(r.data.reports[1]).toMatchObject({
+      equity: "7546017797.39",
+      // numeric(20,6): o VP da cota fica com seis casas.
+      nav_per_share: "165.47663",
+      holders: 613837,
+      dividend_yield_month: "0.007052",
+      provenance: { source: "cvm-fii-mensal", license: "ODbL-1.0" },
+    });
+    expect(r.meta).toMatchObject({ source: "cvm-fii-mensal", stale: false });
+    await expect(s.informesFii("PETR4", {})).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("reapresentacao com versao maior substitui e emite de novo", async () => {
+    const zip = await zipDoAno(2, "0.0071");
+    const cvm = new CvmAdapter(
+      buscarFalso({ "inf_mensal_fii_2026.zip": () => binario(zip) }),
+    );
+    expect((await carregarInformeFii(db, cvm, { ano: 2026, log })).eventos).toBe(1);
+    expect(await eventos("marketdata.fii.report.published.v1")).toHaveLength(2);
+    const s = criarServicoDeDados({
+      db,
+      brapi: new BrapiAdapter(buscarFalso({}), undefined, "https://b"),
+      bcb: new BcbAdapter(buscarFalso({})),
+      log,
+    });
+    const r = await s.informesFii("HGLG11", { from: "2026-09-01" });
+    expect(r.data.reports).toMatchObject([
+      { version: 2, dividend_yield_month: "0.0071" },
+    ]);
   });
 });

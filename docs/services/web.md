@@ -184,6 +184,9 @@ Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
 - Nova transação e importação em sheet (embaixo no celular), com relatório
   das linhas rejeitadas. Arquivo de posições, reconhecido pelo cabeçalho, passa
   por revisão antes de gravar ([layout](portfolio.md#layout-de-posicao)).
+- Colunas de Posições: Ativo, Qtd., Preço médio, Cotação, Custo, Atual (valor de
+  mercado), Não realizado, Realizado e Proventos. Segue o design, mais a Cotação,
+  que o design não prevê.
 - "Renda fixa, fundos e outros": posições vigentes agrupadas por classe, com o
   valor do extrato. Entram no patrimônio e na alocação, não no TWR.
 - Toda leitura e escrita passa por `comoUsuario` (RLS). Carteira de outro

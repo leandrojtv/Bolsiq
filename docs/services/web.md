@@ -202,10 +202,13 @@ Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
 - Alocação por classe, setor ou ativo; posições com o aviso de evento
   corporativo ("Desdobramento 1:2 aplicado"); proventos por mês.
 - Nova transação e importação em sheet (embaixo no celular), com relatório
-  das linhas rejeitadas.
+  das linhas rejeitadas. Arquivo de posições, reconhecido pelo cabeçalho, passa
+  por revisão antes de gravar ([layout](portfolio.md#layout-de-posicao)).
+- "Renda fixa, fundos e outros": posições vigentes agrupadas por classe, com o
+  valor do extrato. Entram no patrimônio e na alocação, não no TWR.
 - Toda leitura e escrita passa por `comoUsuario` (RLS). Carteira de outro
   usuário responde 404.
 
 e2e: `e2e/carteira.spec.ts` (conferência, isolamento entre usuários,
-500 linhas em menos de 5 s, nova transação) e `e2e/autenticacao.spec.ts`
+500 linhas em menos de 5 s, nova transação, carga e recarga de posições) e `e2e/autenticacao.spec.ts`
 (login, recuperação, 2FA, watchlist, LGPD).

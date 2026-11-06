@@ -34,6 +34,7 @@ interface Acumulador {
  *
  * - **Taxa de compra entra no custo.** O custo de aquisicao inclui corretagem
  *   e emolumentos, entao a taxa sobe o preco medio.
+ * - **Saldo inicial** e aporte na data do extrato: entra no custo como compra.
  * - **Venda nao altera o preco medio.** Ela realiza resultado contra o preco
  *   medio vigente e reduz a quantidade. Recalcular a media na venda e o erro
  *   mais comum, e produz resultado realizado errado em toda venda parcial
@@ -70,6 +71,7 @@ export function apurar(transacoes: Transacao[]): ResultadoDeApuracao {
 
     switch (t.tipo) {
       case "compra":
+      case "saldo_inicial":
       case "bonificacao": {
         acc.quantidade = acc.quantidade.plus(q);
         acc.custo = acc.custo.plus(q.times(p)).plus(tx);

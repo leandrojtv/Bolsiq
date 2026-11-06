@@ -1,7 +1,26 @@
 import type { Decimal } from "decimal.js";
 import { d, dividir, moeda, numero } from "./decimal.js";
 import type { PosicaoAvaliada } from "./posicao.js";
-import type { Transacao } from "./tipos.js";
+import type { ClasseDePosicao, Transacao } from "./tipos.js";
+
+/** Renda variavel a mercado ou posicao sem ticker pelo saldo do extrato. */
+export type ItemDeAlocacao = Pick<PosicaoAvaliada, "ticker" | "valor_de_mercado">;
+
+/** Rotulo na alocacao. Os quatro primeiros sao os mesmos da renda variavel. */
+export const CLASSE_DE_ALOCACAO: Record<ClasseDePosicao, string> = {
+  acao: "Ações",
+  fii: "FIIs",
+  bdr: "BDRs",
+  etf: "ETFs",
+  fundo: "Fundos",
+  renda_fixa: "Renda fixa",
+  titulo_publico: "Títulos públicos",
+  previdencia: "Previdência",
+  coe: "COE",
+  estruturado: "Estruturados",
+  cripto: "Cripto",
+  outro: "Outros",
+};
 
 export interface FatiaDeAlocacao {
   chave: string;
@@ -17,8 +36,8 @@ export interface FatiaDeAlocacao {
  * grafico errado sem aviso.
  */
 export function alocar(
-  posicoes: PosicaoAvaliada[],
-  chaveDe: (p: PosicaoAvaliada) => string,
+  posicoes: ItemDeAlocacao[],
+  chaveDe: (p: ItemDeAlocacao) => string,
 ): FatiaDeAlocacao[] {
   const soma = new Map<string, Decimal>();
   let total = d(0);

@@ -22,13 +22,13 @@ export interface LinhaDeSnapshot {
 }
 
 /**
- * Fluxo de caixa da transacao do ponto de vista da carteira: compra e aporte
- * (positivo, com a taxa), venda e provento sao retirada (negativo, liquido da
- * taxa). Evento sem desembolso nao e fluxo.
+ * Fluxo de caixa da transacao do ponto de vista da carteira: compra e saldo
+ * inicial sao aporte (positivo, com a taxa), venda e provento sao retirada
+ * (negativo, liquido da taxa). Evento sem desembolso nao e fluxo.
  */
 export function fluxoDaTransacao(t: Transacao): Decimal {
   const bruto = d(t.quantidade).times(d(t.preco));
-  if (t.tipo === "compra") return bruto.plus(d(t.taxas));
+  if (t.tipo === "compra" || t.tipo === "saldo_inicial") return bruto.plus(d(t.taxas));
   if (t.tipo === "venda" || t.tipo === "provento") return bruto.minus(d(t.taxas)).neg();
   return d(0);
 }

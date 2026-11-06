@@ -99,7 +99,7 @@ export function importarCsvBolsiq(conteudo: string): RelatorioDeImportacao {
   };
 }
 
-function detectarSeparador(cabecalho: string): string {
+export function detectarSeparador(cabecalho: string): string {
   // Conta no cabecalho, nao numa linha de dados: valor em pt-BR usa virgula
   // decimal, e contar virgulas num numero detectaria o separador errado.
   return (cabecalho.match(/;/g)?.length ?? 0) >= (cabecalho.match(/,/g)?.length ?? 0)

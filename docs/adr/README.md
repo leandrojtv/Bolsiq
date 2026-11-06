@@ -21,6 +21,7 @@ anterior como `substituído por`.
 | [0021](0021-identidade-provisoria-e-sino.md) | Identidade provisória e sino por SSE            | aceito       |
 | [0022](0022-login-carteira-e-snapshot.md)    | Login, RLS por transação, snapshot e LGPD       | aceito       |
 | [0024](0024-assistente-byok.md)              | Assistente com a chave do usuário (BYOK)        | aceito       |
+| [0025](0025-posicoes-sem-ticker.md)          | Posições sem ticker e carga por fotografia      | aceito       |
 
 ## Números reservados
 

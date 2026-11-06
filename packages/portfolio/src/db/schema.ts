@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -114,12 +115,87 @@ export const snapshots = portfolio.table(
   ],
 );
 
+/**
+ * Fotografia de ativo sem cotacao na bolsa (ADR 0025). Cada carga mais recente
+ * da corretora desliga a anterior: `vigente` e o que conta no patrimonio.
+ */
+export const posicoes = portfolio.table(
+  "posicoes",
+  {
+    id: text("id").primaryKey(),
+    portfolio_id: text("portfolio_id")
+      .notNull()
+      .references(() => portfolios.id, { onDelete: "cascade" }),
+    user_id: text("user_id").notNull(),
+    importacao_id: text("importacao_id").notNull(),
+    corretora: text("corretora").notNull(),
+    data_posicao: date("data_posicao").notNull(),
+    /** Identidade do ativo entre cargas: `chaveDoAtivo`. */
+    chave_ativo: text("chave_ativo").notNull(),
+    classe: text("classe").notNull(),
+    subclasse: text("subclasse"),
+    ativo: text("ativo").notNull(),
+    codigo: text("codigo"),
+    cnpj: text("cnpj"),
+    emissor: text("emissor"),
+    indexador: text("indexador"),
+    /** Fracao: 1.20 e 120% do indexador. */
+    pct_indexador: numeric("pct_indexador", { precision: 12, scale: 8 }),
+    /** Fracao: 0.0795 e 7,95% ao ano. */
+    taxa_aa: numeric("taxa_aa", { precision: 12, scale: 8 }),
+    data_aplicacao: date("data_aplicacao"),
+    vencimento: date("vencimento"),
+    liquidez_diaria: boolean("liquidez_diaria"),
+    quantidade: quantidade("quantidade"),
+    preco_unitario: money("preco_unitario"),
+    preco_medio: money("preco_medio"),
+    valor_aplicado: money("valor_aplicado"),
+    saldo_bruto: money("saldo_bruto").notNull(),
+    ir: money("ir"),
+    iof: money("iof"),
+    saldo_liquido: money("saldo_liquido"),
+    valorizacao: text("valorizacao").notNull(),
+    observacao: text("observacao"),
+    vigente: boolean("vigente").notNull().default(true),
+    criada_em: utc("criada_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("posicoes_user_idx").on(t.user_id),
+    index("posicoes_importacao_idx").on(t.importacao_id),
+    uniqueIndex("posicoes_vigente_uq")
+      .on(t.portfolio_id, t.corretora, t.chave_ativo)
+      .where(sql`${t.vigente}`),
+  ],
+);
+
+/**
+ * Ultima carga de cada corretora. `posicoes` nao basta para recusar carga velha:
+ * uma corretora so com renda variavel nao deixa linha nenhuma la.
+ */
+export const cargas_de_posicao = portfolio.table(
+  "cargas_de_posicao",
+  {
+    portfolio_id: text("portfolio_id")
+      .notNull()
+      .references(() => portfolios.id, { onDelete: "cascade" }),
+    user_id: text("user_id").notNull(),
+    corretora: text("corretora").notNull(),
+    data_posicao: date("data_posicao").notNull(),
+    importacao_id: text("importacao_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.portfolio_id, t.corretora] }),
+    index("cargas_de_posicao_user_idx").on(t.user_id),
+  ],
+);
+
 export const imports = portfolio.table(
   "imports",
   {
     id: text("id").primaryKey(),
     portfolio_id: text("portfolio_id").notNull(),
     user_id: text("user_id").notNull(),
+    /** `bolsiq`, `b3` ou `posicao_bolsiq`. */
     formato: text("formato").notNull(),
     nome_arquivo: text("nome_arquivo"),
     linhas_lidas: integer("linhas_lidas").notNull(),

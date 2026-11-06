@@ -7,16 +7,27 @@ import {
   alocar,
   apurar,
   avaliar,
+  CargaRecusada,
+  CLASSE_DE_ALOCACAO,
+  ClasseDePosicao,
   comoUsuario,
   eventosAplicados,
+  gravarCargaDePosicao,
   importarCsvBolsiq,
   importarExtratoB3,
+  importarPosicaoBolsiq,
+  lerBaseDaCarga,
+  pendenciasDaLinha,
   proventosPorMes,
+  revisarCarga,
   schema,
   Transacao,
+  type DecisaoDeDivergencia,
   type FatiaDeAlocacao,
+  type ItemDeAlocacao,
   type LinhaRejeitada,
   type PosicaoAvaliada,
+  type RevisaoDeCarga,
   type TransacaoDoUsuario,
 } from "@bolsiq/portfolio";
 import { nivelDeTaxa } from "@bolsiq/analytics/puro";
@@ -33,7 +44,7 @@ import {
 import { hojeEmSp } from "./indicadores-tecnicos";
 import { buscarV1, VALIDADE } from "./market-data";
 
-const { portfolios, transactions, snapshots, imports, audit_log } = schema;
+const { portfolios, transactions, snapshots, imports, audit_log, posicoes } = schema;
 
 /**
  * Carteira e modulo do app (CLAUDE.md). Toda leitura e escrita passa por
@@ -245,6 +256,62 @@ export async function importar(
   };
 }
 
+/** Compara o CSV de posicoes com a carteira, sem gravar. */
+export async function revisarPosicao(
+  uid: string,
+  carteira: string,
+  conteudo: string,
+): Promise<RevisaoDeCarga> {
+  const relatorio = importarPosicaoBolsiq(conteudo);
+  const base = await comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    return lerBaseDaCarga(tx, carteira);
+  });
+  return revisarCarga(relatorio, base);
+}
+
+/** Confirma a carga: posicoes, saldos iniciais e ajustes numa transacao so. */
+export async function importarPosicao(
+  uid: string,
+  carteira: string,
+  nomeArquivo: string,
+  conteudo: string,
+  decisoes: DecisaoDeDivergencia[],
+): Promise<RelatorioNaTela> {
+  const inicio = performance.now();
+  const relatorio = importarPosicaoBolsiq(conteudo);
+  const h = await headers();
+  try {
+    await comoUsuario(banco(), uid, async (tx) => {
+      await garantirDona(tx, uid, carteira);
+      await gravarCargaDePosicao(tx, {
+        uid,
+        carteira,
+        nome_arquivo: nomeArquivo,
+        relatorio,
+        decisoes,
+        origem: {
+          ip: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+          user_agent: h.get("user-agent")?.slice(0, 300) ?? null,
+        },
+      });
+    });
+  } catch (erro) {
+    if (erro instanceof CargaRecusada) throw new ErroDeCarteira(409, erro.message);
+    // Duas cargas simultaneas da mesma corretora: o indice unico segura a segunda.
+    if ((erro as { cause?: { code?: string } }).cause?.code === "23505")
+      throw new ErroDeCarteira(409, "Outra carga desta carteira acabou de ser gravada.");
+    throw erro;
+  }
+  return {
+    linhas_lidas: relatorio.linhas_lidas,
+    linhas_aceitas: relatorio.posicoes.length,
+    linhas_rejeitadas: relatorio.rejeicoes.length,
+    rejeicoes: relatorio.rejeicoes,
+    duracao_ms: Math.round(performance.now() - inicio),
+  };
+}
+
 async function ou<T>(caminho: string, validade: number): Promise<T | null> {
   try {
     const r = await buscarV1<T>(caminho, validade);
@@ -284,6 +351,25 @@ export interface PosicaoNaTela extends PosicaoAvaliada {
   setor: string;
 }
 
+/** Posicao vigente sem ticker: o valor e o saldo do extrato da carga. */
+export interface PosicaoDeExtrato {
+  id: string;
+  classe: string;
+  /** Rotulo da classe, o mesmo da alocacao. */
+  grupo: string;
+  ativo: string;
+  corretora: string;
+  indexador: string | null;
+  pct_indexador: string | null;
+  taxa_aa: string | null;
+  vencimento: string | null;
+  valor_aplicado: string | null;
+  saldo_bruto: string;
+  saldo_liquido: string | null;
+  data_posicao: string;
+  pendencias: string[];
+}
+
 export interface PainelDaCarteira {
   carteira: CarteiraResumida;
   carteiras: CarteiraResumida[];
@@ -298,8 +384,11 @@ export interface PainelDaCarteira {
     cdi_12m: number | null;
     /** Posicoes abertas sem cotacao: ficam fora do patrimonio e do nao realizado. */
     sem_cotacao: string[];
+    /** Parte do patrimonio que vem do extrato, nao da cotacao. */
+    valor_de_extrato: string;
   };
   posicoes: PosicaoNaTela[];
+  posicoes_de_extrato: PosicaoDeExtrato[];
   alocacao: Record<"classe" | "setor" | "ativo", FatiaDeAlocacao[]>;
   proventos_mes: { mes: string; valor: number }[];
   serie: {
@@ -317,7 +406,7 @@ export interface PainelDaCarteira {
 export async function painel(uid: string, id: string): Promise<PainelDaCarteira> {
   const hoje = hojeEmSp();
   const inicio12m = umAnoAntes(hoje);
-  const { carteira, linhas, pontos, lista } = await comoUsuario(
+  const { carteira, linhas, pontos, lista, vigentes } = await comoUsuario(
     banco(),
     uid,
     async (tx) => {
@@ -337,7 +426,12 @@ export async function painel(uid: string, id: string): Promise<PainelDaCarteira>
         .from(portfolios)
         .where(and(eq(portfolios.user_id, uid), eq(portfolios.arquivada, false)))
         .orderBy(asc(portfolios.criada_em));
-      return { carteira, linhas, pontos, lista };
+      const vigentes = await tx
+        .select()
+        .from(posicoes)
+        .where(and(eq(posicoes.portfolio_id, id), eq(posicoes.vigente, true)))
+        .orderBy(asc(posicoes.classe), desc(posicoes.saldo_bruto));
+      return { carteira, linhas, pontos, lista, vigentes };
     },
   );
 
@@ -361,7 +455,7 @@ export async function painel(uid: string, id: string): Promise<PainelDaCarteira>
     Object.fromEntries([...precos].map(([t, q]) => [t, q.price])),
   );
   const eventos = eventosAplicados(txs);
-  const posicoes: PosicaoNaTela[] = avaliadas
+  const rendaVariavel: PosicaoNaTela[] = avaliadas
     .map((p) => {
       const a = ativos.get(p.ticker);
       return {
@@ -377,12 +471,41 @@ export async function painel(uid: string, id: string): Promise<PainelDaCarteira>
         Number(a.valor_de_mercado ?? a.custo_total),
     );
 
-  const comPreco = posicoes.filter((p) => p.valor_de_mercado !== null);
-  const patrimonio = comPreco.length
+  const deExtrato: PosicaoDeExtrato[] = vigentes.map((v) => ({
+    id: v.id,
+    classe: v.classe,
+    grupo: CLASSE_DE_ALOCACAO[ClasseDePosicao.parse(v.classe)],
+    ativo: v.ativo,
+    corretora: v.corretora,
+    indexador: v.indexador,
+    pct_indexador: v.pct_indexador,
+    taxa_aa: v.taxa_aa,
+    vencimento: v.vencimento,
+    valor_aplicado: v.valor_aplicado,
+    saldo_bruto: v.saldo_bruto,
+    saldo_liquido: v.saldo_liquido,
+    data_posicao: v.data_posicao,
+    pendencias: pendenciasDaLinha({
+      classe: ClasseDePosicao.parse(v.classe),
+      cnpj: v.cnpj,
+      taxa_aa: v.taxa_aa,
+      pct_indexador: v.pct_indexador,
+      data_aplicacao: v.data_aplicacao,
+      preco_medio: v.preco_medio,
+      observacao: v.observacao,
+    }),
+  }));
+
+  const comPreco = rendaVariavel.filter((p) => p.valor_de_mercado !== null);
+  // Nao realizado segue so na renda variavel: saldo do extrato nao tem custo aqui.
+  const aMercado = comPreco.length
     ? comPreco.reduce((s, p) => s + Number(p.valor_de_mercado), 0)
     : null;
+  const valorDeExtrato = deExtrato.reduce((s, p) => s + Number(p.saldo_bruto), 0);
+  const patrimonio =
+    aMercado === null && deExtrato.length === 0 ? null : (aMercado ?? 0) + valorDeExtrato;
   const custoComPreco = comPreco.reduce((s, p) => s + Number(p.custo_total), 0);
-  const custo = posicoes.reduce((s, p) => s + Number(p.custo_total), 0);
+  const custo = rendaVariavel.reduce((s, p) => s + Number(p.custo_total), 0);
   const proventos12m = proventosPorMes(txs)
     .filter((p) => p.mes >= inicio12m.slice(0, 7))
     .reduce((s, p) => s + Number(p.valor), 0);
@@ -416,6 +539,15 @@ export async function painel(uid: string, id: string): Promise<PainelDaCarteira>
     ibov: nivelIbov[i] ?? null,
   }));
 
+  const itens: (ItemDeAlocacao & { classe: string; setor: string })[] = [
+    ...rendaVariavel,
+    ...deExtrato.map((p) => ({
+      ticker: p.ativo,
+      valor_de_mercado: p.saldo_bruto,
+      classe: p.grupo,
+      setor: p.grupo,
+    })),
+  ];
   const moeda = (n: number) => n.toFixed(2);
   return {
     carteira: { id: carteira.id, nome: carteira.nome },
@@ -423,24 +555,24 @@ export async function painel(uid: string, id: string): Promise<PainelDaCarteira>
     resumo: {
       patrimonio: patrimonio === null ? null : moeda(patrimonio),
       custo: moeda(custo),
-      nao_realizado: patrimonio === null ? null : moeda(patrimonio - custoComPreco),
+      nao_realizado: aMercado === null ? null : moeda(aMercado - custoComPreco),
       nao_realizado_pct:
-        patrimonio === null || custoComPreco === 0
-          ? null
-          : patrimonio / custoComPreco - 1,
+        aMercado === null || custoComPreco === 0 ? null : aMercado / custoComPreco - 1,
       realizado: apuracao.resultado_realizado_total,
       proventos_12m: moeda(proventos12m),
       twr_12m: retornoDaSerie(serie.map((s) => s.carteira)),
       cdi_12m: retornoDaSerie(nivelCdi),
-      sem_cotacao: posicoes
+      sem_cotacao: rendaVariavel
         .filter((p) => p.valor_de_mercado === null)
         .map((p) => p.ticker),
+      valor_de_extrato: moeda(valorDeExtrato),
     },
-    posicoes,
+    posicoes: rendaVariavel,
+    posicoes_de_extrato: deExtrato,
     alocacao: {
-      classe: alocar(posicoes, (p) => (p as PosicaoNaTela).classe),
-      setor: alocar(posicoes, (p) => (p as PosicaoNaTela).setor),
-      ativo: alocar(posicoes, (p) => p.ticker),
+      classe: alocar(itens, (p) => (p as (typeof itens)[number]).classe),
+      setor: alocar(itens, (p) => (p as (typeof itens)[number]).setor),
+      ativo: alocar(itens, (p) => p.ticker),
     },
     proventos_mes: ultimos12Meses(proventosPorMes(txs), hoje),
     serie,

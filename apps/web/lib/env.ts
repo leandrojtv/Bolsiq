@@ -47,6 +47,25 @@ const Env = z.object({
   SMTP_FROM: z.string().default("Bolsiq <nao-responda@bolsiq.local>"),
   /** Tentativas de login, cadastro e recuperacao por IP por minuto. */
   AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
+  /** 32 bytes em base64: cifra a chave de provedor de cada usuario (ADR 0024). */
+  ASSISTANT_MASTER_KEY: vazioEhAusente,
+  /** `educational` ao abrir para terceiros: recomendacao e atividade regulada (ADR 0024). */
+  ASSISTANT_RECOMMENDATIONS: z.enum(["personal", "educational"]).default("personal"),
+  /** Mensagens por usuario por dia. */
+  ASSISTANT_DAILY_MESSAGES: z.coerce.number().int().positive().default(100),
+  /** Hosts aceitos na URL do Ollama: o servidor e quem chama (SSRF). */
+  ASSISTANT_OLLAMA_HOSTS: z.string().default("host.docker.internal,ollama"),
+  ASSISTANT_OLLAMA_URL: z.string().url().default("http://host.docker.internal:11434"),
+  /** Troca o endereco da DeepSeek: proxy da empresa, ou o provedor falso do e2e. */
+  ASSISTANT_DEEPSEEK_URL: vazioEhAusente,
+  /** Chave da plataforma, padrao para quem nao configurou. Vazia: desligada. */
+  ASSISTANT_PLATFORM_KEY: vazioEhAusente,
+  ASSISTANT_PLATFORM_PROVIDER: z
+    .enum(["anthropic", "openai", "google", "deepseek", "openrouter"])
+    .default("deepseek"),
+  ASSISTANT_PLATFORM_MODEL: z.string().default("deepseek-flash"),
+  /** Mensagens por dia na chave da plataforma, por plano: `gratis:20,pro:200`. */
+  ASSISTANT_PLATFORM_LIMITS: z.string().default("gratis:20"),
 });
 
 export const env = Env.parse(process.env);

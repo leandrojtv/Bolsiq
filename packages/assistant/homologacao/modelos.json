@@ -1,0 +1,83 @@
+{
+  "versao": 1,
+  "precos_conferidos_em": "2026-11-03",
+  "modelos": [
+    {
+      "provedor": "anthropic",
+      "modelo": "claude-fable-5-1",
+      "status": "nao_testado",
+      "preco_entrada": 10,
+      "preco_saida": 50
+    },
+    {
+      "provedor": "anthropic",
+      "modelo": "claude-opus-5-5",
+      "status": "nao_testado",
+      "preco_entrada": 4,
+      "preco_saida": 20
+    },
+    {
+      "provedor": "anthropic",
+      "modelo": "claude-sonnet-5-5",
+      "status": "nao_testado",
+      "preco_entrada": 2,
+      "preco_saida": 10
+    },
+    {
+      "provedor": "anthropic",
+      "modelo": "claude-haiku-5-5",
+      "status": "nao_testado",
+      "preco_entrada": 0.1,
+      "preco_saida": 0.5
+    },
+    {
+      "provedor": "openai",
+      "modelo": "gpt-6-astra",
+      "status": "nao_testado",
+      "preco_entrada": 10,
+      "preco_saida": 50
+    },
+    {
+      "provedor": "openai",
+      "modelo": "gpt-6.1-sol",
+      "status": "nao_testado",
+      "preco_entrada": 2,
+      "preco_saida": 10
+    },
+    {
+      "provedor": "openai",
+      "modelo": "gpt-6.1-terra",
+      "status": "nao_testado",
+      "preco_entrada": 1,
+      "preco_saida": 5
+    },
+    {
+      "provedor": "openai",
+      "modelo": "gpt-6-luna",
+      "status": "nao_testado",
+      "preco_entrada": 0.1,
+      "preco_saida": 0.5
+    },
+    {
+      "provedor": "deepseek",
+      "modelo": "deepseek-flash",
+      "status": "nao_testado",
+      "preco_entrada": 0.3,
+      "preco_saida": 1.2
+    },
+    {
+      "provedor": "deepseek",
+      "modelo": "deepseek-v4-pro",
+      "status": "nao_testado",
+      "preco_entrada": 1.32,
+      "preco_saida": 3.96
+    },
+    {
+      "provedor": "ollama",
+      "modelo": "deepseek-coder-v2:latest",
+      "status": "sem_ferramentas",
+      "preco_entrada": 0,
+      "preco_saida": 0
+    }
+  ]
+}

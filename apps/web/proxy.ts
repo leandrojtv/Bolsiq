@@ -11,7 +11,13 @@ import { NextResponse, type NextRequest } from "next/server";
  *    num cookie httpOnly; no login, o que estiver nele migra para a conta.
  */
 export const COOKIE_DO_USUARIO = "bolsiq_uid";
-const EXIGEM_LOGIN = ["/carteiras", "/configuracoes/conta", "/configuracoes/seguranca"];
+const EXIGEM_LOGIN = [
+  "/carteiras",
+  "/configuracoes/conta",
+  "/configuracoes/seguranca",
+  "/configuracoes/assistente",
+  "/configuracoes/perfil",
+];
 
 export function proxy(req: NextRequest) {
   const caminho = req.nextUrl.pathname;

@@ -9,7 +9,13 @@ import { join } from "node:path";
 const raiz = new URL("../.next/static", import.meta.url).pathname;
 const chave = process.env.MARKET_DATA_API_KEY;
 const padroes = [/mdk_(live|test)_[A-Za-z0-9_]+/];
-if (chave) padroes.push(new RegExp(chave.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+for (const segredo of [
+  chave,
+  process.env.ASSISTANT_MASTER_KEY,
+  process.env.ASSISTANT_PLATFORM_KEY,
+]) {
+  if (segredo) padroes.push(new RegExp(segredo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
 
 function* arquivos(dir) {
   for (const nome of readdirSync(dir)) {

@@ -141,6 +141,7 @@ build-image:
 	docker build -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
 	docker build -f infra/docker/alerts-worker.Dockerfile -t bolsiq-alerts-worker:$${IMAGE_TAG:-local} .
 	docker build -f infra/docker/analytics-worker.Dockerfile -t bolsiq-analytics-worker:$${IMAGE_TAG:-local} .
+	docker build -f infra/docker/portfolio-worker.Dockerfile -t bolsiq-portfolio-worker:$${IMAGE_TAG:-local} .
 	docker build -f infra/docker/web.Dockerfile -t bolsiq-web:$${IMAGE_TAG:-local} .
 
 ## build-image-clean: constroi sem cache, como o CI faz
@@ -149,6 +150,54 @@ build-image-clean:
 	@# por motivo errado — já passou, quando o node_modules da máquina entrava
 	@# no contexto e levava o turbo de carona.
 	docker build --no-cache -f infra/docker/market-data.Dockerfile -t bolsiq-market-data:$${IMAGE_TAG:-local} .
+
+# ---------------------------------------------------------------------------
+# Ambiente local duradouro: banco em volume, na porta 3200
+# ---------------------------------------------------------------------------
+
+LOCAL_TAG ?= assist
+LOCAL := IMAGE_TAG=$(LOCAL_TAG) docker compose -p bolsiq-assist $(if $(wildcard .env),--env-file .env) -f $(COMPOSE_CI) -f infra/docker/compose.local.yml
+
+## local-up: reconstroi as imagens e sobe o ambiente duradouro em http://localhost:3200
+local-up:
+	IMAGE_TAG=$(LOCAL_TAG) $(MAKE) build-image
+	$(MAKE) local-start
+
+## local-start: sobe o ambiente duradouro com as imagens que ja existem
+local-start:
+	$(LOCAL) up -d --wait --wait-timeout 180
+	@echo "  App  http://localhost:3200"
+
+## local-down: para o ambiente duradouro e mantem os dados
+local-down:
+	$(LOCAL) down
+
+## local-logs: acompanha os logs do ambiente duradouro
+local-logs:
+	$(LOCAL) logs -f --tail 50
+
+## local-backfill: carga historica desde FROM no ambiente duradouro
+local-backfill:
+	@test -n "$(FROM)" || { echo "uso: make local-backfill FROM=2024"; exit 1; }
+	$(LOCAL) run --rm --no-deps market-data-worker node dist/backfill.js $(FROM)
+
+# ---------------------------------------------------------------------------
+# Assistente
+# ---------------------------------------------------------------------------
+
+## eval-assistente: avalia o assistente (EVAL_PROVEDOR, EVAL_MODELO, EVAL_CHAVE, EVAL_URL); sem eles, roteiro
+eval-assistente:
+	$(call exige_monorepo)
+	docker run --rm -i $(DOCKER_TTY) \
+		-v "$(CURDIR)":/app \
+		-v bolsiq-pnpm-store:/pnpm-store \
+		-w /app \
+		-e CI=true \
+		-e PNPM_HOME=/pnpm \
+		-e npm_config_store_dir=/pnpm-store \
+		-e EVAL_PROVEDOR -e EVAL_MODELO -e EVAL_CHAVE -e EVAL_URL -e EVAL_CASOS \
+		$(NODE_IMAGE) \
+		bash -lc 'corepack enable >/dev/null 2>&1 && pnpm install --frozen-lockfile >/dev/null && pnpm turbo run build --filter=@bolsiq/assistant --output-logs=errors-only && pnpm --filter @bolsiq/assistant run eval'
 
 # ---------------------------------------------------------------------------
 # Ambiente local completo — para testar na mão
@@ -259,6 +308,6 @@ check-deps:
 check: check-workflows check-actions check-links check-secrets check-deps
 
 .PHONY: help up down logs install lint format typecheck test test-integration \
-        test-e2e ci db-generate db-migrate db-reset smoke gh-protect \
+        test-e2e ci eval-assistente local-up local-start local-down local-logs local-backfill db-generate db-migrate db-reset smoke gh-protect \
         gh-protect-dry gh-protect-solo gh-status check-workflows check-actions \
         check-links check-secrets check

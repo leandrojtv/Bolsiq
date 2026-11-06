@@ -148,6 +148,24 @@ services:
       analytics-migrate:
         condition: service_completed_successfully
 
+  # Provedor de IA falso: so neste compose, para o e2e do assistente.
+  llm-falso:
+    image: node:22-bookworm-slim
+    command: ["node", "/llm-falso.mjs"]
+    volumes:
+      - ./llm-falso.mjs:/llm-falso.mjs:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:11434/saude').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   web:
     image: bolsiq-web:${IMAGE_TAG:-local}
     environment:
@@ -169,6 +187,14 @@ services:
       SMTP_PORT: "1025"
       # O e2e cria varios usuarios do mesmo IP em segundos.
       AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-100}
+      # Assistente (ADR 0024). Chave-mestra de desenvolvimento, 32 bytes em base64.
+      ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:-ZGVzZW52b2x2aW1lbnRvLW5hby11c2FyLWVtLXByb2Q=}
+      ASSISTANT_RECOMMENDATIONS: ${ASSISTANT_RECOMMENDATIONS:-personal}
+      ASSISTANT_DAILY_MESSAGES: ${ASSISTANT_DAILY_MESSAGES:-100}
+      ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
+      # Vazio usa a DeepSeek de verdade, como no `make dev-up`. So o job e2e aponta
+      # para o provedor falso (ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434).
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
     ports:
       - "3000:3000"
     depends_on:
@@ -183,6 +209,8 @@ services:
       portfolio-migrate:
         condition: service_completed_successfully
       mailpit:
+        condition: service_healthy
+      llm-falso:
         condition: service_healthy
 
   portfolio-migrate:

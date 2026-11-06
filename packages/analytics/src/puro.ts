@@ -6,5 +6,6 @@
 export * from "./tipos.js";
 export * from "./screener.js";
 export * from "./comparador.js";
+export * from "./desempenho.js";
 // So tipos: o executor fica fora, porque usa o banco.
 export type { LinhaDoScreener, ResultadoDoScreener } from "./executarScreener.js";

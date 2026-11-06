@@ -51,6 +51,12 @@ export function MinhaConta({ usuario }: { usuario: Usuario }) {
           <Link href="/configuracoes/notificacoes">Preferências de notificação</Link>
         </div>
       </Card>
+      <Card title="Assistente">
+        <div className="flex flex-col gap-2">
+          <Link href="/configuracoes/assistente">Provedor, chave e consumo</Link>
+          <Link href="/configuracoes/perfil">Perfil do investidor</Link>
+        </div>
+      </Card>
       <Card title="Seus dados">
         <p className="m-0 text-sm text-text-2">
           Baixe tudo o que o Bolsiq guarda sobre você: conta, carteiras, transações,

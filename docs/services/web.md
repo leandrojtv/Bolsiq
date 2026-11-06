@@ -17,6 +17,8 @@ Decisões no [ADR 0020](../adr/0020-bff-do-web.md).
 | `/carteiras`                                    | página provisória "Em construção"                          |
 | Login                                           | **não implementado** (Prompt E)                            |
 
+O assistente "Pergunte ao Bolsiq" está em [assistant.md](assistant.md).
+
 ## Rodando
 
 ```bash
@@ -28,6 +30,22 @@ App em http://localhost:3000. Para ter dados, rode uma vez:
 ```bash
 make backfill FROM=2024
 ```
+
+`make dev-up` é descartável: o banco morre com o container. Para uso contínuo, com o banco em
+volume e os serviços voltando quando o Docker reinicia, use o ambiente duradouro, em
+http://localhost:3200:
+
+```bash
+make local-up
+```
+
+`make local-start` sobe sem reconstruir as imagens, `make local-down` para e mantém os dados, e
+`make local-backfill FROM=2024` faz a carga histórica. Os jobs do `market-data-worker` mantêm os
+dados em dia enquanto ele estiver no ar. `BRAPI_TOKEN` vem do `.env` da raiz; sem ele, só PETR4,
+VALE3, ITUB4 e MGLU3 têm cotação corrente, e os demais usam o último fechamento do COTAHIST, com o
+selo de atraso.
+
+Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são sintéticos.
 
 ## Rotas
 
@@ -44,6 +62,7 @@ make backfill FROM=2024
 | `/api/preferencias`                               | canais, e-mail e silêncio do usuário                      |
 | `/api/push`                                       | chave VAPID pública e inscrição de Web Push               |
 | `/manifest.webmanifest`, `/icones/*`, `/sw.js`    | PWA                                                       |
+| `/api/assistente/*`                               | assistente: chat, configuração, perfil e conversas        |
 
 ## Página do ativo
 
@@ -85,6 +104,7 @@ make backfill FROM=2024
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some           |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)        |
 | `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto    |
+| `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)   |
 
 ## Testes
 

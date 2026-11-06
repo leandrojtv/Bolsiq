@@ -24,11 +24,22 @@ export const jobs: JobDefinition[] = [
   {
     name: "b3-cotahist-diario",
     description: "COTAHIST do dia e atualização do universo",
-    // 19:30 em dias úteis, depois do fechamento.
-    cron: "30 19 * * 1-5",
+    // 20:30 em dias úteis. Às 19:30 a B3 ainda não tinha publicado o arquivo
+    // do dia, e o 404 fazia o pregão ser descartado (#29). O horário exato da
+    // publicação não é divulgado; quem garante o dia é `b3-cotahist-lacunas`.
+    cron: "30 20 * * 1-5",
     retryLimit: 5,
     retryDelaySeconds: 60,
     expireInMinutes: 30,
+  },
+  {
+    name: "b3-cotahist-lacunas",
+    description: "Recarrega dia útil que ficou sem COTAHIST",
+    // 7:00: o arquivo do dia anterior já saiu, com folga.
+    cron: "0 7 * * 1-5",
+    retryLimit: 3,
+    retryDelaySeconds: 300,
+    expireInMinutes: 60,
   },
   {
     name: "b3-cotahist-anual",

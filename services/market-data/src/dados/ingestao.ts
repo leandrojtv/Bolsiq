@@ -1,6 +1,8 @@
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import {
   assets,
+  fetchLog,
   financialStatements,
   fundDaily,
   funds,
@@ -15,6 +17,7 @@ import { Decimal } from "decimal.js";
 import {
   COTAHIST_LICENSE,
   COTAHIST_SOURCE,
+  refDoDia,
   type ArquivoCotahist,
   type RegistroDoUniverso,
 } from "../fontes/b3-cotahist.js";
@@ -274,6 +277,87 @@ export async function emitirDiaFechado(db: Db): Promise<string | null> {
     }),
   );
   return ultimo.date;
+}
+
+/**
+ * Quantas vezes um dia util tem de responder 404 antes de ser aceito como dia
+ * sem pregao.
+ *
+ * Feriado e arquivo que ainda nao saiu respondem 404 igual, e a B3 nao publica
+ * o calendario de pregao em formato consumivel. A diferenca aparece no tempo:
+ * o arquivo atrasado existe na varredura seguinte, o feriado nunca. Ate este
+ * limite, o dia continua sendo pedido.
+ */
+const TENTATIVAS_SEM_PREGAO = 3;
+const SEM_PREGAO = "sem-pregao";
+
+/** Registra o 404 do dia e devolve quantas tentativas ele ja acumulou. */
+export async function marcarSemPregao(db: Db, data: string): Promise<number> {
+  const [linha] = await db
+    .insert(fetchLog)
+    .values({
+      id: randomUUID(),
+      source: COTAHIST_SOURCE,
+      sourceRef: refDoDia(data),
+      contentHash: SEM_PREGAO,
+      status: SEM_PREGAO,
+      fetchedAt: agoraIso(),
+    })
+    .onConflictDoUpdate({
+      target: [fetchLog.source, fetchLog.sourceRef, fetchLog.contentHash],
+      set: { attempts: sql`${fetchLog.attempts} + 1`, fetchedAt: agoraIso() },
+    })
+    .returning({ attempts: fetchLog.attempts });
+  return linha?.attempts ?? 1;
+}
+
+function somarDias(data: string, dias: number): string {
+  const d = new Date(`${data}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Dias uteis dos ultimos `dias` que nao tem nada em `quotes_daily` e ainda nao
+ * esgotaram as tentativas de 404.
+ *
+ * O dia corrente fica de fora: o COTAHIST dele sai a noite, e cobra-lo aqui
+ * geraria 404 em todo pregao.
+ */
+export async function diasSemCotahist(
+  db: Db,
+  hoje: string,
+  dias: number,
+): Promise<string[]> {
+  const candidatos: string[] = [];
+  for (let i = 1; i <= dias; i++) {
+    const data = somarDias(hoje, -i);
+    const semana = new Date(`${data}T00:00:00Z`).getUTCDay();
+    if (semana !== 0 && semana !== 6) candidatos.push(data);
+  }
+  if (candidatos.length === 0) return [];
+
+  const comDados = await db
+    .selectDistinct({ date: quotesDaily.date })
+    .from(quotesDaily)
+    .where(inArray(quotesDaily.date, candidatos));
+  const carregados = new Set(comDados.map((r) => r.date));
+
+  const marcados = await db
+    .select({ sourceRef: fetchLog.sourceRef })
+    .from(fetchLog)
+    .where(
+      and(
+        eq(fetchLog.source, COTAHIST_SOURCE),
+        eq(fetchLog.status, SEM_PREGAO),
+        gte(fetchLog.attempts, TENTATIVAS_SEM_PREGAO),
+      ),
+    );
+  const semPregao = new Set(marcados.map((r) => r.sourceRef));
+
+  return candidatos
+    .filter((d) => !carregados.has(d) && !semPregao.has(refDoDia(d)))
+    .sort();
 }
 
 // ---------------------------------------------------------------------------

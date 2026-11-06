@@ -10,6 +10,8 @@ import {
   carregarCadastroDeFundos,
   carregarDemonstracoes,
   carregarInformeDiario,
+  diasSemCotahist,
+  marcarSemPregao,
   ultimosMeses,
   gravarSerieMacro,
   ultimaDataDaSerie,
@@ -59,12 +61,32 @@ export async function executarJob(
     case "b3-cotahist-diario": {
       const data = Data.parse(d.date ?? hojeEmSp(agora));
       const arquivo = await ctx.cotahist.dia(data);
-      // Feriado e fim de semana: a B3 responde 404. Não é falha do job.
-      if (!arquivo) return { data, sem_pregao: true };
+      // 404 é feriado ou arquivo que ainda não saiu, e a B3 não distingue os
+      // dois. Não é falha do job, mas fica registrado: é o que faz
+      // `b3-cotahist-lacunas` tentar o dia de novo até ele aparecer.
+      if (!arquivo) {
+        const tentativas = await marcarSemPregao(ctx.db, data);
+        return { data, sem_pregao: true, tentativas };
+      }
       return {
         data,
         ...(await carregarCotahist(ctx.db, arquivo, { diario: true, log: ctx.log })),
       };
+    }
+
+    case "b3-cotahist-lacunas": {
+      const dias = z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(60)
+        .parse(d.dias ?? 10);
+      const pendentes = await diasSemCotahist(ctx.db, hojeEmSp(agora), dias);
+      const resultados: Record<string, unknown> = {};
+      for (const data of pendentes) {
+        resultados[data] = await executarJob("b3-cotahist-diario", { date: data }, ctx);
+      }
+      return { pendentes, resultados };
     }
 
     case "b3-cotahist-anual": {

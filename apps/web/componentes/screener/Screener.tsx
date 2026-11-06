@@ -9,6 +9,7 @@ import {
   INDICADORES,
   NOME_DO_PRESET,
   presets,
+  SO_DE_ACOES,
   type NomeDePreset,
   type ResultadoDoScreener,
 } from "@bolsiq/analytics/puro";
@@ -377,6 +378,9 @@ export function Screener({
               <span className="text-xs text-text-3">
                 ordenado por {INDICADORES[estado.ordenarPor].rotulo} (
                 {estado.ordem === "asc" ? "crescente" : "decrescente"})
+                {SO_DE_ACOES.has(estado.ordenarPor) &&
+                  estado.tipos.some((t) => t !== "stock") &&
+                  `. ${INDICADORES[estado.ordenarPor].rotulo} só existe para ações: FII, ETF e BDR vêm depois, por liquidez.`}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">

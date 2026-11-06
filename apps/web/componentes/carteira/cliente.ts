@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import type { NovaTransacao } from "@/lib/carteira-modelo";
 import type { PainelDaCarteira, RelatorioNaTela } from "@/lib/carteira";
+import type { DecisaoDeDivergencia, RevisaoDeCarga } from "@bolsiq/portfolio";
 
 const json = (method: string, corpo: unknown): RequestInit => ({
   method,
@@ -21,11 +22,28 @@ export const criarCarteira = (nome: string) =>
 export const adicionarTransacao = (id: string, t: NovaTransacao) =>
   api<{ data: { id: string } }>(`carteiras/${id}/transacoes`, json("POST", t));
 
-export function importarArquivo(id: string, arquivo: File, formato: "bolsiq" | "b3") {
+export type FormatoDeImportacao = "bolsiq" | "b3" | "posicao_bolsiq";
+
+export function importarArquivo(
+  id: string,
+  arquivo: File,
+  formato: FormatoDeImportacao,
+  decisoes: DecisaoDeDivergencia[] = [],
+) {
   const form = new FormData();
   form.set("arquivo", arquivo);
   form.set("formato", formato);
+  form.set("decisoes", JSON.stringify(decisoes));
   return api<{ data: RelatorioNaTela }>(`carteiras/${id}/importacoes`, {
+    method: "POST",
+    body: form,
+  }).then((r) => r.data);
+}
+
+export function revisarPosicao(id: string, arquivo: File) {
+  const form = new FormData();
+  form.set("arquivo", arquivo);
+  return api<{ data: RevisaoDeCarga }>(`carteiras/${id}/importacoes/revisao`, {
     method: "POST",
     body: form,
   }).then((r) => r.data);

@@ -21,6 +21,8 @@ import {
   carregarCotahist,
   carregarDemonstracoes,
   carregarInformeFii,
+  diasSemCotahist,
+  marcarSemPregao,
 } from "../dados/ingestao.js";
 import { criarServicoDeDados } from "../dados/servico.js";
 import { B3CotahistAdapter } from "../fontes/b3-cotahist.js";
@@ -170,6 +172,27 @@ describe("COTAHIST", () => {
     expect(fechado?.payload).toEqual({ date: "2026-11-02", assets_updated: 1 });
     // Papel ja conhecido nao e listado de novo.
     expect(await eventos("marketdata.asset.listed.v1")).toHaveLength(2);
+  });
+
+  it("lacuna lista dia util sem preco e desiste depois de 404 repetido", async () => {
+    // Carregados pelos testes acima: 10-29, 10-30 e 11-02. O dia corrente
+    // (11-06) fica fora: o arquivo dele so sai a noite.
+    expect(await diasSemCotahist(db, "2026-11-06", 10)).toEqual([
+      "2026-10-27",
+      "2026-10-28",
+      "2026-11-03",
+      "2026-11-04",
+      "2026-11-05",
+    ]);
+
+    // Um 404 isolado pode ser arquivo atrasado: o dia continua na lista.
+    expect(await marcarSemPregao(db, "2026-11-04")).toBe(1);
+    expect(await diasSemCotahist(db, "2026-11-06", 10)).toContain("2026-11-04");
+
+    // Repetido, e feriado: para de ser pedido.
+    expect(await marcarSemPregao(db, "2026-11-04")).toBe(2);
+    expect(await marcarSemPregao(db, "2026-11-04")).toBe(3);
+    expect(await diasSemCotahist(db, "2026-11-06", 10)).not.toContain("2026-11-04");
   });
 });
 

@@ -135,35 +135,52 @@ Horários em `America/Sao_Paulo`, passados ao pg-boss como fuso nomeado — não
 como deslocamento. O Brasil não tem horário de verão hoje; se voltar, só o fuso
 nomeado continua correto.
 
-| Job                  | Agenda          |
-| -------------------- | --------------- |
-| `b3-cotahist-diario` | `30 19 * * 1-5` |
-| `cvm-fundos`         | `0 6 * * *`     |
-| `cvm-fii-mensal`     | `30 6 * * *`    |
-| `bcb-sgs`            | `0 6 * * *`     |
-| `cvm-cadastro`       | `0 5 * * 1`     |
-| `cvm-dfp`            | `30 5 * * 1`    |
-| `cvm-itr`            | `0 6 * * 1`     |
-| `b3-cotahist-anual`  | sob demanda     |
-| `ajuste-proventos`   | sob demanda     |
+| Job                   | Agenda          |
+| --------------------- | --------------- |
+| `b3-cotahist-diario`  | `30 20 * * 1-5` |
+| `b3-cotahist-lacunas` | `0 7 * * 1-5`   |
+| `cvm-fundos`          | `0 6 * * *`     |
+| `cvm-fii-mensal`      | `30 6 * * *`    |
+| `bcb-sgs`             | `0 6 * * *`     |
+| `cvm-cadastro`        | `0 5 * * 1`     |
+| `cvm-dfp`             | `30 5 * * 1`    |
+| `cvm-itr`             | `0 6 * * 1`     |
+| `b3-cotahist-anual`   | sob demanda     |
+| `ajuste-proventos`    | sob demanda     |
 
 Cada job tem manipulador em `jobs/handlers.ts`. O `backfill.ts` chama os
 mesmos manipuladores, em ordem: COTAHIST anual, cadastro, DFP e ITR, informe
 mensal de FII (desde o ano anterior a `FROM`), SGS e fundos.
 
-| Job                  | O que faz                                                                                                    | Eventos                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `b3-cotahist-diario` | pregão do dia; 404 da B3 (feriado) encerra como `sem_pregao`, não falha                                      | `quote.updated` por papel, `daily.closed`  |
-| `b3-cotahist-anual`  | ano inteiro (`{"ano": 2024}`), sem evento de preço                                                           | `asset.listed` para papel novo             |
-| `cvm-cadastro`       | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                                       | nenhum                                     |
-| `cvm-dfp`, `cvm-itr` | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                                     | `statement.published` por companhia e data |
-| `bcb-sgs`            | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                                        | nenhum                                     |
-| `cvm-fundos`         | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia)                 | nenhum                                     |
-| `cvm-fii-mensal`     | informe mensal de FII do ano corrente e do anterior (`{"ano": 2025}` escolhe); liga CNPJ ao ticker pelo ISIN | `fii.report.published` por FII com ticker  |
-| `ajuste-proventos`   | sem efeito: o ajuste é calculado na leitura de `/v1/history`                                                 | —                                          |
+| Job                   | O que faz                                                                                                    | Eventos                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `b3-cotahist-diario`  | pregão do dia; 404 da B3 encerra como `sem_pregao` e fica registrado, não falha                              | `quote.updated` por papel, `daily.closed`  |
+| `b3-cotahist-lacunas` | dia útil dos últimos 10 (`{"dias": 30}` amplia) sem preço: refaz o diário                                    | os mesmos do `b3-cotahist-diario`          |
+| `b3-cotahist-anual`   | ano inteiro (`{"ano": 2024}`), sem evento de preço                                                           | `asset.listed` para papel novo             |
+| `cvm-cadastro`        | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                                       | nenhum                                     |
+| `cvm-dfp`, `cvm-itr`  | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                                     | `statement.published` por companhia e data |
+| `bcb-sgs`             | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                                        | nenhum                                     |
+| `cvm-fundos`          | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia)                 | nenhum                                     |
+| `cvm-fii-mensal`      | informe mensal de FII do ano corrente e do anterior (`{"ano": 2025}` escolhe); liga CNPJ ao ticker pelo ISIN | `fii.report.published` por FII com ticker  |
+| `ajuste-proventos`    | sem efeito: o ajuste é calculado na leitura de `/v1/history`                                                 | —                                          |
 
-O feriado continua fora da agenda das 19:30, mas não gera falha: o download
-devolve 404 e o job termina como `sem_pregao`.
+### Feriado e arquivo atrasado
+
+A B3 responde 404 nos dois casos e não publica o calendário de pregão em
+formato consumível, então o job não tem como distingui-los na hora. A diferença
+aparece no tempo: o arquivo atrasado existe na varredura seguinte, o feriado
+nunca.
+
+Por isso o 404 não falha o job, mas é registrado no `fetch_log` com
+`status = 'sem-pregao'` e a contagem de tentativas. `b3-cotahist-lacunas` roda
+às 7:00 e pede de novo todo dia útil dos últimos 10 que não tem preço em
+`quotes_daily`, até o dia acumular 3 tentativas — aí é aceito como feriado e
+sai da lista.
+
+O horário das 20:30 do `b3-cotahist-diario` é estimativa: a B3 não divulga
+quando publica o arquivo do dia. Às 19:30 ele ainda não estava no ar, e o 404
+descartava o pregão de forma definitiva (#29). Quem garante o dia é a varredura
+de lacunas, não o horário.
 
 ### Idempotência da carga
 

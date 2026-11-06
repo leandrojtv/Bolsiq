@@ -32,6 +32,33 @@ export const IndicadorFiltravel = z.enum([
 ]);
 export type IndicadorFiltravel = z.infer<typeof IndicadorFiltravel>;
 
+/**
+ * Indicadores de balanco: so acao tem. Em FII, ETF e BDR sao sempre nulos.
+ *
+ * O screener usa isto na ordenacao: ordenar por P/L descarta a acao sem P/L
+ * (prejuizo), mas nao deve sumir com todo FII, que nunca tera P/L. P/VP entra
+ * aqui enquanto nao ha valor patrimonial de FII na base.
+ */
+export const SO_DE_ACOES: ReadonlySet<IndicadorFiltravel> = new Set<IndicadorFiltravel>([
+  "pl",
+  "pvp",
+  "ev_ebitda",
+  "ev_ebit",
+  "p_receita",
+  "roe",
+  "roic",
+  "roa",
+  "margem_bruta",
+  "margem_ebitda",
+  "margem_liquida",
+  "dl_ebitda",
+  "dl_pl",
+  "liquidez_corrente",
+  "cagr_receita_5a",
+  "cagr_lucro_5a",
+  "margem_graham",
+]);
+
 export const Faixa = z
   .object({ min: z.number().optional(), max: z.number().optional() })
   .refine((f) => f.min !== undefined || f.max !== undefined, {

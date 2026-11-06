@@ -39,7 +39,14 @@ describe("Coalescedor", () => {
 });
 
 describe("ultimoPregaoEsperado", () => {
-  it("antes das 20h de Sao Paulo vale o pregao anterior", () => {
+  it("espera o pregao do dia so depois do job das 20:30", () => {
+    // Quarta, 20:00 em Sao Paulo: o job ainda nao rodou, vale terca.
+    expect(ultimoPregaoEsperado(new Date("2026-11-04T23:00:00Z"))).toBe("2026-11-03");
+    // Quarta, 21:00: ja vale quarta.
+    expect(ultimoPregaoEsperado(new Date("2026-11-05T00:00:00Z"))).toBe("2026-11-04");
+  });
+
+  it("antes das 21h de Sao Paulo vale o pregao anterior", () => {
     // Segunda, 15h em Sao Paulo: o ultimo carregado e o de sexta.
     expect(ultimoPregaoEsperado(new Date("2026-11-02T18:00:00Z"))).toBe("2026-10-30");
     // Segunda, 21h: o de segunda.

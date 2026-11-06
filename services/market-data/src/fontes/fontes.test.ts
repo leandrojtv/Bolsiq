@@ -8,7 +8,7 @@ import {
   json,
   linhaCotahist,
 } from "../testes/fixtures.js";
-import { B3CotahistAdapter } from "./b3-cotahist.js";
+import { B3CotahistAdapter, refDoDia } from "./b3-cotahist.js";
 import { BcbAdapter } from "./bcb.js";
 import { BrapiAdapter, dataEmSaoPaulo, multiplicadorDeAcoes } from "./brapi.js";
 import { CvmAdapter, decimalDoInforme, normalizarCodigoCvm } from "./cvm.js";
@@ -316,9 +316,13 @@ describe("B3CotahistAdapter", () => {
     expect(arq?.sourceRef).toBe("COTAHIST_A2024.ZIP");
   });
 
-  it("dia sem pregao devolve null", async () => {
+  it("404 no dia devolve null", async () => {
     const adapter = new B3CotahistAdapter(buscarFalso({}), "https://b3");
     expect(await adapter.dia("2024-12-25")).toBeNull();
+  });
+
+  it("refDoDia monta o nome no formato DDMMAAAA", () => {
+    expect(refDoDia("2026-11-04")).toBe("COTAHIST_D04112026.ZIP");
   });
 });
 

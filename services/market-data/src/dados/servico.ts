@@ -181,10 +181,10 @@ function umAnoAntes(data: string): string {
 }
 
 /**
- * Ultimo pregao que ja deveria estar carregado: o COTAHIST do dia sai a noite,
- * entao antes das 20h vale o pregao anterior. Nao conhece feriado, e em
- * feriado marca `stale` sem necessidade; o contrario (esconder atraso real)
- * seria pior.
+ * Ultimo pregao que ja deveria estar carregado: o COTAHIST do dia sai a noite
+ * e o job roda 20:30, entao antes das 21h vale o pregao anterior. Nao conhece
+ * feriado, e em feriado marca `stale` sem necessidade; o contrario (esconder
+ * atraso real) seria pior.
  */
 export function ultimoPregaoEsperado(agora: Date): string {
   const horaSp = Number(
@@ -194,7 +194,7 @@ export function ultimoPregaoEsperado(agora: Date): string {
       hour12: false,
     }).format(agora),
   );
-  let data = horaSp >= 20 ? hoje(agora) : somarDias(hoje(agora), -1);
+  let data = horaSp >= 21 ? hoje(agora) : somarDias(hoje(agora), -1);
   for (;;) {
     const dia = new Date(`${data}T00:00:00Z`).getUTCDay();
     if (dia !== 0 && dia !== 6) return data;

@@ -6,6 +6,10 @@ import {
   retornoDaSerie,
   ultimos12Meses,
   umAnoAntes,
+  dataCompleta,
+  diaEMes,
+  ehLayoutDePosicao,
+  indexadorETaxa,
 } from "./carteira-modelo";
 
 describe("NovaTransacao", () => {
@@ -103,5 +107,43 @@ describe("benchmarks", () => {
     ]);
     expect(n[0]?.valor).toBeCloseTo(1.01 * Math.pow(1.06, 1 / 12), 12);
     expect(n[1]?.valor).toBeCloseTo(1.01 * Math.pow(1.06, 2 / 12), 12);
+  });
+});
+
+describe("ehLayoutDePosicao", () => {
+  it("reconhece pelo cabecalho, com qualquer separador e com BOM", () => {
+    expect(ehLayoutDePosicao("data_posicao,corretora,classe\n1,2,3")).toBe(true);
+    expect(ehLayoutDePosicao("\uFEFFDATA_POSICAO;classe\r\n1;2")).toBe(true);
+  });
+
+  it("nao confunde com transacoes nem com o extrato da B3", () => {
+    expect(ehLayoutDePosicao("data;ticker;tipo;quantidade;preco")).toBe(false);
+    expect(ehLayoutDePosicao("data_posicao;corretora")).toBe(false);
+    expect(ehLayoutDePosicao("")).toBe(false);
+  });
+});
+
+describe("datas de extrato", () => {
+  it("formata sem passar por fuso", () => {
+    expect(diaEMes("2026-11-05")).toBe("05/11");
+    expect(dataCompleta("2027-01-01")).toBe("01/01/2027");
+  });
+});
+
+describe("indexadorETaxa", () => {
+  const nulos = { indexador: null, pct_indexador: null, taxa_aa: null };
+  it("mostra o que a linha rende", () => {
+    expect(indexadorETaxa({ ...nulos, indexador: "CDI", pct_indexador: "1.20" })).toBe(
+      "120% CDI",
+    );
+    expect(indexadorETaxa({ ...nulos, indexador: "IPCA", taxa_aa: "0.0795" })).toBe(
+      "IPCA + 7,95%",
+    );
+    expect(indexadorETaxa({ ...nulos, indexador: "PRE", taxa_aa: "0.1469" })).toBe(
+      "14,69% a.a.",
+    );
+    expect(indexadorETaxa({ ...nulos, pct_indexador: "1" })).toBe("100%");
+    expect(indexadorETaxa({ ...nulos, indexador: "SELIC" })).toBe("SELIC");
+    expect(indexadorETaxa(nulos)).toBe("-");
   });
 });

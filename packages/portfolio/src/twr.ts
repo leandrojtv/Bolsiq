@@ -26,7 +26,8 @@ export interface PontoDeTwr {
  *
  * **Convencao: aporte no inicio do dia, retirada no fim.** O aporte do dia
  * entra no denominador, ou seja, o capital aportado ja participa do retorno
- * daquele dia. A retirada (venda, provento) sai no fim do dia e volta ao
+ * daquele dia; o `saldo_inicial` de uma carga de posicao e aporte como a compra
+ * (`fluxoDaTransacao`). A retirada (venda, provento) sai no fim do dia e volta ao
  * numerador: com a retirada no inicio, vender a carteira inteira daria
  * `0 / (V - venda) - 1`, um retorno de -100% ou sem sentido no dia da venda.
  *

@@ -18,6 +18,7 @@ describe("registro de jobs", () => {
       expect.arrayContaining([
         "b3-cotahist-diario",
         "b3-cotahist-anual",
+        "b3-cotahist-lacunas",
         "cvm-cadastro",
         "cvm-dfp",
         "cvm-itr",
@@ -28,9 +29,16 @@ describe("registro de jobs", () => {
     );
   });
 
-  it("agenda o COTAHIST às 19:30 em dias úteis", () => {
+  it("agenda o COTAHIST às 20:30 em dias úteis", () => {
+    // 19:30 era antes da publicação do arquivo, e o 404 descartava o pregão
+    // (#29).
     const diario = acharJob("b3-cotahist-diario");
-    expect(diario?.cron).toBe("30 19 * * 1-5");
+    expect(diario?.cron).toBe("30 20 * * 1-5");
+  });
+
+  it("varre lacunas de manhã, depois da publicação do dia anterior", () => {
+    const lacunas = acharJob("b3-cotahist-lacunas");
+    expect(lacunas?.cron).toBe("0 7 * * 1-5");
   });
 
   it("agenda fundos e BCB às 06:00 todos os dias", () => {

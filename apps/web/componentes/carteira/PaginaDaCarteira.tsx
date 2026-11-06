@@ -16,8 +16,13 @@ import {
   formatarNumero,
   formatarPercentual,
 } from "@bolsiq/ui";
-import type { PainelDaCarteira } from "@/lib/carteira";
-import type { Agrupamento } from "@/lib/carteira-modelo";
+import type { PainelDaCarteira, PosicaoDeExtrato } from "@/lib/carteira";
+import {
+  dataCompleta,
+  diaEMes,
+  indexadorETaxa,
+  type Agrupamento,
+} from "@/lib/carteira-modelo";
 import { CAMPO } from "../conta/campos";
 import { GraficoDeLinhas } from "../comparar/GraficoDeLinhas";
 import { chaveDoPainel, criarCarteira, lerPainel } from "./cliente";
@@ -101,7 +106,7 @@ export function PaginaDaCarteira({ inicial }: { inicial: PainelDaCarteira }) {
 
       <Resumo p={p} />
 
-      {p.transacoes === 0 ? (
+      {p.transacoes === 0 && p.posicoes_de_extrato.length === 0 ? (
         <Card>
           <EmptyState
             title="Carteira vazia"
@@ -114,10 +119,13 @@ export function PaginaDaCarteira({ inicial }: { inicial: PainelDaCarteira }) {
             <Rentabilidade p={p} />
             <Alocacao p={p} />
           </div>
-          <div className="flex flex-wrap items-start gap-5">
-            <Posicoes p={p} />
-            <Proventos p={p} />
-          </div>
+          {p.transacoes > 0 && (
+            <div className="flex flex-wrap items-start gap-5">
+              <Posicoes p={p} />
+              <Proventos p={p} />
+            </div>
+          )}
+          {p.posicoes_de_extrato.length > 0 && <RendaFixaEOutros p={p} />}
         </>
       )}
 
@@ -231,7 +239,9 @@ function Resumo({ p }: { p: PainelDaCarteira }) {
         valor={r.patrimonio === null ? "-" : formatarDinheiro(r.patrimonio)}
         sub={
           r.sem_cotacao.length === 0
-            ? "a preço de mercado"
+            ? p.posicoes_de_extrato.length > 0
+              ? `a mercado + ${formatarDinheiro(r.valor_de_extrato)} pelo extrato`
+              : "a preço de mercado"
             : `sem cotação, fora da soma: ${r.sem_cotacao.join(", ")}`
         }
         alerta={r.sem_cotacao.length > 0}
@@ -366,6 +376,12 @@ function Rentabilidade({ p }: { p: PainelDaCarteira }) {
             { nome: "Carteira", cor: "series-1", pontos: pontos((s) => s.carteira) },
           ]}
         />
+      )}
+      {p.posicoes_de_extrato.length > 0 && (
+        <p className="m-0 text-xs text-text-3">
+          O TWR considera só a renda variável. Renda fixa, fundos e outros entram no
+          patrimônio e na alocação, mas não têm fluxo para medir retorno.
+        </p>
       )}
     </section>
   );
@@ -513,6 +529,86 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
               </tr>
             ))}
           </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function RendaFixaEOutros({ p }: { p: PainelDaCarteira }) {
+  const num = "px-2 py-2.5 text-right font-mono tabular-nums whitespace-nowrap";
+  const grupos = new Map<string, PosicaoDeExtrato[]>();
+  for (const x of p.posicoes_de_extrato)
+    grupos.set(x.grupo, [...(grupos.get(x.grupo) ?? []), x]);
+  return (
+    <section
+      aria-label="Renda fixa, fundos e outros"
+      className="flex min-w-0 flex-col gap-3 rounded-card border border-border bg-surface p-4"
+    >
+      <h2 className="m-0 text-base font-semibold">Renda fixa, fundos e outros</h2>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[920px] border-collapse text-[13px]">
+          <thead>
+            <tr className="text-text-3">
+              {["Ativo", "Corretora", "Indexador e taxa"].map((c) => (
+                <th key={c} scope="col" className="p-2 text-left font-medium">
+                  {c}
+                </th>
+              ))}
+              {[
+                "Vencimento",
+                "Valor aplicado",
+                "Saldo bruto",
+                "Saldo líquido",
+                "Data do extrato",
+              ].map((c) => (
+                <th key={c} scope="col" className="p-2 text-right font-medium">
+                  {c}
+                </th>
+              ))}
+              <th scope="col" className="p-2 text-left font-medium">
+                Pendência
+              </th>
+            </tr>
+          </thead>
+          {[...grupos].map(([grupo, itens]) => (
+            <tbody key={grupo}>
+              <tr className="border-t border-border bg-surface-2">
+                <th
+                  scope="rowgroup"
+                  colSpan={9}
+                  className="px-2 py-2 text-left text-xs font-semibold text-text-2"
+                >
+                  {grupo}
+                </th>
+              </tr>
+              {itens.map((x) => (
+                <tr key={x.id} className="border-t border-border align-top">
+                  <th scope="row" className="px-2 py-2.5 text-left font-normal">
+                    {x.ativo}
+                  </th>
+                  <td className="px-2 py-2.5">{x.corretora}</td>
+                  <td className="px-2 py-2.5 whitespace-nowrap">{indexadorETaxa(x)}</td>
+                  <td className={num}>
+                    {x.vencimento ? dataCompleta(x.vencimento) : "-"}
+                  </td>
+                  <td className={num}>
+                    {x.valor_aplicado === null ? "-" : formatarDinheiro(x.valor_aplicado)}
+                  </td>
+                  <td className={num}>{formatarDinheiro(x.saldo_bruto)}</td>
+                  <td className={num}>
+                    {x.saldo_liquido === null ? "-" : formatarDinheiro(x.saldo_liquido)}
+                  </td>
+                  <td className="px-2 py-2.5 text-right text-xs whitespace-nowrap text-text-3">
+                    valor do extrato de {diaEMes(x.data_posicao)}
+                  </td>
+                  <td className="px-2 py-2.5 text-xs text-warn">
+                    {x.pendencias.join("; ") || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
         </table>
       </div>
     </section>

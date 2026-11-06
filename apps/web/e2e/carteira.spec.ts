@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { CONFERENCIA, cadastrar, emailNovo } from "./conta";
 
@@ -179,4 +181,113 @@ test("nova transação pelo formulário rápido", async ({ page }) => {
     "Preço médio": "R$ 30,50",
     Custo: "R$ 305,00",
   });
+});
+
+const POSICAO = readFileSync(
+  resolve(
+    import.meta.dirname,
+    "../../../packages/portfolio/src/fixtures/posicao-exemplo.csv",
+  ),
+  "utf8",
+);
+
+async function revisar(page: Page, conteudo: string) {
+  await page.getByRole("button", { name: "Importar CSV ou extrato B3" }).click();
+  const sheet = page.getByRole("dialog", { name: "Importar transações" });
+  await sheet.getByLabel("Arquivo CSV").setInputFiles({
+    name: "posicao.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(conteudo),
+  });
+  await sheet.getByRole("button", { name: "Revisar" }).click();
+  return sheet;
+}
+
+test("importação de posições: revisão, confirmação e seção da carteira", async ({
+  page,
+}) => {
+  await cadastrar(page, emailNovo("posicao"));
+  const sheet = await revisar(page, POSICAO);
+
+  const totais = sheet.getByRole("region", { name: "Total por corretora" });
+  await expect(totais).toContainText("R$ 10.356,20");
+  await expect(totais).toContainText("R$ 38.929,60");
+  await expect(totais).toContainText("R$ 13.227,79");
+
+  await expect(sheet.getByRole("region", { name: "Novas (4)" })).toContainText(
+    "CDB NUBANK",
+  );
+  await expect(
+    sheet.getByRole("region", { name: "Saldo inicial na renda variável (1)" }),
+  ).toContainText("ITUB4");
+  await expect(sheet.getByRole("region", { name: "Pendências (3)" })).toContainText(
+    "sem CNPJ",
+  );
+  const rejeitadas = sheet.getByRole("region", { name: "Rejeitadas (4)" });
+  await expect(rejeitadas).toContainText("7");
+  await expect(rejeitadas).toContainText("quantidade: obrigatoria em acao");
+
+  await sheet.getByRole("button", { name: "Confirmar importação" }).click();
+  await expect(sheet.getByRole("status")).toContainText("5 de 9 linhas importadas");
+  await page.keyboard.press("Escape");
+
+  const secao = page.getByRole("region", { name: "Renda fixa, fundos e outros" });
+  await expect(secao.getByRole("row", { name: /CDB NUBANK/ })).toContainText("120% CDI");
+  await expect(secao.getByRole("row", { name: /NTN-B/ })).toContainText("IPCA + 7,95%");
+  const fundo = secao.getByRole("row", { name: /Jive BossaNova/ });
+  await expect(fundo).toContainText("valor do extrato de 05/11");
+  await expect(fundo).toContainText("sem CNPJ");
+  await expect(secao).toContainText("COE");
+  await expect(page.getByRole("region", { name: "Rentabilidade" })).toContainText(
+    "O TWR considera só a renda variável",
+  );
+  await expect(
+    page.getByRole("region", { name: "Posições" }).getByRole("row", { name: /ITUB4/ }),
+  ).toContainText("R$ 41,16");
+
+  const alocacao = page.getByRole("region", { name: "Alocação" });
+  for (const classe of ["Títulos públicos", "COE", "Fundos", "Renda fixa"])
+    await expect(alocacao).toContainText(classe);
+  await expect(page.getByRole("region", { name: "Resumo" })).toContainText(
+    "R$ 59.241,94 pelo extrato",
+  );
+});
+
+test("mesma carga é recusada; mais recente substitui só a corretora", async ({
+  page,
+}) => {
+  await cadastrar(page, emailNovo("recarga"));
+  let sheet = await revisar(page, POSICAO);
+  await sheet.getByRole("button", { name: "Confirmar importação" }).click();
+  await expect(sheet.getByRole("status")).toContainText("5 de 9");
+  await page.keyboard.press("Escape");
+
+  sheet = await revisar(page, POSICAO);
+  await expect(sheet.getByRole("alert").first()).toContainText("já existe carga");
+  await expect(
+    sheet.getByRole("button", { name: "Confirmar importação" }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+
+  const soXp = POSICAO.split("\n")
+    .filter((l, i) => i === 0 || l.startsWith("2026-11-05,XP,"))
+    .map((l) => l.replace("2026-11-05,", "2026-11-06,"))
+    .filter((l) => !/imovel|PETR4/.test(l))
+    .map((l) => l.replace("12884.64", "13000.00"))
+    .join("\n");
+  sheet = await revisar(page, soXp);
+  await expect(sheet.getByRole("region", { name: "Alteradas (1)" })).toContainText(
+    "R$ 13.000,00",
+  );
+  await sheet.getByRole("button", { name: "Confirmar importação" }).click();
+  await expect(sheet.getByRole("status")).toContainText("3 de 3");
+  await page.keyboard.press("Escape");
+
+  const secao = page.getByRole("region", { name: "Renda fixa, fundos e outros" });
+  await expect(secao.getByRole("row", { name: /Jive BossaNova/ })).toContainText(
+    "valor do extrato de 06/11",
+  );
+  await expect(secao.getByRole("row", { name: /CDB NUBANK/ })).toContainText(
+    "valor do extrato de 05/11",
+  );
 });

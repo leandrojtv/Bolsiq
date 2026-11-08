@@ -8,4 +8,5 @@ export * from "./ferramentas.js";
 export * from "./prompt.js";
 export * from "./conversa.js";
 export * from "./tipos.js";
+export * from "./importacao/index.js";
 export * as schema from "./db/schema.js";

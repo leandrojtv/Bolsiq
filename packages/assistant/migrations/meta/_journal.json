@@ -15,6 +15,20 @@
       "when": 1793744566615,
       "tag": "0001_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794152100355,
+      "tag": "0002_importacao_ia",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794152101355,
+      "tag": "0003_rls_extractions",
+      "breakpoints": true
     }
   ]
 }

@@ -7,77 +7,137 @@
       "modelo": "claude-fable-5-1",
       "status": "nao_testado",
       "preco_entrada": 10,
-      "preco_saida": 50
+      "preco_saida": 50,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "anthropic",
       "modelo": "claude-opus-5-5",
       "status": "nao_testado",
       "preco_entrada": 4,
-      "preco_saida": 20
+      "preco_saida": 20,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "anthropic",
       "modelo": "claude-sonnet-5-5",
       "status": "nao_testado",
       "preco_entrada": 2,
-      "preco_saida": 10
+      "preco_saida": 10,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "anthropic",
       "modelo": "claude-haiku-5-5",
       "status": "nao_testado",
       "preco_entrada": 0.1,
-      "preco_saida": 0.5
+      "preco_saida": 0.5,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "openai",
       "modelo": "gpt-6-astra",
       "status": "nao_testado",
       "preco_entrada": 10,
-      "preco_saida": 50
+      "preco_saida": 50,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "openai",
       "modelo": "gpt-6.1-sol",
       "status": "nao_testado",
       "preco_entrada": 2,
-      "preco_saida": 10
+      "preco_saida": 10,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "openai",
       "modelo": "gpt-6.1-terra",
       "status": "nao_testado",
       "preco_entrada": 1,
-      "preco_saida": 5
+      "preco_saida": 5,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "openai",
       "modelo": "gpt-6-luna",
       "status": "nao_testado",
       "preco_entrada": 0.1,
-      "preco_saida": 0.5
+      "preco_saida": 0.5,
+      "capacidades": [
+        "saida_estruturada",
+        "visao"
+      ],
+      "max_saida": 16000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "deepseek",
       "modelo": "deepseek-flash",
       "status": "nao_testado",
       "preco_entrada": 0.3,
-      "preco_saida": 1.2
+      "preco_saida": 1.2,
+      "capacidades": [
+        "saida_estruturada"
+      ],
+      "max_saida": 8000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "deepseek",
       "modelo": "deepseek-v4-pro",
       "status": "nao_testado",
       "preco_entrada": 1.32,
-      "preco_saida": 3.96
+      "preco_saida": 3.96,
+      "capacidades": [
+        "saida_estruturada"
+      ],
+      "max_saida": 8000,
+      "importacao": "nao_testado"
     },
     {
       "provedor": "ollama",
       "modelo": "deepseek-coder-v2:latest",
       "status": "sem_ferramentas",
       "preco_entrada": 0,
-      "preco_saida": 0
+      "preco_saida": 0,
+      "capacidades": []
     }
-  ]
+  ],
+  "capacidades_conferidas_em": "2026-11-08"
 }

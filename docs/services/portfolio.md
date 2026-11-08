@@ -16,6 +16,7 @@ entre schemas de servicos diferentes.
 | Eventos corporativos aplicados a carteira                           | pronto                                                   |
 | Importacao de CSV e do extrato da B3                                | pronto, 500 linhas em menos de 5 s                       |
 | Importacao de posicoes (renda fixa, fundos, COE)                    | pronto; valor pelo extrato (ADR 0025)                    |
+| Importacao com IA, qualquer formato                                 | pronto: [importacao-ia.md](importacao-ia.md) (ADR 0026)  |
 | Alocacao e proventos por mes                                        | pronto                                                   |
 | Schema com RLS forcada                                              | pronto, 12 testes contra Postgres real                   |
 | Autenticacao (Better Auth)                                          | pronto: `packages/auth`, telas no `apps/web` (ADR 0022)  |
@@ -167,7 +168,9 @@ Terceiro formato, `posicao_bolsiq`: a fotografia da carteira numa data, com toda
 as classes. O importador o reconhece pelo cabecalho (presenca de `data_posicao` e
 `classe`); o seletor da tela segue como opcao manual. Decisao no
 [ADR 0025](../adr/0025-posicoes-sem-ticker.md). Para gerar o arquivo a partir dos
-extratos, ha um [prompt pronto](../importacao/prompt-normalizacao.md).
+extratos, ha um [prompt pronto](../importacao/prompt-normalizacao.md), e a tela
+importa qualquer formato com IA ([importacao-ia.md](importacao-ia.md)), pelos mesmos
+validadores.
 
 CSV UTF-8, separador `,` ou `;`, ponto decimal (numero em pt-BR tambem e aceito
 com `;`). Aspas valem: `"COE, Ouro"` e um campo so. O cabecalho e exatamente:

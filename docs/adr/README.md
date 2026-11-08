@@ -23,6 +23,7 @@ anterior como `substituído por`.
 | [0023](0023-fii-pelo-informe-mensal.md)      | Indicadores de FII pelo informe mensal da CVM   | aceito       |
 | [0024](0024-assistente-byok.md)              | Assistente com a chave do usuário (BYOK)        | aceito       |
 | [0025](0025-posicoes-sem-ticker.md)          | Posições sem ticker e carga por fotografia      | aceito       |
+| [0026](0026-importacao-com-ia.md)            | Importação com IA, em qualquer formato          | aceito       |
 
 ## Números reservados
 

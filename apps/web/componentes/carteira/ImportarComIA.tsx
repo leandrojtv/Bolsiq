@@ -161,9 +161,7 @@ export function ImportarComIA({
   if (!estado.configurado || !estado.pode_importar)
     return (
       <p className="m-0 text-sm text-text-2">
-        {estado.configurado
-          ? `O modelo ${estado.modelo ?? ""} não tem saída estruturada e não importa. `
-          : "Para importar com IA, configure um provedor e um modelo. "}
+        Para importar com IA, configure um provedor e um modelo.{" "}
         <Link href="/configuracoes/assistente" className="text-link underline">
           Configurações do assistente
         </Link>

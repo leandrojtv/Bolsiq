@@ -1,7 +1,8 @@
 import { Decimal } from "decimal.js";
 import type { LanguageModel } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import type { SaidaDaIA } from "../../src/importacao/esquema.js";
+import type { CabecalhoDaIA, SaidaDaIA } from "../../src/importacao/esquema.js";
+import { escreverBlocos } from "../../src/importacao/saida-csv.js";
 import { prepararArquivo, type Capacidades } from "../../src/importacao/pipeline.js";
 import {
   importarComIA,
@@ -52,18 +53,91 @@ const USO = {
   outputTokens: { total: 500, text: 500, reasoning: 0 },
 };
 
+/** O cabecalho que um modelo correto devolveria para a fixture. */
+export const cabecalhoDa = (r: SaidaDaIA): CabecalhoDaIA => ({
+  ...r.documento,
+  avisos: r.avisos,
+});
+
+/**
+ * A resposta gravada para um pedido: o cabecalho em JSON, ou as linhas em blocos
+ * CSV so das paginas e abas que estao no pedido (como um modelo faria com o
+ * lote). Pedido de visao, sem bloco de documento, leva todas as linhas.
+ */
+export function respostaGravada(
+  r: SaidaDaIA,
+  pedido: string,
+  forma: "json" | "cabecalho_em_texto" | "linhas",
+): string {
+  if (forma === "json") return JSON.stringify(cabecalhoDa(r));
+  if (forma === "cabecalho_em_texto")
+    return `Segue o cabeçalho:\n\`\`\`json\n${JSON.stringify(cabecalhoDa(r))}\n\`\`\``;
+  const origens = new Set(
+    [...pedido.matchAll(/<documento origem=\\?"([^"\\]+)\\?">/g)].map((m) =>
+      (m[1] ?? "").toLowerCase(),
+    ),
+  );
+  const daqui = <T extends { origem: { pagina_ou_aba: string } }>(xs: T[]) =>
+    origens.size === 0
+      ? xs
+      : xs.filter((x) => origens.has(x.origem.pagina_ou_aba.toLowerCase()));
+  return escreverBlocos({
+    posicoes: daqui(r.posicoes),
+    transacoes: daqui(r.transacoes),
+    proventos: daqui(r.proventos),
+    notas: daqui(r.notas),
+    malformadas: [],
+  });
+}
+
+/** O pedido do cabecalho, pelo prompt de sistema. */
+export const pedeCabecalho = (pedido: string) => pedido.includes("leia só o cabeçalho");
+
+export interface OpcoesDoRoteiro {
+  /** O provedor recusa o schema do cabecalho (como o erro de gramatica). */
+  recusarSchema?: boolean;
+  /** As primeiras N respostas de linhas vem cortadas pelo limite de saida. */
+  truncar?: number;
+}
+
 /** Modelo de mentira que devolve a resposta gravada. Confere o harness, nao homologa. */
-export function modeloDeRoteiro(resposta: SaidaDaIA): MockLanguageModelV4 {
+export function modeloDeRoteiro(
+  resposta: SaidaDaIA,
+  o: OpcoesDoRoteiro = {},
+): MockLanguageModelV4 {
+  let truncadas = 0;
   return new MockLanguageModelV4({
     provider: "roteiro",
     modelId: "roteiro",
-    doGenerate: () =>
-      Promise.resolve({
-        content: [{ type: "text", text: JSON.stringify(resposta) }],
-        finishReason: { unified: "stop", raw: undefined },
+    doGenerate: (opcoes) => {
+      const pedido = JSON.stringify(opcoes.prompt);
+      const json = opcoes.responseFormat?.type === "json";
+      if (json && o.recusarSchema)
+        return Promise.reject(
+          Object.assign(new Error("The compiled grammar is too large"), {
+            statusCode: 400,
+          }),
+        );
+      const forma = json
+        ? "json"
+        : pedeCabecalho(pedido)
+          ? "cabecalho_em_texto"
+          : "linhas";
+      const cortar = forma === "linhas" && truncadas < (o.truncar ?? 0);
+      if (cortar) truncadas++;
+      const texto = respostaGravada(resposta, pedido, forma);
+      return Promise.resolve({
+        content: [
+          {
+            type: "text",
+            text: cortar ? texto.slice(0, Math.floor(texto.length / 2)) : texto,
+          },
+        ],
+        finishReason: { unified: cortar ? "length" : "stop", raw: undefined },
         usage: USO,
         warnings: [],
-      }),
+      });
+    },
   });
 }
 

@@ -146,14 +146,11 @@ export interface Capacidades {
   max_saida: number;
 }
 
-/** PDF escaneado e imagem so com modelo de visao; sem saida estruturada, nada. */
+/**
+ * PDF escaneado e imagem so com modelo de visao. Saida estruturada nao e exigida:
+ * as linhas vem em CSV de texto, e o cabecalho cai para JSON em texto sem ela.
+ */
 export function conferirCapacidades(p: ArquivoPreparado, c: Capacidades): void {
-  if (!c.saida_estruturada)
-    throw new ErroDeImportacao(
-      "modelo_sem_saida_estruturada",
-      "O modelo escolhido não tem saída estruturada. Escolha outro em Configurações do assistente.",
-      409,
-    );
   if (p.arquivo_para_visao && !c.visao)
     throw new ErroDeImportacao(
       "modelo_sem_visao",
@@ -186,12 +183,16 @@ export function estimarImportacao(
   const visao = p.arquivo_para_visao
     ? p.sem_texto.length * TOKENS_POR_PAGINA_DE_IMAGEM
     : 0;
-  const tokens_entrada = porLote.reduce((s, t) => s + t, 0) + (visao ? visao + 3_000 : 0);
+  // O cabecalho: prompt curto, as primeiras e as ultimas paginas, e um JSON pequeno.
+  const cabecalho = { entrada: 1_000 + Math.min(6_000, ...porLote) + visao, saida: 500 };
+  const tokens_entrada =
+    cabecalho.entrada + porLote.reduce((s, t) => s + t, 0) + (visao ? visao + 3_000 : 0);
   const tokens_saida =
+    cabecalho.saida +
     porLote.reduce((s, t) => s + Math.min(maxSaida, Math.ceil(t * 1.2)), 0) +
     (visao ? Math.min(maxSaida, visao * 2) : 0);
   return {
-    chamadas: p.lotes.length + (p.arquivo_para_visao ? 1 : 0),
+    chamadas: 1 + p.lotes.length + (p.arquivo_para_visao ? 1 : 0),
     tokens_entrada,
     tokens_saida,
     custo_estimado: custoEstimado({ tokens_entrada, tokens_saida }, preco),

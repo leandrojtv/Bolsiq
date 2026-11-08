@@ -82,6 +82,7 @@ export function classificarModelo(
 }
 
 export interface CapacidadesDoModelo {
+  /** Preferencia: o cabecalho vai por schema; sem ela, por JSON em texto. */
   saida_estruturada: boolean;
   visao: boolean;
   max_saida: number;
@@ -89,8 +90,8 @@ export interface CapacidadesDoModelo {
 }
 
 /**
- * Capacidades declaradas em `modelos.json`. Fora da lista nao ha como saber, e a
- * importacao com IA exige saida estruturada: modelo desconhecido nao importa.
+ * Capacidades declaradas em `modelos.json`. Para importar basta texto: as linhas
+ * vem em CSV. Fora da lista, o modelo importa sem saida estruturada nem visao.
  */
 export function capacidadesDoModelo(
   provedor: Provedor,
@@ -106,13 +107,11 @@ export function capacidadesDoModelo(
   };
 }
 
-/** Modelos do provedor que podem importar: a lista do "reprocessar com outro modelo". */
+/** Modelos do provedor na lista: as opcoes do "reprocessar com outro modelo". */
 export function modelosParaImportar(
   provedor: Provedor,
 ): { modelo: string; visao: boolean; homologado: boolean }[] {
-  return REGISTROS.filter(
-    (r) => r.provedor === provedor && r.capacidades?.includes("saida_estruturada"),
-  ).map((r) => ({
+  return REGISTROS.filter((r) => r.provedor === provedor).map((r) => ({
     modelo: r.modelo,
     visao: r.capacidades?.includes("visao") ?? false,
     homologado: r.importacao === "homologado",

@@ -55,7 +55,7 @@ export interface EstadoDaImportacaoIA {
   configurado: boolean;
   provedor: string | null;
   modelo: string | null;
-  /** O modelo atual tem saida estruturada: sem ela, a opcao nao aparece. */
+  /** Ha modelo configurado: importar exige so texto (e visao para imagem). */
   pode_importar: boolean;
   visao: boolean;
   consentiu: boolean;

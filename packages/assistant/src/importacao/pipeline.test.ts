@@ -69,7 +69,8 @@ describe("estimativa e capacidades", () => {
   it("estima tokens e custo antes de chamar", async () => {
     const p = await prepararArquivo(FIXTURES[0]!.arquivo());
     const e = estimarImportacao(p, { entrada: 1, saida: 2 });
-    expect(e.chamadas).toBe(1);
+    // Cabecalho e um lote.
+    expect(e.chamadas).toBe(2);
     expect(e.tokens_entrada).toBeGreaterThan(1000);
     expect(e.tokens_saida).toBeGreaterThan(0);
     expect(Number(e.custo_estimado)).toBeGreaterThan(0);
@@ -77,13 +78,18 @@ describe("estimativa e capacidades", () => {
       estimarImportacao(p, { entrada: null, saida: null }).custo_estimado,
     ).toBeNull();
     const scan = await prepararArquivo(FIXTURES.find((f) => f.esperado.visao)!.arquivo());
-    expect(estimarImportacao(scan, { entrada: 1, saida: 1 }).chamadas).toBe(1);
+    // Cabecalho e a chamada de visao.
+    expect(estimarImportacao(scan, { entrada: 1, saida: 1 }).chamadas).toBe(2);
   });
 
-  it("modelo sem saida estruturada nao importa", async () => {
+  it("modelo sem saida estruturada importa; sem visao, nao le escaneado", async () => {
     const p = await prepararArquivo(FIXTURES[0]!.arquivo());
     expect(() =>
       conferirCapacidades(p, { ...CAPACIDADES_COMPLETAS, saida_estruturada: false }),
-    ).toThrow(/saída estruturada/);
+    ).not.toThrow();
+    const scan = await prepararArquivo(FIXTURES.find((f) => f.esperado.visao)!.arquivo());
+    expect(() =>
+      conferirCapacidades(scan, { ...CAPACIDADES_COMPLETAS, visao: false }),
+    ).toThrow(/visão/);
   });
 });

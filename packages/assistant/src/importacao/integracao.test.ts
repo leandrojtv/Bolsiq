@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  modeloDeRoteiro,
+  pedeCabecalho,
+  respostaGravada,
   armazemEmMemoria,
   CAPACIDADES_COMPLETAS,
   executarFixture,
@@ -18,6 +21,16 @@ import { prepararArquivo } from "./pipeline.js";
 import { ErroDeImportacao } from "./recebimento.js";
 import { importarComIA } from "./servico.js";
 
+/** Propriedades declaradas no schema, em qualquer nivel. */
+function propriedades(no: unknown): number {
+  if (!no || typeof no !== "object") return 0;
+  const o = no as { properties?: Record<string, unknown> };
+  return (
+    Object.keys(o.properties ?? {}).length +
+    Object.values(no).reduce((s: number, v) => s + propriedades(v), 0)
+  );
+}
+
 const CHAVE = "sk-chave-que-nunca-sai-da-importacao-1234567890";
 const porId = (id: string) => FIXTURES.find((f) => f.id === id)!;
 
@@ -25,15 +38,35 @@ const porId = (id: string) => FIXTURES.find((f) => f.id === id)!;
  * Provedor compativel com OpenAI de mentira, com a resposta gravada. Guarda o
  * corpo de cada requisicao para o teste ler o que saiu do processo.
  */
-function provedorGravado(resposta: SaidaDaIA | (() => Response)) {
+function provedorGravado(
+  resposta: SaidaDaIA | (() => Response),
+  o: { semJson?: boolean } = {},
+) {
   const pedidos: { url: string; corpo: string; cabecalhos: string }[] = [];
   const f = ((url: string, init?: RequestInit) => {
+    const corpo = typeof init?.body === "string" ? init.body : "";
     pedidos.push({
       url: String(url),
-      corpo: typeof init?.body === "string" ? init.body : "",
+      corpo,
       cabecalhos: JSON.stringify(init?.headers ?? {}),
     });
     if (typeof resposta === "function") return Promise.resolve(resposta());
+    const json = Boolean(
+      (JSON.parse(corpo) as { response_format?: unknown }).response_format,
+    );
+    if (json && o.semJson)
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            error: {
+              message:
+                "The compiled grammar is too large, which would cause performance issues.",
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+      );
+    const forma = json ? "json" : pedeCabecalho(corpo) ? "cabecalho_em_texto" : "linhas";
     return Promise.resolve(
       new Response(
         JSON.stringify({
@@ -44,7 +77,10 @@ function provedorGravado(resposta: SaidaDaIA | (() => Response)) {
           choices: [
             {
               index: 0,
-              message: { role: "assistant", content: JSON.stringify(resposta) },
+              message: {
+                role: "assistant",
+                content: respostaGravada(resposta, corpo, forma),
+              },
               finish_reason: "stop",
             },
           ],
@@ -74,13 +110,18 @@ describe("fluxo completo com provedor gravado", () => {
       preco: PRECO,
     });
 
-    expect(pedidos).toHaveLength(1);
-    const corpo = pedidos[0]!.corpo;
+    // Cabecalho por schema e linhas em texto.
+    expect(pedidos).toHaveLength(2);
+    const corpo = pedidos.map((x) => x.corpo).join("\n");
     expect(corpo).not.toMatch(/123\.456\.789-09|12345678909|MARIA DA SILVA|1234567/);
     expect(corpo).toContain("12.345.678/0001-90");
     expect(corpo).toContain("PETR4");
-    // Sem ferramentas na chamada de extracao.
-    expect(JSON.parse(corpo)).not.toHaveProperty("tools");
+    for (const x of pedidos) {
+      const c = JSON.parse(x.corpo) as Record<string, unknown>;
+      // Sem ferramentas na extracao, e nenhum schema com mais de 10 propriedades.
+      expect(c).not.toHaveProperty("tools");
+      expect(propriedades(c.response_format)).toBeLessThanOrEqual(10);
+    }
 
     expect(r.validacao.conciliada).toBe(true);
     expect(r.validacao.conciliacao).toEqual([
@@ -97,8 +138,8 @@ describe("fluxo completo com provedor gravado", () => {
     expect(r.validacao.linhas.filter((l) => l.tipo === "posicao")).toHaveLength(10);
     expect(r.validacao.linhas.filter((l) => l.tipo === "provento")).toHaveLength(2);
     expect(r.validacao.linhas.every((l) => l.marcada)).toBe(true);
-    expect(r.uso).toEqual({ tokens_entrada: 3200, tokens_saida: 900 });
-    expect(r.custo_estimado).toBe("0.002040");
+    expect(r.uso).toEqual({ tokens_entrada: 6400, tokens_saida: 1800 });
+    expect(r.custo_estimado).toBe("0.004080");
     expect(r.remocoes.linhas).toBeGreaterThan(0);
     expect(r.remocoes.conta).toBeGreaterThan(0);
   });
@@ -111,7 +152,7 @@ describe("fluxo completo com provedor gravado", () => {
       const r = await executarFixture(f, modelo);
       expect(r.validacao.conciliada).toBe(true);
       expect(r.validacao.rejeicoes).toEqual([]);
-      expect(pedidos[0]!.corpo).not.toMatch(
+      expect(pedidos.map((x) => x.corpo).join()).not.toMatch(
         /987\.654\.321-00|11122233344|JO[AÃ]O PEREIRA|CARLOS ALBERTO|9876543|000123/,
       );
     },
@@ -131,8 +172,10 @@ describe("fluxo completo com provedor gravado", () => {
       ["ITUB4", "0.96", true],
       ["VALE3", "0.65", true],
     ]);
-    expect(pedidos[0]!.corpo).not.toMatch(/123\.456\.789-09|7654321|MARIA DA SILVA/);
-    expect(pedidos[0]!.corpo).toContain("02.332.886/0001-04");
+    expect(pedidos.map((x) => x.corpo).join()).not.toMatch(
+      /123\.456\.789-09|7654321|MARIA DA SILVA/,
+    );
+    expect(pedidos.map((x) => x.corpo).join()).toContain("02.332.886/0001-04");
   });
 
   it("nota escaneada exige visao e vem desmarcada", async () => {
@@ -206,7 +249,7 @@ describe("cache, limite e custo", () => {
     const { g, rodar } = base(m.armazem, porId("santander-coe").resposta);
     const primeira = await rodar();
     const segunda = await rodar();
-    expect(g.pedidos).toHaveLength(1);
+    expect(g.pedidos).toHaveLength(2);
     expect(primeira.do_cache).toBe(false);
     expect(segunda).toMatchObject({
       do_cache: true,
@@ -217,7 +260,7 @@ describe("cache, limite e custo", () => {
     expect(m.consumo).toHaveLength(1);
     expect(segunda.validacao).toEqual(primeira.validacao);
     await rodar(true);
-    expect(g.pedidos).toHaveLength(2);
+    expect(g.pedidos).toHaveLength(4);
   });
 
   it("limite diario barra a chamada nova, mas nao o cache", async () => {
@@ -229,7 +272,7 @@ describe("cache, limite e custo", () => {
       status: 429,
     });
     expect((await rodar()).do_cache).toBe(true);
-    expect(g.pedidos).toHaveLength(1);
+    expect(g.pedidos).toHaveLength(2);
   });
 
   it("erro do provedor sai sem a chave", async () => {
@@ -260,7 +303,7 @@ describe("cache, limite e custo", () => {
     }).catch((e: unknown) => e);
     expect(erro).toBeInstanceOf(ErroDeImportacao);
     expect((erro as Error).message).not.toContain(CHAVE);
-    expect((erro as Error).message).toMatch(/O modelo não devolveu a extração/);
+    expect((erro as Error).message).toMatch(/O provedor recusou a chave/);
   });
 });
 
@@ -278,7 +321,9 @@ describe("injecao de prompt", () => {
   it("o texto vai ao modelo como dado, dentro do bloco do documento", async () => {
     const { modelo, pedidos } = provedorGravado(fixtureInjecao.resposta);
     await executarFixture(fixtureInjecao, modelo);
-    const corpo = JSON.parse(pedidos[0]!.corpo) as {
+    const corpo = JSON.parse(
+      pedidos.find((x) => !x.corpo.includes("response_format"))!.corpo,
+    ) as {
       messages: { role: string; content: string }[];
     };
     const sistema = corpo.messages.find((m) => m.role === "system")!.content;
@@ -311,5 +356,87 @@ describe("injecao de prompt", () => {
     // O total falso some, e a carga fica sem conciliar: precisa de confirmacao.
     expect(obediente.validacao.conciliada).toBe(false);
     expect(saidas.join()).not.toContain(CHAVE);
+  });
+});
+
+describe("formato em texto: schema recusado, sem saida estruturada e resposta cortada", () => {
+  const nubank = () => FIXTURES.find((f) => f.id === "nubank-custodia-pdf")!;
+
+  it("o PDF de custodia da Nubank chega a revisao conciliado mesmo com a gramatica recusada", async () => {
+    const f = nubank();
+    const { modelo, pedidos } = provedorGravado(f.resposta, { semJson: true });
+    const r = await executarFixture(f, modelo);
+    // Cabecalho por schema (recusado), cabecalho em JSON de texto, linhas.
+    expect(pedidos).toHaveLength(3);
+    expect(r.validacao.conciliada).toBe(true);
+    expect(r.validacao.rejeicoes).toEqual([]);
+    expect(r.validacao.conciliacao[0]).toMatchObject({
+      corretora: "Nubank",
+      conciliada: true,
+    });
+  });
+
+  it("modelo sem saida estruturada nao manda schema nenhum", async () => {
+    const f = porId("santander-coe");
+    const { modelo, pedidos } = provedorGravado(f.resposta);
+    const r = await executarFixture(f, modelo, {
+      capacidades: { ...CAPACIDADES_COMPLETAS, saida_estruturada: false },
+    });
+    expect(pedidos.some((x) => x.corpo.includes("response_format"))).toBe(false);
+    expect(r.validacao.conciliada).toBe(true);
+  });
+
+  it("resposta cortada pelo limite divide o lote ao meio e refaz", async () => {
+    const f = porId("xp-posicao-detalhada");
+    const modelo = modeloDeRoteiro(f.resposta, { truncar: 1 });
+    const r = await executarFixture(f, modelo);
+    // 1 cabecalho, 1 cortada, 2 metades.
+    expect(modelo.doGenerateCalls).toHaveLength(4);
+    expect(r.validacao.linhas).toHaveLength(12);
+    expect(r.validacao.conciliada).toBe(true);
+  });
+
+  it("schema recusado no roteiro tambem cai para o JSON em texto", async () => {
+    const f = porId("santander-coe");
+    const modelo = modeloDeRoteiro(f.resposta, { recusarSchema: true });
+    const r = await executarFixture(f, modelo);
+    expect(r.validacao.conciliada).toBe(true);
+  });
+
+  it("recusa por tamanho vira mensagem clara; o texto do provedor fica so no log", async () => {
+    const f = porId("santander-coe");
+    const g = provedorGravado(
+      () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              message: "prompt is too long: 250000 tokens > 200000 maximum context",
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const log: string[] = [];
+    const erro = await importarComIA({
+      arquivo: await prepararArquivo(f.arquivo()),
+      original: null,
+      modelo: g.modelo,
+      provedor: "deepseek",
+      nome_do_modelo: "deepseek-flash",
+      preco: PRECO,
+      capacidades: { ...CAPACIDADES_COMPLETAS, saida_estruturada: false },
+      armazem: armazemEmMemoria().armazem,
+      verificador: verificadorDasFixtures(),
+      hoje: HOJE,
+      limite_diario: 10,
+      segredos: [CHAVE],
+      aoErrar: (d) => log.push(d),
+    }).catch((e: unknown) => e);
+    expect((erro as Error).message).toBe(
+      "O provedor recusou o pedido pelo tamanho (do formato ou do texto). Tente outro modelo ou divida o arquivo.",
+    );
+    expect((erro as ErroDeImportacao).detalhe).toMatch(/maximum context/);
+    expect(log.join()).toMatch(/maximum context/);
+    expect(log.join()).not.toContain("COE Santander");
   });
 });

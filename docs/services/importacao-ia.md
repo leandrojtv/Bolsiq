@@ -20,7 +20,8 @@ arquivo ou texto
                     PDF texto por página (pdf.js); página sem texto e imagem: visão
   4 anonimização    CPF, conta, agência, código de cliente, e-mail, telefone, CEP,
                     linhas de nome e endereço; CNPJ e códigos ficam
-  5 IA              generateObject, sem ferramentas, schema Zod, uma chamada por lote
+  5 IA              sem ferramentas: o cabeçalho uma vez (schema de 7 propriedades),
+                    as linhas por lote em blocos CSV de texto
   6 lotes           por página/aba, aba grande dividida repetindo o cabeçalho;
                     juntar e tirar repetidas (origem, ou ativo com os mesmos valores)
   7 validação       origem, layout, market-data, conciliação, nota de corretagem
@@ -33,9 +34,10 @@ arquivo ou texto
 | `recebimento.ts`           | limites, tipo e hash                                              |
 | `texto.ts`                 | texto por tipo, sem IA                                            |
 | `anonimizar.ts`            | o que identifica o titular sai                                    |
-| `esquema.ts`               | o schema de saída do modelo                                       |
+| `esquema.ts`               | `CabecalhoDaIA` (único schema enviado) e a estrutura interna      |
+| `saida-csv.ts`             | lê os blocos CSV da resposta; o inverso para o eval e o e2e       |
 | `lotes.ts`                 | divisão em chamadas abaixo de 100 mil tokens                      |
-| `extracao.ts`              | a chamada ao provedor e a junção das partes                       |
+| `extracao.ts`              | as chamadas ao provedor, fallback, divisão e junção das partes    |
 | `validacao.ts`             | origem, validadores do layout, market-data, conciliação, rateio   |
 | `conciliacao.ts`           | soma contra total declarado e o CSV de volta; também no navegador |
 | `pipeline.ts`              | recebimento, atalho, texto, anonimização, estimativa              |
@@ -49,25 +51,75 @@ Cada lote tem até 60% da saída máxima do modelo (`max_saida` em `modelos.json
 chamada (teste em `lotes.test.ts`). Documento acima de 300 mil tokens estimados é
 recusado: melhor dividir o arquivo por período ou conta.
 
-## Schema da saída
+## Formato da saída
 
-```
-documento   { tipo: posicao | transacoes | nota_corretagem | proventos | misto,
-              corretora, data_referencia, totais_declarados: [{ descricao, valor }] }
-posicoes    as 24 colunas do posicao_bolsiq, como texto
-transacoes  as 7 colunas do CSV Bolsiq, mais ativo_no_documento e nota
-proventos   data_pagamento, ticker, tipo, quantidade, valor_por_cota, valor_total
-notas       numero, data_pregao, taxas_total, irrf, valor_liquido, sentido_liquido
-avisos      o que o modelo não conseguiu interpretar
-```
+Duas chamadas por documento, nenhuma com ferramentas:
 
-Toda linha leva `origem: { pagina_ou_aba, trecho_original }` e `confianca: alta | media |
-baixa`. Os campos são texto de propósito, e vazio é "não informado", como no CSV: tipo errado
-rejeita a linha, não a resposta inteira. Nada é anulável: a saída estruturada da
-Anthropic recusa schema com mais de 16 campos com união de tipos (`string | null`), e um
-teste (`esquema.test.ts`) confere que o schema não tem nenhuma. O tipo de verdade é o de `LinhaDePosicao` e `Transacao`: cada linha volta ao CSV e
-passa por `importarPosicaoBolsiq` e `importarCsvBolsiq`. Provento vira transação
-`provento` (quantidade e valor por cota; sem quantidade, valor total com quantidade 1).
+1. **Cabeçalho**, uma vez, com as duas primeiras e as duas últimas páginas ou abas (onde
+   ficam data e totais): `generateObject` com `CabecalhoDaIA`.
+
+   ```
+   { tipo: posicao | transacoes | nota_corretagem | proventos | misto,
+     corretora, data_referencia, totais_declarados: [{ descricao, valor }], avisos }
+   ```
+
+2. **Linhas**, uma chamada por lote, com `generateText` e sem schema. O modelo devolve só
+   blocos CSV, um por tipo presente, com separador `;` e campo com `;` ou aspas entre
+   aspas (aspas internas duplicadas). O formato exato e um exemplo de cada bloco estão
+   em [prompt-normalizacao.md](../importacao/prompt-normalizacao.md#formato-da-resposta-da-importação-com-ia).
+
+   ````
+   ```csv posicoes      as 24 colunas do posicao_bolsiq + pagina_ou_aba;trecho_original;confianca
+   ```csv transacoes    as 7 do CSV Bolsiq + ativo_no_documento;nota + as 3 de origem
+   ```csv proventos     data_pagamento;ticker;tipo;quantidade;valor_por_cota;valor_total;corretora + origem
+   ```csv notas         numero;data_pregao;corretora;taxas_total;irrf;valor_liquido;sentido_liquido;pagina_ou_aba;trecho_original
+   ````
+
+### Por que CSV e não JSON estruturado
+
+A primeira versão mandava um schema só, com documento, quatro listas e 26 campos por
+linha. A saída estruturada estrita compila o schema numa gramática, e esse schema passou
+do limite: a Anthropic recusou primeiro pelas uniões de tipo (`string | null`, limite 16)
+e depois pelo tamanho da gramática ("The compiled grammar is too large"), para qualquer
+arquivo. CSV é o layout que o Bolsiq já lê, gasta menos tokens que JSON e não depende de
+recurso do provedor. O schema que sobra, o do cabeçalho, tem sete propriedades; um teste
+(`esquema.test.ts`) falha acima de 10, e o teste de integração confere o corpo de cada
+requisição.
+
+### Parser e tolerância
+
+`saida-csv.ts` extrai os blocos e ignora o texto fora deles. Cerca sem o tipo vale, com o
+tipo deduzido pelo cabeçalho; as colunas são lidas pelo nome, em qualquer ordem, com `;`
+ou `,` (o separador é detectado como no CSV de sempre, `detectarSeparador`, e as aspas
+pelo leitor do `posicao_bolsiq`). Linha com colunas a mais ou a menos vira rejeição com o
+motivo, sem derrubar o lote. Cabeçalho de bloco sem coluna obrigatória pede ao modelo uma
+correção do formato, uma vez; errado de novo, vira aviso e o lote segue sem aquele bloco.
+
+O resultado é a mesma `SaidaDaIA` de antes, agora só interna (e o que fica no cache):
+junção, deduplicação, conferência do trecho, conciliação e a tela não mudaram. Campo vazio
+é "não informado". O tipo de verdade continua o de `LinhaDePosicao` e `Transacao`: cada
+linha volta ao CSV e passa por `importarPosicaoBolsiq` e `importarCsvBolsiq`. Provento vira
+transação `provento` (quantidade e valor por cota; sem quantidade, valor total com
+quantidade 1).
+
+### Fallback e resposta cortada
+
+- **Cabeçalho sem saída estruturada.** Modelo sem `saida_estruturada`, ou provedor que
+  recusa o schema (HTTP 400, gramática, modo não suportado), responde em texto um bloco
+  ` ```json `, validado pelo mesmo `CabecalhoDaIA`. Sem JSON válido, a carga segue sem
+  totais declarados (não concilia, e a tela pede o aceite).
+- **Resposta cortada.** A saída máxima de cada chamada é estimada pelo tamanho do lote
+  (1,6 token de CSV por token lido, até `max_saida`). Com `finishReason: "length"`, o lote
+  é dividido ao meio (páginas, ou as linhas da página repetindo o cabeçalho da tabela) e
+  refeito, até três vezes.
+
+### Mensagens de erro
+
+Recusa do provedor por tamanho de schema ou de contexto aparece como "O provedor recusou
+o pedido pelo tamanho (do formato ou do texto). Tente outro modelo ou divida o arquivo.";
+chave recusada e limite de chamadas têm a mensagem deles. O texto bruto do provedor vai
+só para o log do web, limpo por `mensagemSegura` (sem chave, cortado) e sem o conteúdo do
+extrato.
 
 ## Validação
 
@@ -162,11 +214,13 @@ Em `packages/assistant/homologacao/modelos.json`, por modelo:
 
 | Campo         | Para quê                                                     |
 | ------------- | ------------------------------------------------------------ |
-| `capacidades` | `saida_estruturada` (obrigatória para importar) e `visao`    |
+| `capacidades` | `saida_estruturada` (preferência, só no cabeçalho) e `visao` |
 | `max_saida`   | tokens de saída por chamada; define o tamanho do lote        |
 | `importacao`  | `homologado` depois do `make eval-importacao`; `nao_testado` |
 
-Modelo fora da lista ou sem `saida_estruturada` não aparece como opção de importação.
+Para importar basta texto: qualquer modelo configurado importa, inclusive fora da lista
+(sem saída estruturada nem visão). `visao` continua obrigatória para PDF escaneado e
+imagem.
 As capacidades foram declaradas pela documentação dos provedores em
 `capacidades_conferidas_em`; nenhum modelo está homologado para importar ainda.
 
@@ -182,6 +236,7 @@ Fixtures em `packages/assistant/eval/importacao/fixtures.ts`, todas inventadas e
 | ------------------------ | ------------------------------------------------------------------------------------ |
 | `xp-posicao-detalhada`   | XLSX, abas de renda fixa, ações, FIIs, fundos, previdência, Tesouro, COE e proventos |
 | `nubank-renda-fixa`      | PDF com texto                                                                        |
+| `nubank-custodia-pdf`    | extrato de custódia da Nubank em PDF, duas páginas, total na última                  |
 | `santander-coe`          | texto colado                                                                         |
 | `b3-negociacao`          | XLSX da Área do Investidor, com fracionário                                          |
 | `nota-sinacor-pdf`       | nota de corretagem em PDF com texto                                                  |

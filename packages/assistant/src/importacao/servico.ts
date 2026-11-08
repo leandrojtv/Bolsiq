@@ -69,6 +69,8 @@ export interface PedidoDeImportacao {
   aceitou_enviar_imagem?: boolean;
   segredos: readonly string[];
   aoAvancar?: (etapa: Etapa, detalhe?: string) => void;
+  /** Detalhe tecnico das falhas do provedor, ja limpo, para o log. */
+  aoErrar?: (detalhe: string) => void;
   abortar?: AbortSignal;
 }
 
@@ -136,10 +138,13 @@ export async function importarComIA(
       const r = await extrairComIA({
         modelo: p.modelo,
         lotes: a.lotes,
+        partes: a.partes,
         arquivo_para_visao: a.arquivo_para_visao,
+        estruturada: p.capacidades.saida_estruturada,
         sem_texto: a.sem_texto,
         maxSaida: p.capacidades.max_saida,
         segredos: p.segredos,
+        ...(p.aoErrar ? { aoErrar: p.aoErrar } : {}),
         aoProgredir: (feitas, total) =>
           total > 1 &&
           feitas < total &&

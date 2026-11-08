@@ -144,6 +144,7 @@ const provento = (
 const saida = (
   s: Partial<SaidaDaIA> & { documento: SaidaDaIA["documento"] },
 ): SaidaDaIA => ({
+  malformadas: [],
   posicoes: [],
   transacoes: [],
   proventos: [],
@@ -645,6 +646,160 @@ const fixtureNubank: Fixture = {
       {
         tipo: "posicao",
         campos: { ativo: "RDB Prefixado", taxa_aa: "0.135", saldo_bruto: "2201.11" },
+      },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// 2b. Extrato de custodia da Nubank (Nu Invest), PDF de duas paginas
+// ---------------------------------------------------------------------------
+
+const CUSTODIA: LinhaDoPdf[][] = [
+  [
+    "Nu Invest - Extrato de Custódia",
+    "Nome: ANA BEATRIZ COSTA",
+    "CPF: 321.654.987-11",
+    "Conta: 1122334-5",
+    "Posição em 31/10/2026",
+    "Ações",
+    ["Ativo", "Quantidade", "Fechamento", "Valor"],
+    ["PETR4 - PETROBRAS PN", "120", "38,42", "4.610,40"],
+    ["BBAS3 - BANCO DO BRASIL", "200", "27,15", "5.430,00"],
+    "Fundos Imobiliários",
+    ["KNRI11 - KINEA RENDA", "40", "142,30", "5.692,00"],
+    "ETFs",
+    ["IVVB11 - ISHARES SP500", "15", "352,10", "5.281,50"],
+  ],
+  [
+    "Renda Fixa e Tesouro Direto",
+    ["Título", "Vencimento", "Quantidade", "Valor"],
+    ["Tesouro Selic 2029", "01/03/2029", "0,85", "14.035,54"],
+    ["CDB Nu 110% CDI", "15/06/2027", "", "8.250,00"],
+    ["Total em custódia", "43.299,44"],
+  ],
+];
+const custodia = (pagina: number, linha: number, campos: Partial<PosicaoDaIA>) =>
+  posicao(`página ${pagina}`, colunas(CUSTODIA[pagina - 1]?.[linha] as string[]), {
+    data_posicao: "2026-10-31",
+    corretora: "Nubank",
+    ...campos,
+  });
+const rv = (
+  codigo: string,
+  classe: string,
+  quantidade: string,
+  preco: string,
+  saldo: string,
+) => ({
+  classe,
+  ativo: codigo,
+  codigo,
+  quantidade,
+  preco_unitario: preco,
+  saldo_bruto: saldo,
+  valorizacao: "cotacao_b3",
+});
+
+const fixtureCustodia: Fixture = {
+  id: "nubank-custodia-pdf",
+  descricao:
+    "Extrato de custódia da Nubank em PDF: ações, FII, ETF, Tesouro e CDB, total na última página",
+  arquivo: () => ({
+    nome: "Nubank_Extrato_de_Custodia[31_10_26].pdf",
+    mime: "application/pdf",
+    bytes: pdfDeTexto(CUSTODIA),
+  }),
+  resposta: saida({
+    documento: {
+      tipo: "posicao",
+      corretora: "Nubank",
+      data_referencia: "2026-10-31",
+      totais_declarados: [{ descricao: "Total em custódia", valor: "43299.44" }],
+    },
+    posicoes: [
+      custodia(1, 7, rv("PETR4", "acao", "120", "38.42", "4610.40")),
+      custodia(1, 8, rv("BBAS3", "acao", "200", "27.15", "5430.00")),
+      custodia(1, 10, rv("KNRI11", "fii", "40", "142.30", "5692.00")),
+      custodia(1, 12, rv("IVVB11", "etf", "15", "352.10", "5281.50")),
+      custodia(2, 2, {
+        classe: "titulo_publico",
+        ativo: "Tesouro Selic 2029",
+        codigo: "LFT_2029-03-01",
+        indexador: "SELIC",
+        vencimento: "2029-03-01",
+        quantidade: "0.85",
+        saldo_bruto: "14035.54",
+        valorizacao: "tesouro",
+      }),
+      custodia(2, 3, {
+        classe: "renda_fixa",
+        ativo: "CDB Nu 110% CDI",
+        emissor: "Nu Financeira",
+        indexador: "CDI",
+        pct_indexador: "1.10",
+        vencimento: "2027-06-15",
+        saldo_bruto: "8250.00",
+        valorizacao: "curva",
+      }),
+    ],
+  }),
+  esperado: {
+    conciliada: true,
+    linhas: [
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "acao",
+          codigo: "PETR4",
+          quantidade: "120",
+          saldo_bruto: "4610.40",
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "acao",
+          codigo: "BBAS3",
+          quantidade: "200",
+          saldo_bruto: "5430",
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "fii",
+          codigo: "KNRI11",
+          quantidade: "40",
+          saldo_bruto: "5692",
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "etf",
+          codigo: "IVVB11",
+          quantidade: "15",
+          saldo_bruto: "5281.50",
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "titulo_publico",
+          ativo: "Tesouro Selic 2029",
+          quantidade: "0.85",
+          saldo_bruto: "14035.54",
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "renda_fixa",
+          ativo: "CDB Nu 110% CDI",
+          pct_indexador: "1.10",
+          saldo_bruto: "8250",
+        },
       },
     ],
   },
@@ -1190,6 +1345,7 @@ export const respostaObediente: SaidaDaIA = {
 export const FIXTURES: Fixture[] = [
   fixtureXp,
   fixtureNubank,
+  fixtureCustodia,
   fixtureSantander,
   fixtureB3,
   fixtureNota,

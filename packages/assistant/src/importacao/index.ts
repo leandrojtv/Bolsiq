@@ -8,6 +8,7 @@ export * from "./conciliacao.js";
 export * from "./validacao.js";
 export * from "./pipeline.js";
 export * from "./servico.js";
+export * from "./saida-csv.js";
 export {
   SISTEMA_DE_IMPORTACAO,
   VERSAO_DO_PROMPT_DE_IMPORTACAO,

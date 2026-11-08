@@ -16,6 +16,8 @@ export class ErroDeImportacao extends Error {
     readonly status = 422,
     /** Tokens ja gastos antes da falha: entram no consumo do mesmo jeito. */
     readonly uso: Uso | null = null,
+    /** Texto tecnico do provedor, ja limpo: vai para o log, nunca para a tela. */
+    readonly detalhe: string | null = null,
   ) {
     super(mensagem);
   }

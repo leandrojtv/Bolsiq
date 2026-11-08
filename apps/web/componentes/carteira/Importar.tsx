@@ -2,17 +2,22 @@
 
 import { useState, type FormEvent } from "react";
 import { Button, SegmentedControl, formatarDinheiro } from "@bolsiq/ui";
+import type { Atalho } from "@bolsiq/assistant/puro";
 import type { DecisaoDeDivergencia, RevisaoDeCarga } from "@bolsiq/portfolio";
 import type { RelatorioNaTela } from "@/lib/carteira";
 import { dataCompleta, ehLayoutDePosicao } from "@/lib/carteira-modelo";
 import { importarArquivo, revisarPosicao, type FormatoDeImportacao } from "./cliente";
+import { ImportarComIA } from "./ImportarComIA";
 
-const AJUDA: Record<FormatoDeImportacao, string> = {
+type Aba = FormatoDeImportacao | "ia";
+
+const AJUDA: Record<Aba, string> = {
   bolsiq:
     "Colunas: data; ticker; tipo; quantidade; preco; taxas; corretora. Separador ; ou , e número em pt-BR.",
   b3: "Arquivo de movimentação exportado da Área do Investidor da B3, em CSV.",
   posicao_bolsiq:
     "Fotografia da carteira numa data, com renda fixa, Tesouro, fundos, previdência e COE. Você revisa antes de confirmar.",
+  ia: "Qualquer formato, de qualquer banco ou corretora: a IA do assistente converte, o Bolsiq confere cada linha contra o documento e você revisa antes de gravar.",
 };
 
 /**
@@ -26,7 +31,7 @@ export function Importar({
   carteira: string;
   onImportado: () => void;
 }) {
-  const [formato, setFormato] = useState<FormatoDeImportacao>("bolsiq");
+  const [formato, setFormato] = useState<Aba>("bolsiq");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [revisao, setRevisao] = useState<RevisaoDeCarga | null>(null);
   const [relatorio, setRelatorio] = useState<RelatorioNaTela | null>(null);
@@ -64,6 +69,7 @@ export function Importar({
         setRevisao(await revisarPosicao(carteira, arquivo));
         return;
       }
+      if (formato === "ia") return;
       setRelatorio(await importarArquivo(carteira, arquivo, formato));
       onImportado();
     });
@@ -78,22 +84,51 @@ export function Importar({
     });
   }
 
+  /** Arquivo que a IA reconheceu como layout do Bolsiq: segue pelo importador sem IA. */
+  function reconhecido(atalho: Atalho, f: File) {
+    setFormato(atalho);
+    setArquivo(f);
+    setRevisao(null);
+    setRelatorio(null);
+    setErro(`${f.name} já está no layout ${atalho}: importe sem IA.`);
+  }
+
+  const seletor = (
+    <SegmentedControl<Aba>
+      label="Formato"
+      value={formato}
+      onChange={(f) => {
+        setFormato(f);
+        setRevisao(null);
+      }}
+      options={[
+        { value: "bolsiq", label: "CSV Bolsiq" },
+        { value: "b3", label: "Extrato B3" },
+        { value: "posicao_bolsiq", label: "Posições" },
+        { value: "ia", label: "Com IA" },
+      ]}
+    />
+  );
+
+  if (formato === "ia")
+    return (
+      <div className="flex flex-col gap-4">
+        {seletor}
+        <p className="m-0 text-[13px] text-text-2">
+          <strong>Importar com IA (qualquer formato).</strong> {AJUDA.ia}
+        </p>
+        <ImportarComIA
+          carteira={carteira}
+          onImportado={onImportado}
+          onAtalho={reconhecido}
+        />
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={enviar} className="flex flex-col gap-3">
-        <SegmentedControl<FormatoDeImportacao>
-          label="Formato"
-          value={formato}
-          onChange={(f) => {
-            setFormato(f);
-            setRevisao(null);
-          }}
-          options={[
-            { value: "bolsiq", label: "CSV Bolsiq" },
-            { value: "b3", label: "Extrato B3" },
-            { value: "posicao_bolsiq", label: "Posições" },
-          ]}
-        />
+        {seletor}
         <p className="m-0 text-[13px] text-text-2">{AJUDA[formato]}</p>
         <label className="flex flex-col gap-1.5 text-xs text-text-3">
           Arquivo CSV
@@ -142,7 +177,7 @@ export function Importar({
   );
 }
 
-function Rejeicoes({ itens }: { itens: RelatorioNaTela["rejeicoes"] }) {
+export function Rejeicoes({ itens }: { itens: RelatorioNaTela["rejeicoes"] }) {
   return (
     <div className="max-h-64 overflow-auto rounded-control border border-border">
       <table className="w-full border-collapse text-[12px]">
@@ -160,8 +195,8 @@ function Rejeicoes({ itens }: { itens: RelatorioNaTela["rejeicoes"] }) {
           </tr>
         </thead>
         <tbody>
-          {itens.map((r) => (
-            <tr key={r.linha} className="border-t border-border align-top">
+          {itens.map((r, i) => (
+            <tr key={`${r.linha}-${i}`} className="border-t border-border align-top">
               <td className="p-2 font-mono">{r.linha}</td>
               <td className="p-2">{r.motivo}</td>
               <td className="p-2 font-mono break-all text-text-2">{r.conteudo}</td>
@@ -204,14 +239,17 @@ function ListaDeLinhas({
   );
 }
 
-function Revisao({
+export function Revisao({
   revisao: r,
   enviando,
   onConfirmar,
+  bloqueio = null,
 }: {
   revisao: RevisaoDeCarga;
   enviando: boolean;
   onConfirmar: (decisoes: DecisaoDeDivergencia[]) => void;
+  /** Motivo para nao confirmar ainda (carga com IA nao conciliada). */
+  bloqueio?: string | null;
 }) {
   const chave = (d: { corretora: string; ticker: string }) =>
     `${d.corretora}|${d.ticker}`;
@@ -361,9 +399,12 @@ function Revisao({
         </Grupo>
       )}
 
+      {bloqueio && <p className="m-0 text-xs text-warn">{bloqueio}</p>}
       <Button
         variant="primary"
-        disabled={enviando || r.recusas.length > 0 || r.linhas_aceitas === 0}
+        disabled={
+          enviando || r.recusas.length > 0 || r.linhas_aceitas === 0 || bloqueio !== null
+        }
         onClick={() => onConfirmar(decisoes)}
       >
         {enviando ? "Gravando…" : "Confirmar importação"}

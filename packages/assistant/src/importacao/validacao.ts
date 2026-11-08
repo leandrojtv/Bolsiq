@@ -334,7 +334,8 @@ function conferirPosicao(fontes: Fontes, p: PosicaoDaIA): Conferida {
     comTicker
       ? { grafias: [texto(p.codigo)], rotulo: `ticker ${texto(p.codigo)}` }
       : {
-          grafias: [texto(p.codigo), ...palavrasDoNome(texto(p.ativo))],
+          // O nome inteiro tambem vale: "CDB Nu 110% CDI" nao tem palavra de 4 letras.
+          grafias: [texto(p.codigo), texto(p.ativo), ...palavrasDoNome(texto(p.ativo))],
           rotulo: `ativo ${texto(p.ativo)}`,
         },
   );
@@ -545,6 +546,19 @@ export async function validarExtracao(
     });
 
   // Total declarado que nao esta no documento foi inventado: sai da conciliacao.
+  // Linha de bloco CSV que nao se leu: rejeicao com o motivo, como no CSV de sempre.
+  for (const m of saida.malformadas)
+    rejeitar(
+      m.tipo === "posicoes"
+        ? "posicao"
+        : m.tipo === "proventos"
+          ? "provento"
+          : "transacao",
+      `linha do bloco ${m.tipo}: ${m.motivo}`,
+      null,
+      m.conteudo,
+    );
+
   // Documento todo em imagem nao tem texto para conferir: o total fica, com aviso.
   const semTextoNenhum = fontes.numerosDoDocumento.length === 0;
   if (semTextoNenhum && saida.documento.totais_declarados.length > 0)

@@ -75,3 +75,33 @@ export function dentroDoLimite(
 ): boolean {
   return tokensDaChamada(l) + maxSaida < LIMITE_DE_TOKENS;
 }
+
+/**
+ * Metade das paginas ou abas para cada lado; lote de uma pagina so divide as
+ * linhas dela, repetindo o cabecalho da tabela. Nulo quando nao ha o que dividir.
+ */
+export function dividirLoteAoMeio(l: Lote): [Lote, Lote] | null {
+  if (l.partes.length > 1) {
+    const meio = Math.ceil(l.partes.length / 2);
+    return [{ partes: l.partes.slice(0, meio) }, { partes: l.partes.slice(meio) }];
+  }
+  const [unica] = l.partes;
+  if (!unica) return null;
+  const pedacos = dividirParte(unica, Math.ceil(estimarTokens(unica.texto) / 2) + 1);
+  if (pedacos.length < 2) return null;
+  const meio = Math.ceil(pedacos.length / 2);
+  const juntar = (ps: Parte[]): Parte => ({
+    origem: unica.origem,
+    texto: ps
+      .map((x, i) =>
+        i === 0 ? x.texto : x.texto.split("\n").slice(cabecalhoDe(x.texto)).join("\n"),
+      )
+      .join("\n"),
+  });
+  return [
+    { partes: [juntar(pedacos.slice(0, meio))] },
+    { partes: [juntar(pedacos.slice(meio))] },
+  ];
+}
+
+const cabecalhoDe = (texto: string) => (texto.startsWith("[separador") ? 2 : 0);

@@ -2,16 +2,15 @@ import { z } from "zod";
 import { COLUNAS_BOLSIQ, COLUNAS_POSICAO } from "@bolsiq/portfolio";
 
 /**
- * O que o modelo devolve. Os campos sao os mesmos do layout de posicao
- * (`COLUNAS_POSICAO`) e do CSV de transacoes (`COLUNAS_BOLSIQ`), todos como texto:
- * o tipo de verdade e de `LinhaDePosicao` e `Transacao`, que conferem cada linha
- * depois. Assim um campo errado rejeita a linha, nao a resposta inteira, e o
- * validador e um so para o CSV e para a IA.
+ * Estrutura INTERNA da extracao: o que o parser monta a partir dos blocos CSV
+ * que o modelo devolve, e o que fica no cache. Nao vai ao modelo como schema:
+ * a saida estruturada estrita compila o schema numa gramatica, e um schema com
+ * 26 campos por linha em quatro listas passa do limite dos provedores (ADR 0026,
+ * Revisao). O unico schema enviado e `CabecalhoDaIA`.
  *
- * Tudo obrigatorio e texto, sem `optional` nem `nullable`: vazio e "nao
- * informado", como no CSV. A saida estruturada estrita da OpenAI exige todos os
- * campos em `required`, e a da Anthropic aceita no maximo 16 campos com uniao de
- * tipos (`string | null` e uniao); com 24 colunas anulaveis o schema era recusado.
+ * Os campos sao os do layout de posicao (`COLUNAS_POSICAO`) e do CSV de
+ * transacoes (`COLUNAS_BOLSIQ`), como texto; vazio e "nao informado". O tipo de
+ * verdade e de `LinhaDePosicao` e `Transacao`, que conferem cada linha depois.
  */
 const texto = z.string();
 
@@ -96,6 +95,10 @@ export const SaidaDaIA = z.object({
   proventos: z.array(ProventoDaIA),
   notas: z.array(NotaDaIA),
   avisos: z.array(z.string()),
+  /** Linhas dos blocos CSV que o parser nao conseguiu ler: viram rejeicao. */
+  malformadas: z
+    .array(z.object({ tipo: z.string(), motivo: z.string(), conteudo: z.string() }))
+    .default([]),
 });
 export type SaidaDaIA = z.infer<typeof SaidaDaIA>;
 
@@ -111,4 +114,49 @@ export const saidaVazia = (): SaidaDaIA => ({
   proventos: [],
   notas: [],
   avisos: [],
+  malformadas: [],
 });
+
+/**
+ * O unico schema que vai ao provedor: o cabecalho do documento, pedido uma vez,
+ * com as primeiras e as ultimas paginas. Sete propriedades, nenhuma anulavel.
+ */
+export const CabecalhoDaIA = z.object({
+  tipo: TipoDeDocumento,
+  corretora: z.string(),
+  data_referencia: z.string(),
+  totais_declarados: z.array(z.object({ descricao: z.string(), valor: z.string() })),
+  avisos: z.array(z.string()),
+});
+export type CabecalhoDaIA = z.infer<typeof CabecalhoDaIA>;
+
+const ORIGEM = ["pagina_ou_aba", "trecho_original", "confianca"] as const;
+
+/** Colunas de cada bloco ```csv <tipo>```, na ordem em que o prompt pede. */
+export const COLUNAS_DO_BLOCO = {
+  posicoes: [...COLUNAS_POSICAO, ...ORIGEM],
+  transacoes: [...COLUNAS_BOLSIQ, "ativo_no_documento", "nota", ...ORIGEM],
+  proventos: [
+    "data_pagamento",
+    "ticker",
+    "tipo",
+    "quantidade",
+    "valor_por_cota",
+    "valor_total",
+    "corretora",
+    ...ORIGEM,
+  ],
+  notas: [
+    "numero",
+    "data_pregao",
+    "corretora",
+    "taxas_total",
+    "irrf",
+    "valor_liquido",
+    "sentido_liquido",
+    "pagina_ou_aba",
+    "trecho_original",
+  ],
+} as const;
+export type TipoDeBloco = keyof typeof COLUNAS_DO_BLOCO;
+export const TIPOS_DE_BLOCO = Object.keys(COLUNAS_DO_BLOCO) as TipoDeBloco[];

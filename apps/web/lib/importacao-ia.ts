@@ -32,7 +32,13 @@ import {
   type RevisaoDeCarga,
 } from "@bolsiq/portfolio";
 import { banco } from "./analytics";
-import { baseDoProvedor, ErroDoAssistente, inicioDoDia, mestra } from "./assistente";
+import {
+  baseDoProvedor,
+  ErroDoAssistente,
+  inicioDoDia,
+  mestra,
+  registrarErro,
+} from "./assistente";
 import {
   importar,
   importarPosicao,
@@ -87,7 +93,8 @@ export async function estadoDaImportacaoIA(uid: string): Promise<EstadoDaImporta
     configurado: Boolean(provedor && modelo),
     provedor,
     modelo,
-    pode_importar: c?.saida_estruturada ?? false,
+    // Basta texto: as linhas vem em CSV (ADR 0026, Revisao).
+    pode_importar: c !== null,
     visao: c?.visao ?? false,
     consentiu: Boolean(s?.consentimento_importacao_em),
     guardar_original: s?.guardar_original ?? false,
@@ -368,6 +375,7 @@ export async function processarImportacaoIA(
     reprocessar: o.reprocessar,
     aceitou_enviar_imagem: o.aceitarImagem,
     segredos: a.chave ? [a.chave] : [],
+    aoErrar: (detalhe) => registrarErro(`importacao: ${detalhe}`),
     aoAvancar: (etapa, detalhe) => o.aoAvancar(nome, etapa, detalhe),
     ...(o.abortar ? { abortar: o.abortar } : {}),
   });

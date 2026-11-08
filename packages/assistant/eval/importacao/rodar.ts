@@ -40,12 +40,9 @@ if (real && !NOMES_DE_PROVEDOR.includes(EVAL_PROVEDOR as Provedor)) {
 const capacidades = real
   ? capacidadesDoModelo(EVAL_PROVEDOR as Provedor, EVAL_MODELO as string)
   : { saida_estruturada: true, visao: true, max_saida: 16_000 };
-if (real && !capacidades.saida_estruturada) {
-  process.stderr.write(
-    `${EVAL_PROVEDOR}/${EVAL_MODELO} sem "saida_estruturada" em modelos.json: não importa.\n`,
-  );
-  process.exit(2);
-}
+// Basta texto: sem saida estruturada, o cabecalho vai por JSON em texto.
+if (real && !capacidades.saida_estruturada)
+  escrever(`${EVAL_PROVEDOR}/${EVAL_MODELO} sem saída estruturada: cabeçalho por JSON em texto.`);
 
 const fixtures = (
   EVAL_FIXTURES

@@ -28,6 +28,9 @@ describe("capacidades por modelo", () => {
       "deepseek-flash",
       "deepseek-v4-pro",
     ]);
-    expect(modelosParaImportar("ollama")).toEqual([]);
+    // Basta texto: o modelo sem saida estruturada tambem aparece.
+    expect(modelosParaImportar("ollama").map((m) => m.modelo)).toEqual([
+      "deepseek-coder-v2:latest",
+    ]);
   });
 });

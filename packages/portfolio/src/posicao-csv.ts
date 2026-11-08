@@ -188,7 +188,9 @@ export function importarPosicaoBolsiq(conteudo: string): RelatorioDeImportacaoDe
   if (!primeira) return relatorio([], []);
 
   const separador = detectarSeparador(primeira.texto);
-  const cabecalho = dividir(primeira.texto, separador).map((c) => c.trim().toLowerCase());
+  const cabecalho = dividirCsv(primeira.texto, separador).map((c) =>
+    c.trim().toLowerCase(),
+  );
   if (cabecalho.join() !== COLUNAS_POSICAO.join()) {
     const faltando = COLUNAS_POSICAO.filter((c) => !cabecalho.includes(c));
     return relatorio(
@@ -211,7 +213,7 @@ export function importarPosicaoBolsiq(conteudo: string): RelatorioDeImportacaoDe
     rejeicoes.push({ linha, motivo, conteudo: bruta });
 
   for (const { texto, linha } of numeradas.slice(1)) {
-    const campos = dividir(texto, separador);
+    const campos = dividirCsv(texto, separador);
     if (campos.length !== COLUNAS_POSICAO.length) {
       rejeitar(
         linha,
@@ -332,7 +334,7 @@ function totais(posicoes: PosicaoLida[]): TotalDaCorretora[] {
 }
 
 /** Separa respeitando aspas: `"COE, Ouro"` e um campo so, e `""` e aspa literal. */
-function dividir(linha: string, separador: string): string[] {
+export function dividirCsv(linha: string, separador: string): string[] {
   const campos: string[] = [];
   let atual = "";
   let entreAspas = false;

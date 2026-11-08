@@ -24,6 +24,8 @@ Painel (apps/web) --POST /api/assistente/chat--> BFF
 | `src/orcamento.ts`      | abaixo de 100 mil tokens por chamada, custo                      |
 | `src/conversa.ts`       | a chamada ao provedor, igual no BFF e no eval                    |
 | `prompts/sistema-v1.ts` | system prompt versionado                                         |
+| `src/importacao/`       | importação com IA ([importacao-ia.md](importacao-ia.md))         |
+| `prompts/importacao-*`  | prompt da importação, gerado do Markdown                         |
 | `homologacao/`          | modelos testados e resultado do eval de cada um                  |
 | `eval/`                 | perguntas, base de teste e medidas                               |
 
@@ -124,7 +126,8 @@ de novo. Não há rotação automática.
 | `investor_profiles` | `user_id` | documento validado por `PerfilDoInvestidor`           |
 | `conversations`     | `id`      | título, tokens e custo acumulados                     |
 | `messages`          | `id`      | partes da mensagem, com os passos de ferramenta       |
-| `usage`             | `id`      | uma linha por turno; append-only para a aplicação     |
+| `usage`             | `id`      | uma linha por turno ou importação; append-only        |
+| `extractions`       | `id`      | cache da importação com IA: JSON extraído e relatório |
 
 RLS forçada em todas, pelo `comoUsuario` do portfolio. Migrations aplicadas pelo
 `portfolio-migrate`. Exportação e exclusão LGPD em `/configuracoes/conta` cobrem o schema;
@@ -138,6 +141,8 @@ a chave cifrada não entra na exportação.
 - Histórico: até 20 mensagens, só o texto. Resposta de ferramenta acima de 24 mil caracteres
   é cortada.
 - Limite de mensagens por dia em `ASSISTANT_DAILY_MESSAGES`. Turno que falhou também conta.
+- `usage.origem` separa `chat` de `importacao`: o limite de mensagens conta só o chat; a
+  importação tem o seu (`ASSISTANT_IMPORT_DAILY`).
 - Consumo do mês em `/configuracoes/assistente`.
 
 ## Variáveis

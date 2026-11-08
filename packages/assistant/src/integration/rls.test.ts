@@ -62,6 +62,12 @@ beforeAll(async () => {
       "INSERT INTO assistant.investor_profiles (user_id, perfil) VALUES ($1, '{}')",
       [uid],
     );
+    await c.query(
+      `INSERT INTO assistant.extractions (id, user_id, hash, versao_prompt, provedor, modelo,
+         nome_arquivo, tipo_arquivo, extraido, tokens_entrada, tokens_saida)
+       VALUES ($1, $1, 'h', 'importacao-v1', 'deepseek', 'm', 'x.pdf', 'pdf', '{}', 1, 1)`,
+      [uid],
+    );
     await c.query("COMMIT");
     c.release();
   }
@@ -72,7 +78,14 @@ afterAll(async () => {
   await container?.stop();
 });
 
-const TABELAS = ["settings", "investor_profiles", "conversations", "messages", "usage"];
+const TABELAS = [
+  "settings",
+  "investor_profiles",
+  "conversations",
+  "messages",
+  "usage",
+  "extractions",
+];
 
 describe("RLS do schema assistant", () => {
   it("toda tabela tem RLS forcada", async () => {
@@ -126,5 +139,16 @@ describe("RLS do schema assistant", () => {
     await expect(
       como("a", (c) => c.query("delete from assistant.usage where user_id = 'a'")),
     ).rejects.toThrow(/permission denied/);
+  });
+
+  it("cache de importacao com IA e de cada usuario", async () => {
+    const linhas = await como("a", async (c) => {
+      return (
+        await c.query<{ user_id: string }>(
+          "select user_id from assistant.extractions where hash = 'h'",
+        )
+      ).rows;
+    });
+    expect(linhas).toEqual([{ user_id: "a" }]);
   });
 });

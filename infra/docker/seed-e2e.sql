@@ -16,7 +16,9 @@ VALUES
   ('HGLG11', 'HGLG11', 'BRHGLGCTF004', '11728688000147', NULL, 'CSHG LOG', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
   ('KNCR11', 'KNCR11', 'BRKNCRCTF000', '16706958000132', NULL, 'KINEA RENDIM', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
   ('XPML11', 'XPML11', 'BRXPMLCTF000', '28757546000100', NULL, 'XP MALLS', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
-  ('BOVA11', 'BOVA11', 'BRBOVACTF003', NULL, NULL, 'ISHARES BOVA', NULL, 'etf', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e')
+  ('BOVA11', 'BOVA11', 'BRBOVACTF003', NULL, NULL, 'ISHARES BOVA', NULL, 'etf', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
+  -- Importacao com IA: a posicao da XP traz MXRF11.
+  ('MXRF11', 'MXRF11', 'BRMXRFCTF002', '97521225000125', NULL, 'MAXI RENDA', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e')
 ON CONFLICT (id) DO NOTHING;
 
 -- 180 dias uteis ate ontem, com tendencia e oscilacao deterministica.

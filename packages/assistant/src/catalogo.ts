@@ -29,6 +29,8 @@ export interface ModeloClassificado extends ModeloListado {
   aviso: string | null;
 }
 
+export type Capacidade = "saida_estruturada" | "visao";
+
 interface Registro {
   provedor: string;
   modelo: string;
@@ -36,6 +38,12 @@ interface Registro {
   preco_entrada: number | null;
   preco_saida: number | null;
   avaliacao?: string;
+  capacidades?: Capacidade[];
+  /** Teto de tokens de saida por chamada, para dividir o documento na importacao. */
+  max_saida?: number;
+  /** Resultado do `make eval-importacao`: "homologado" ou "nao_testado". */
+  importacao?: string;
+  avaliacao_importacao?: string;
 }
 
 const REGISTROS = lista.modelos as Registro[];
@@ -71,4 +79,42 @@ export function classificarModelo(
   if (r?.status === "homologado")
     return { ...comPreco, status: "homologado", aviso: null };
   return { ...comPreco, status: "experimental", aviso: AVISO_EXPERIMENTAL };
+}
+
+export interface CapacidadesDoModelo {
+  saida_estruturada: boolean;
+  visao: boolean;
+  max_saida: number;
+  homologado_para_importar: boolean;
+}
+
+/**
+ * Capacidades declaradas em `modelos.json`. Fora da lista nao ha como saber, e a
+ * importacao com IA exige saida estruturada: modelo desconhecido nao importa.
+ */
+export function capacidadesDoModelo(
+  provedor: Provedor,
+  modelo: string,
+): CapacidadesDoModelo {
+  const r = registroDoModelo(provedor, modelo);
+  const c = r?.capacidades ?? [];
+  return {
+    saida_estruturada: c.includes("saida_estruturada"),
+    visao: c.includes("visao"),
+    max_saida: r?.max_saida ?? 8_000,
+    homologado_para_importar: r?.importacao === "homologado",
+  };
+}
+
+/** Modelos do provedor que podem importar: a lista do "reprocessar com outro modelo". */
+export function modelosParaImportar(
+  provedor: Provedor,
+): { modelo: string; visao: boolean; homologado: boolean }[] {
+  return REGISTROS.filter(
+    (r) => r.provedor === provedor && r.capacidades?.includes("saida_estruturada"),
+  ).map((r) => ({
+    modelo: r.modelo,
+    visao: r.capacidades?.includes("visao") ?? false,
+    homologado: r.importacao === "homologado",
+  }));
 }

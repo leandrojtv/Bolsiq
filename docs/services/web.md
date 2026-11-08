@@ -204,6 +204,9 @@ Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
 - Nova transação e importação em sheet (embaixo no celular), com relatório
   das linhas rejeitadas. Arquivo de posições, reconhecido pelo cabeçalho, passa
   por revisão antes de gravar ([layout](portfolio.md#layout-de-posicao)).
+- "Com IA": extrato em qualquer formato, de qualquer instituição, vários arquivos ou
+  texto colado; estimativa de custo, progresso por etapa e a mesma revisão, com
+  confiança, trecho de origem e edição por linha ([importacao-ia.md](importacao-ia.md)).
 - Colunas de Posições: Ativo, Qtd., Preço médio, Cotação, Custo, Atual (valor de
   mercado), Não realizado, Realizado e Proventos. Segue o design, mais a Cotação,
   que o design não prevê.

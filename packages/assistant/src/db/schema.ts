@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -7,6 +8,7 @@ import {
   pgSchema,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -32,6 +34,10 @@ export const settings = assistant.table("settings", {
   preco_entrada: numeric("preco_entrada", { precision: 14, scale: 6 }),
   preco_saida: numeric("preco_saida", { precision: 14, scale: 6 }),
   consentimento_em: utc("consentimento_em"),
+  /** A importacao com IA tem consentimento proprio: o documento vai ao provedor. */
+  consentimento_importacao_em: utc("consentimento_importacao_em"),
+  /** Guardar o arquivo original das importacoes com IA. Padrao: nao. */
+  guardar_original: boolean("guardar_original").notNull().default(false),
   atualizado_em: utc("atualizado_em").notNull().defaultNow(),
 });
 
@@ -86,10 +92,56 @@ export const usage = assistant.table(
     provedor: text("provedor").notNull(),
     modelo: text("modelo").notNull(),
     plataforma: boolean("plataforma").notNull().default(false),
+    /** `chat` ou `importacao`: o limite de mensagens conta so o chat. */
+    origem: text("origem").notNull().default("chat"),
     tokens_entrada: integer("tokens_entrada").notNull(),
     tokens_saida: integer("tokens_saida").notNull(),
     custo_estimado: numeric("custo_estimado", { precision: 14, scale: 6 }),
     criado_em: utc("criado_em").notNull().defaultNow(),
   },
   (t) => [index("usage_user_idx").on(t.user_id, t.criado_em)],
+);
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+/**
+ * Importacao com IA: o cache e o relatorio. A chave do cache e o hash do arquivo,
+ * a versao do prompt e o modelo; o mesmo arquivo nao vai ao provedor duas vezes.
+ * O arquivo original so fica com `guardar_original` (LGPD: sai com a conta).
+ */
+export const extractions = assistant.table(
+  "extractions",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    hash: text("hash").notNull(),
+    versao_prompt: text("versao_prompt").notNull(),
+    provedor: text("provedor").notNull(),
+    modelo: text("modelo").notNull(),
+    nome_arquivo: text("nome_arquivo").notNull(),
+    tipo_arquivo: text("tipo_arquivo").notNull(),
+    /** O JSON que o modelo devolveu, ja juntado das partes. */
+    extraido: jsonb("extraido").notNull(),
+    /** Validacao e conciliacao, para o historico. */
+    relatorio: jsonb("relatorio"),
+    tokens_entrada: integer("tokens_entrada").notNull(),
+    tokens_saida: integer("tokens_saida").notNull(),
+    custo_estimado: numeric("custo_estimado", { precision: 14, scale: 6 }),
+    original: bytea("original"),
+    original_mime: text("original_mime"),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+    confirmado_em: utc("confirmado_em"),
+  },
+  (t) => [
+    uniqueIndex("extractions_cache_idx").on(
+      t.user_id,
+      t.hash,
+      t.versao_prompt,
+      t.provedor,
+      t.modelo,
+    ),
+    index("extractions_user_idx").on(t.user_id, t.criado_em),
+  ],
 );

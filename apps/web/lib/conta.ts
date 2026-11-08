@@ -123,6 +123,20 @@ export async function exportarDados(uid: string) {
       conversas: await tx.select().from(assistente.conversations),
       mensagens: await tx.select().from(assistente.messages),
       consumo: await tx.select().from(assistente.usage),
+      // Arquivo original fica de fora: leva-se o que foi extraido e o relatorio.
+      importacoes_com_ia: await tx
+        .select({
+          id: assistente.extractions.id,
+          nome_arquivo: assistente.extractions.nome_arquivo,
+          provedor: assistente.extractions.provedor,
+          modelo: assistente.extractions.modelo,
+          extraido: assistente.extractions.extraido,
+          relatorio: assistente.extractions.relatorio,
+          custo_estimado: assistente.extractions.custo_estimado,
+          criado_em: assistente.extractions.criado_em,
+          confirmado_em: assistente.extractions.confirmado_em,
+        })
+        .from(assistente.extractions),
     };
   });
   return {
@@ -172,6 +186,10 @@ export async function excluirDados(uid: string): Promise<void> {
       .delete(assistente.investorProfiles)
       .where(eq(assistente.investorProfiles.user_id, uid));
     await tx.delete(assistente.settings).where(eq(assistente.settings.user_id, uid));
+    // Cache da importacao com IA, com o arquivo original quando guardado.
+    await tx
+      .delete(assistente.extractions)
+      .where(eq(assistente.extractions.user_id, uid));
   });
   const { alertRules, notifications, deliveries, userPrefs, pushSubscriptions } = alertas;
   await db.transaction(async (tx) => {

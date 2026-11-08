@@ -2,10 +2,42 @@
 // Ollama. Chama a ferramenta certa para cada pergunta e responde com os numeros
 // que a ferramenta devolveu, sem inventar. Anota a chave que recebeu, para o e2e
 // conferir que ela chegou ao provedor (e so a ele).
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 
 const CHAVE_ACEITA = "sk-e2e-chave-de-teste-do-bolsiq-1234";
-const MODELOS = ["falso-com-ferramentas", "falso-sem-ferramentas"];
+// deepseek-flash tem saida estruturada em modelos.json: e o modelo do e2e da importacao.
+const MODELOS = ["falso-com-ferramentas", "falso-sem-ferramentas", "deepseek-flash"];
+
+/**
+ * Importacao com IA: respostas gravadas, por um trecho do documento
+ * (infra/docker/llm-falso-importacao.json, gerado das fixtures do eval).
+ */
+function respostaDaImportacao(mensagens) {
+  let gravadas = {};
+  try {
+    gravadas = JSON.parse(readFileSync("/llm-falso-importacao.json", "utf8"));
+  } catch {
+    // Sem o arquivo montado, nao ha importacao a responder.
+  }
+  const texto = JSON.stringify(mensagens);
+  const achada = Object.entries(gravadas).find(([marcador]) => texto.includes(marcador));
+  return (
+    achada?.[1] ?? {
+      documento: {
+        tipo: "misto",
+        corretora: null,
+        data_referencia: null,
+        totais_declarados: [],
+      },
+      posicoes: [],
+      transacoes: [],
+      proventos: [],
+      notas: [],
+      avisos: ["Documento desconhecido pelo provedor falso."],
+    }
+  );
+}
 let ultimaAutorizacao = null;
 
 const ferramentaDa = (texto) => {
@@ -118,7 +150,27 @@ createServer(async (req, res) => {
   }
   if (url.endsWith("/models")) return json(200, { data: MODELOS.map((id) => ({ id })) });
   if (url.endsWith("/chat/completions")) {
-    const { messages, model } = JSON.parse(await ler(req));
+    const corpo = JSON.parse(await ler(req));
+    const { messages, model } = corpo;
+    // generateObject: sem stream e com formato de resposta. E a importacao com IA.
+    if (corpo.stream !== true)
+      return json(200, {
+        id: "falso",
+        object: "chat.completion",
+        created: 1,
+        model,
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: JSON.stringify(respostaDaImportacao(messages)),
+            },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 4200, completion_tokens: 1800, total_tokens: 6000 },
+      });
     const ultimaFerramenta = [...messages].reverse().find((m) => m.role === "tool");
     const ultimaPergunta = [...messages].reverse().find((m) => m.role === "user");
     const respondidas =

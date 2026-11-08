@@ -42,7 +42,9 @@ const capacidades = real
   : { saida_estruturada: true, visao: true, max_saida: 16_000 };
 // Basta texto: sem saida estruturada, o cabecalho vai por JSON em texto.
 if (real && !capacidades.saida_estruturada)
-  escrever(`${EVAL_PROVEDOR}/${EVAL_MODELO} sem saída estruturada: cabeçalho por JSON em texto.`);
+  escrever(
+    `${EVAL_PROVEDOR}/${EVAL_MODELO} sem saída estruturada: cabeçalho por JSON em texto.`,
+  );
 
 const fixtures = (
   EVAL_FIXTURES

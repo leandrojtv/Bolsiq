@@ -16,6 +16,10 @@ export const SISTEMA_DE_IMPORTACAO = `Você converte extratos de bancos e corret
 - Você não tem ferramentas e não grava nada. O Bolsiq confere cada linha contra o documento e o usuário revisa antes de gravar.
 - Dados do titular foram removidos e aparecem como [cpf], [conta], [titular], [e-mail], [telefone] ou [dado do titular removido]. Não tente reconstruí-los.
 
+## Formato
+- Todo campo é texto. Campo que o documento não traz vai como string vazia (""), nunca como null nem omitido.
+- Números com ponto decimal e sem separador de milhar, como texto: "1234.56".
+
 ## Regras
 ${REGRAS_DE_NORMALIZACAO}`;
 

@@ -3,15 +3,17 @@ import { COLUNAS_BOLSIQ, COLUNAS_POSICAO } from "@bolsiq/portfolio";
 
 /**
  * O que o modelo devolve. Os campos sao os mesmos do layout de posicao
- * (`COLUNAS_POSICAO`) e do CSV de transacoes (`COLUNAS_BOLSIQ`), todos como texto
- * ou nulo: o tipo de verdade e de `LinhaDePosicao` e `Transacao`, que conferem
- * cada linha depois. Assim um campo errado rejeita a linha, nao a resposta
- * inteira, e o validador e um so para o CSV e para a IA.
+ * (`COLUNAS_POSICAO`) e do CSV de transacoes (`COLUNAS_BOLSIQ`), todos como texto:
+ * o tipo de verdade e de `LinhaDePosicao` e `Transacao`, que conferem cada linha
+ * depois. Assim um campo errado rejeita a linha, nao a resposta inteira, e o
+ * validador e um so para o CSV e para a IA.
  *
- * Tudo obrigatorio e anulavel, sem `optional`: a saida estruturada estrita da
- * OpenAI exige todos os campos em `required`.
+ * Tudo obrigatorio e texto, sem `optional` nem `nullable`: vazio e "nao
+ * informado", como no CSV. A saida estruturada estrita da OpenAI exige todos os
+ * campos em `required`, e a da Anthropic aceita no maximo 16 campos com uniao de
+ * tipos (`string | null` e uniao); com 24 colunas anulaveis o schema era recusado.
  */
-const texto = z.string().nullable();
+const texto = z.string();
 
 export const Confianca = z.enum(["alta", "media", "baixa"]);
 export type Confianca = z.infer<typeof Confianca>;
@@ -69,7 +71,7 @@ export const NotaDaIA = z.object({
   taxas_total: texto.describe("Soma de todas as taxas e custos da nota, sem o IRRF"),
   irrf: texto,
   valor_liquido: texto,
-  sentido_liquido: z.enum(["debito", "credito"]).nullable(),
+  sentido_liquido: z.enum(["debito", "credito", ""]),
   origem: Origem,
 });
 export type NotaDaIA = z.infer<typeof NotaDaIA>;
@@ -100,8 +102,8 @@ export type SaidaDaIA = z.infer<typeof SaidaDaIA>;
 export const saidaVazia = (): SaidaDaIA => ({
   documento: {
     tipo: "misto",
-    corretora: null,
-    data_referencia: null,
+    corretora: "",
+    data_referencia: "",
     totais_declarados: [],
   },
   posicoes: [],

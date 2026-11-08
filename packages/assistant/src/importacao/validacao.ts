@@ -469,7 +469,7 @@ export function ratearNota(
     irrf: irrf.toFixed(2),
     liquido_calculado: calculado.toFixed(2),
     liquido_declarado: declarado?.toFixed(2) ?? null,
-    sentido_declarado: nota.sentido_liquido,
+    sentido_declarado: nota.sentido_liquido || null,
     conciliada: motivo === null,
     motivo,
   };
@@ -762,8 +762,8 @@ export async function validarExtracao(
   return {
     documento: {
       tipo: saida.documento.tipo,
-      corretora: saida.documento.corretora,
-      data_referencia: saida.documento.data_referencia,
+      corretora: saida.documento.corretora || null,
+      data_referencia: saida.documento.data_referencia || null,
       totais_declarados: totais,
     },
     linhas,

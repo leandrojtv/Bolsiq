@@ -23,7 +23,8 @@ dados pessoais, o documento pode tentar mandar no modelo, e cada chamada custa.
 
 **A IA só propõe linhas nos layouts que já existem.** O modelo devolve `posicao_bolsiq`,
 transações e proventos com `generateObject` e um schema Zod cujos campos são os mesmos
-de `LinhaDePosicao` e `Transacao`, todos como texto. Cada linha volta ao CSV e passa por
+de `LinhaDePosicao` e `Transacao`, todos como texto, com vazio para "não informado": nada
+anulável, porque a Anthropic recusa schema com mais de 16 uniões de tipo. Cada linha volta ao CSV e passa por
 `importarPosicaoBolsiq` e `importarCsvBolsiq`: um validador só para arquivo e para IA.
 A gravação é a de sempre (`gravarCargaDePosicao` e o insert de transações), e só na
 confirmação do usuário. A chamada não tem ferramentas.

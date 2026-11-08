@@ -54,7 +54,7 @@ recusado: melhor dividir o arquivo por período ou conta.
 ```
 documento   { tipo: posicao | transacoes | nota_corretagem | proventos | misto,
               corretora, data_referencia, totais_declarados: [{ descricao, valor }] }
-posicoes    as 24 colunas do posicao_bolsiq, como texto ou nulo
+posicoes    as 24 colunas do posicao_bolsiq, como texto
 transacoes  as 7 colunas do CSV Bolsiq, mais ativo_no_documento e nota
 proventos   data_pagamento, ticker, tipo, quantidade, valor_por_cota, valor_total
 notas       numero, data_pregao, taxas_total, irrf, valor_liquido, sentido_liquido
@@ -62,8 +62,10 @@ avisos      o que o modelo não conseguiu interpretar
 ```
 
 Toda linha leva `origem: { pagina_ou_aba, trecho_original }` e `confianca: alta | media |
-baixa`. Os campos são texto de propósito: tipo errado rejeita a linha, não a resposta
-inteira. O tipo de verdade é o de `LinhaDePosicao` e `Transacao`: cada linha volta ao CSV e
+baixa`. Os campos são texto de propósito, e vazio é "não informado", como no CSV: tipo errado
+rejeita a linha, não a resposta inteira. Nada é anulável: a saída estruturada da
+Anthropic recusa schema com mais de 16 campos com união de tipos (`string | null`), e um
+teste (`esquema.test.ts`) confere que o schema não tem nenhuma. O tipo de verdade é o de `LinhaDePosicao` e `Transacao`: cada linha volta ao CSV e
 passa por `importarPosicaoBolsiq` e `importarCsvBolsiq`. Provento vira transação
 `provento` (quantidade e valor por cota; sem quantidade, valor total com quantidade 1).
 

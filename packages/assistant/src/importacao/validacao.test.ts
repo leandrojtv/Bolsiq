@@ -43,7 +43,7 @@ const VAZIA = Object.fromEntries(
     "saldo_liquido",
     "valorizacao",
     "observacao",
-  ].map((c) => [c, null]),
+  ].map((c) => [c, ""]),
 ) as unknown as PosicaoDaIA;
 
 const acao = (trecho: string, campos: Partial<PosicaoDaIA> = {}): PosicaoDaIA => ({
@@ -70,8 +70,8 @@ const compra = (trecho: string, campos: Partial<TransacaoDaIA> = {}): TransacaoD
   preco: "37.85",
   taxas: "0",
   corretora: "XP",
-  ativo_no_documento: null,
-  nota: null,
+  ativo_no_documento: "",
+  nota: "",
   ...campos,
   origem: { pagina_ou_aba: "texto", trecho_original: trecho },
   confianca: "alta",
@@ -174,7 +174,7 @@ describe("origem: valor sem trecho e invencao", () => {
         documento: {
           tipo: "posicao",
           corretora: "XP",
-          data_referencia: null,
+          data_referencia: "",
           totais_declarados: [
             { descricao: "Total", valor: "3842.00" },
             { descricao: "Total geral", valor: "5000" },
@@ -322,7 +322,7 @@ describe("conciliacao", () => {
         documento: {
           tipo: "posicao",
           corretora: "XP",
-          data_referencia: null,
+          data_referencia: "",
           totais_declarados: [],
         },
         posicoes: [acao("PETR4;100;32,50;3.842,00")],
@@ -392,7 +392,7 @@ describe("nota de corretagem", () => {
     expect(
       ratearNota({ ...NOTA, sentido_liquido: "credito" }, ops(), numeros).motivo,
     ).toMatch(/a débito, a nota diz crédito/);
-    expect(ratearNota({ ...NOTA, valor_liquido: null }, ops(), numeros).motivo).toBe(
+    expect(ratearNota({ ...NOTA, valor_liquido: "" }, ops(), numeros).motivo).toBe(
       "a nota não traz o valor líquido",
     );
     expect(ratearNota(NOTA, ops(), numerosDoTexto("1,00")).motivo).toMatch(

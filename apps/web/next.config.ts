@@ -6,6 +6,8 @@ const config: NextConfig = {
   // Raiz do monorepo, para o standalone incluir os pacotes do workspace.
   outputFileTracingRoot: new URL("../..", import.meta.url).pathname,
   transpilePackages: ["@bolsiq/ui"],
+  // pdf.js carrega o proprio worker em tempo de execucao: empacotado, quebra.
+  serverExternalPackages: ["pdfjs-dist"],
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {

@@ -62,7 +62,7 @@ export function registrarErro(mensagem: string): void {
   );
 }
 
-const inicioDoDia = () => `${hojeEmSp()}T00:00:00-03:00`;
+export const inicioDoDia = () => `${hojeEmSp()}T00:00:00-03:00`;
 const inicioDoMes = () => `${hojeEmSp().slice(0, 7)}-01T00:00:00-03:00`;
 
 function hostsDoOllama(): string[] {
@@ -71,7 +71,7 @@ function hostsDoOllama(): string[] {
     .filter(Boolean);
 }
 
-function baseDoProvedor(
+export function baseDoProvedor(
   provedor: Provedor,
   url: string | null | undefined,
 ): string | null {
@@ -81,7 +81,7 @@ function baseDoProvedor(
   return null;
 }
 
-function mestra(): Buffer {
+export function mestra(): Buffer {
   try {
     return lerChaveMestra(env.ASSISTANT_MASTER_KEY);
   } catch {
@@ -120,7 +120,9 @@ export async function estadoDoAssistente(uid: string): Promise<EstadoDoAssistent
     const [usadas] = await tx
       .select({ n: count() })
       .from(usage)
-      .where(and(eq(usage.user_id, uid), gte(usage.criado_em, hoje)));
+      .where(
+        and(eq(usage.user_id, uid), gte(usage.criado_em, hoje), eq(usage.origem, "chat")),
+      );
     const [consumo] = await tx
       .select({
         entrada: sum(usage.tokens_entrada),
@@ -320,7 +322,9 @@ export async function acessoParaConversar(uid: string): Promise<AcessoAoModelo> 
     const [usadas] = await tx
       .select({ n: count() })
       .from(usage)
-      .where(and(eq(usage.user_id, uid), gte(usage.criado_em, hoje)));
+      .where(
+        and(eq(usage.user_id, uid), gte(usage.criado_em, hoje), eq(usage.origem, "chat")),
+      );
     const [naPlataforma] = await tx
       .select({ n: count() })
       .from(usage)

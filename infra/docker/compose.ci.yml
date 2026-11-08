@@ -154,6 +154,7 @@ services:
     command: ["node", "/llm-falso.mjs"]
     volumes:
       - ./llm-falso.mjs:/llm-falso.mjs:ro
+      - ./llm-falso-importacao.json:/llm-falso-importacao.json:ro
     healthcheck:
       test:
         [
@@ -191,6 +192,8 @@ services:
       ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:-ZGVzZW52b2x2aW1lbnRvLW5hby11c2FyLWVtLXByb2Q=}
       ASSISTANT_RECOMMENDATIONS: ${ASSISTANT_RECOMMENDATIONS:-personal}
       ASSISTANT_DAILY_MESSAGES: ${ASSISTANT_DAILY_MESSAGES:-100}
+      ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
+      ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
       ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
       # Vazio usa a DeepSeek de verdade, como no `make dev-up`. So o job e2e aponta
       # para o provedor falso (ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434).

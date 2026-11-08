@@ -64,6 +64,10 @@ const Env = z.object({
     .enum(["anthropic", "openai", "google", "deepseek", "openrouter"])
     .default("deepseek"),
   ASSISTANT_PLATFORM_MODEL: z.string().default("deepseek-flash"),
+  /** Importacoes com IA por usuario por dia (o cache nao conta). */
+  ASSISTANT_IMPORT_DAILY: z.coerce.number().int().positive().default(20),
+  /** Tolerancia da conciliacao da importacao com IA, em fracao: 0.005 e 0,5%. */
+  ASSISTANT_IMPORT_TOLERANCE: z.coerce.number().min(0).max(0.1).default(0.005),
   /** Mensagens por dia na chave da plataforma, por plano: `gratis:20,pro:200`. */
   ASSISTANT_PLATFORM_LIMITS: z.string().default("gratis:20"),
 });

@@ -77,13 +77,13 @@ export function juntarSaidas(saidas: SaidaDaIA[]): SaidaDaIA {
   const tipos = new Set(saidas.map((s) => s.documento.tipo));
   r.documento.tipo = tipos.size === 1 ? ([...tipos][0] ?? "misto") : "misto";
   r.documento.corretora =
-    saidas.find((s) => s.documento.corretora)?.documento.corretora ?? null;
+    saidas.find((s) => s.documento.corretora)?.documento.corretora ?? "";
   r.documento.data_referencia =
     saidas
       .map((s) => s.documento.data_referencia)
-      .filter((x): x is string => Boolean(x))
+      .filter(Boolean)
       .sort()
-      .at(-1) ?? null;
+      .at(-1) ?? "";
   r.documento.totais_declarados = semRepetir(
     saidas.flatMap((s) => s.documento.totais_declarados),
     [(t) => `${textoNormal(t.descricao)}|${t.valor}`],

@@ -19,6 +19,7 @@ describe("capacidades por modelo", () => {
       saida_estruturada: false,
       visao: false,
       max_saida: 8000,
+      contexto: 32000,
       homologado_para_importar: false,
     });
   });

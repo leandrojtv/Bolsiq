@@ -1,13 +1,26 @@
 import { createHash } from "node:crypto";
 import type { Uso } from "../orcamento.js";
 
-/** 10 MB: uma posicao detalhada da XP em PDF tem algumas centenas de KB. */
-export const LIMITE_DE_BYTES = 10 * 1024 * 1024;
-export const LIMITE_DE_PAGINAS = 30;
-/** Texto colado: o mesmo teto do arquivo, em caracteres. */
-export const LIMITE_DE_TEXTO = LIMITE_DE_BYTES;
+/**
+ * Limites do envio, configuraveis por ambiente (ASSISTANT_IMPORT_MAX_MB,
+ * _MAX_PAGES, _MAX_FILES). O processamento e em segundo plano (ADR 0027): o
+ * limite e de memoria e de custo, nao de tempo de requisicao.
+ */
+export interface Limites {
+  bytes: number;
+  paginas: number;
+  arquivos: number;
+}
 
-export type TipoDeArquivo = "csv" | "txt" | "xlsx" | "xls" | "pdf" | "imagem";
+export const LIMITES_PADRAO: Limites = {
+  bytes: 50 * 1024 * 1024,
+  paginas: 500,
+  arquivos: 20,
+};
+
+const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`;
+
+export type TipoDeArquivo = "csv" | "txt" | "xlsx" | "xls" | "ods" | "pdf" | "imagem";
 
 export class ErroDeImportacao extends Error {
   constructor(
@@ -35,6 +48,9 @@ const TIPOS: Record<string, { tipo: TipoDeArquivo; mimes: string[] }> = {
     mimes: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
   },
   xls: { tipo: "xls", mimes: ["application/vnd.ms-excel"] },
+  ods: { tipo: "ods", mimes: ["application/vnd.oasis.opendocument.spreadsheet"] },
+  heic: { tipo: "imagem", mimes: ["image/heic", "image/heif"] },
+  heif: { tipo: "imagem", mimes: ["image/heic", "image/heif"] },
   pdf: { tipo: "pdf", mimes: ["application/pdf"] },
   png: { tipo: "imagem", mimes: ["image/png"] },
   jpg: { tipo: "imagem", mimes: ["image/jpeg"] },
@@ -53,6 +69,7 @@ function assinaturaConfere(tipo: TipoDeArquivo, b: Uint8Array): boolean {
     case "pdf":
       return comeca(0x25, 0x50, 0x44, 0x46);
     case "xlsx":
+    case "ods":
       return comeca(0x50, 0x4b);
     case "xls":
       return comeca(0xd0, 0xcf, 0x11, 0xe0);
@@ -60,7 +77,9 @@ function assinaturaConfere(tipo: TipoDeArquivo, b: Uint8Array): boolean {
       return (
         comeca(0x89, 0x50, 0x4e, 0x47) ||
         comeca(0xff, 0xd8, 0xff) ||
-        (comeca(0x52, 0x49, 0x46, 0x46) && b[8] === 0x57 && b[9] === 0x45)
+        (comeca(0x52, 0x49, 0x46, 0x46) && b[8] === 0x57 && b[9] === 0x45) ||
+        // HEIC/HEIF: caixa "ftyp" no byte 4.
+        (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70)
       );
     default:
       return true;
@@ -79,7 +98,7 @@ export function tipoDoArquivo(
   if (!t || !(GENERICOS.includes(m) || t.mimes.includes(m)))
     throw new ErroDeImportacao(
       "tipo_nao_aceito",
-      `Tipo de arquivo não aceito (${nome}). Envie PDF, CSV, XLSX, XLS, TXT ou imagem (PNG, JPG, WEBP).`,
+      `Tipo de arquivo não aceito (${nome}). Envie PDF, CSV, XLSX, XLS, ODS, TXT ou imagem (PNG, JPG, WEBP, HEIC).`,
       415,
     );
   if (!assinaturaConfere(t.tipo, bytes))
@@ -91,10 +110,14 @@ export function tipoDoArquivo(
   return t.tipo;
 }
 
-export function conferirTamanho(bytes: number): void {
+export function conferirTamanho(bytes: number, limite = LIMITES_PADRAO.bytes): void {
   if (bytes === 0) throw new ErroDeImportacao("vazio", "Arquivo vazio.");
-  if (bytes > LIMITE_DE_BYTES)
-    throw new ErroDeImportacao("grande_demais", "Arquivo acima de 10 MB.", 413);
+  if (bytes > limite)
+    throw new ErroDeImportacao(
+      "grande_demais",
+      `Arquivo acima de ${mb(limite)}. Divida o arquivo por período ou por conta.`,
+      413,
+    );
 }
 
 export const hashDoConteudo = (bytes: Uint8Array): string =>

@@ -1,4 +1,4 @@
-import { custoEstimado, estimarTokens } from "../orcamento.js";
+import { custoEstimado } from "../orcamento.js";
 import { anonimizar, semRemocoes, somarRemocoes, type Remocoes } from "./anonimizar.js";
 import {
   MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
@@ -6,29 +6,32 @@ import {
   TOKENS_POR_PAGINA_DE_IMAGEM,
   tokensDaChamada,
   tokensPorLote,
+  type LimitesDoModelo,
   type Lote,
 } from "./lotes.js";
 import {
   conferirTamanho,
   ErroDeImportacao,
   hashDoConteudo,
-  LIMITE_DE_TEXTO,
+  LIMITES_PADRAO,
   tipoDoArquivo,
+  type Limites,
   type TipoDeArquivo,
 } from "./recebimento.js";
 import {
   decodificar,
   extrairTexto,
   textoColado,
+  type Estrategia,
+  type Imagem,
   type Parte,
+  type TabelaNoLayout,
   type TextoDoDocumento,
 } from "./texto.js";
 
-/** Acima disto, a IA custaria caro e demoraria: melhor dividir o arquivo. */
-export const MAX_TOKENS_POR_DOCUMENTO = 300_000;
-
-/** Layouts que o importador atual ja le sem IA. */
-export type Atalho = "bolsiq" | "b3" | "posicao_bolsiq";
+import { detectarAtalho, type Atalho } from "./atalho.js";
+import type { FerramentasDoSistema } from "./ferramentas.js";
+export { detectarAtalho, type Atalho } from "./atalho.js";
 
 export type Entrada =
   { nome: string; mime: string; bytes: Uint8Array } | { texto: string };
@@ -37,42 +40,42 @@ export interface ArquivoPreparado {
   nome: string;
   tipo: TipoDeArquivo | "texto";
   hash: string;
-  /** Reconhecido pelo cabecalho: vai para o importador atual, sem chamar a IA. */
+  /** O arquivo inteiro no layout do Bolsiq: vai para o importador atual, sem IA. */
   atalho: Atalho | null;
   /** Ja anonimizadas: e isto, e so isto, que vai ao provedor como texto. */
   partes: Parte[];
   sem_texto: string[];
+  /** Paginas escaneadas e fotos, para modelo com visao. Sem anonimizacao. */
+  imagens: Imagem[];
   arquivo_para_visao: { mime: string; dados: Uint8Array } | null;
+  /** Abas no layout do Bolsiq: lidas sem IA, entram na mesma revisao. */
+  no_layout: TabelaNoLayout[];
+  /** Paginas lidas por OCR local. */
+  ocr: string[];
+  estrategia: Estrategia;
   paginas: number;
   remocoes: Remocoes;
   lotes: Lote[];
 }
 
-const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
-/** O mesmo reconhecimento por cabecalho da tela de importacao. */
-export function detectarAtalho(conteudo: string): Atalho | null {
-  const cabecalho = semAcento(conteudo.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "");
-  const colunas = cabecalho.split(/[;,]/).map((c) => c.trim().replace(/^"|"$/g, ""));
-  if (colunas.includes("data_posicao") && colunas.includes("classe"))
-    return "posicao_bolsiq";
-  if (["data", "ticker", "tipo", "quantidade", "preco"].every((c) => colunas.includes(c)))
-    return "bolsiq";
-  const tem = (n: string) => colunas.some((c) => c.includes(n));
-  if (tem("movimentacao") && tem("codigo") && tem("quantidade") && tem("preco"))
-    return "b3";
-  if (tem("data do negocio") && tem("codigo de negociacao")) return "b3";
-  return null;
+export interface OpcoesDePreparo {
+  limites: LimitesDoModelo;
+  /** O modelo le imagem: pagina escaneada vai como imagem; sem isso, OCR. */
+  visao: boolean;
+  ferramentas: FerramentasDoSistema;
+  limites_do_envio?: Limites;
 }
 
 /**
  * Recebimento, atalho, extracao de texto e anonimizacao. Sem IA e sem rede: o que
- * sai daqui e o que pode ir ao provedor.
+ * sai daqui e o que pode ir ao provedor. Nada bloqueia por tamanho de documento:
+ * o custo vira estimativa, mostrada antes de comecar.
  */
 export async function prepararArquivo(
   e: Entrada,
-  maxSaida = MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
+  o: OpcoesDePreparo,
 ): Promise<ArquivoPreparado> {
+  const envio = o.limites_do_envio ?? LIMITES_PADRAO;
   let nome: string;
   let tipo: TipoDeArquivo | "texto";
   let hash: string;
@@ -80,35 +83,40 @@ export async function prepararArquivo(
   let texto: TextoDoDocumento | null;
   if ("texto" in e) {
     if (!e.texto.trim()) throw new ErroDeImportacao("vazio", "Cole o texto do extrato.");
-    if (e.texto.length > LIMITE_DE_TEXTO)
-      throw new ErroDeImportacao("grande_demais", "Texto acima de 10 MB.", 413);
+    conferirTamanho(e.texto.length, envio.bytes);
     nome = "texto colado";
     tipo = "texto";
     hash = hashDoConteudo(new TextEncoder().encode(e.texto));
     atalho = detectarAtalho(e.texto);
     texto = textoColado(e.texto);
   } else {
-    conferirTamanho(e.bytes.byteLength);
+    conferirTamanho(e.bytes.byteLength, envio.bytes);
     nome = e.nome;
     tipo = tipoDoArquivo(e.nome, e.mime, e.bytes);
     hash = hashDoConteudo(e.bytes);
     if (tipo === "csv" || tipo === "txt") atalho = detectarAtalho(decodificar(e.bytes));
-    texto = atalho ? null : await extrairTexto(e.bytes, tipo);
+    texto = atalho
+      ? null
+      : await extrairTexto(e.bytes, tipo, {
+          visao: o.visao,
+          ferramentas: o.ferramentas,
+          limite_de_paginas: envio.paginas,
+        });
   }
 
-  if (atalho || !texto)
-    return {
-      nome,
-      tipo,
-      hash,
-      atalho,
-      partes: [],
-      sem_texto: [],
-      arquivo_para_visao: null,
-      paginas: 0,
-      remocoes: semRemocoes(),
-      lotes: [],
-    };
+  const vazio = {
+    partes: [],
+    sem_texto: [],
+    imagens: [],
+    arquivo_para_visao: null,
+    no_layout: [],
+    ocr: [],
+    estrategia: "texto" as const,
+    paginas: 0,
+    remocoes: semRemocoes(),
+    lotes: [],
+  };
+  if (atalho || !texto) return { nome, tipo, hash, atalho, ...vazio };
 
   let remocoes = semRemocoes();
   const partes = texto.partes.map((p) => {
@@ -116,16 +124,13 @@ export async function prepararArquivo(
     remocoes = somarRemocoes(remocoes, a.remocoes);
     return { origem: p.origem, texto: a.texto };
   });
-  const lotes = montarLotes(partes, tokensPorLote(maxSaida));
-  const total = lotes.reduce((s, l) => s + estimarTokens(JSON.stringify(l)), 0);
-  if (total > MAX_TOKENS_POR_DOCUMENTO)
-    throw new ErroDeImportacao(
-      "documento_grande",
-      "Documento grande demais para a IA. Divida o arquivo por período ou por conta.",
-      413,
-    );
-  if (partes.length === 0 && !texto.arquivo_para_visao)
-    throw new ErroDeImportacao("sem_conteudo", `Nada a importar em ${nome}.`);
+  if (
+    partes.length === 0 &&
+    texto.imagens.length === 0 &&
+    !texto.arquivo_para_visao &&
+    texto.no_layout.length === 0
+  )
+    throw new ErroDeImportacao("sem_conteudo", `Não há dados para importar em ${nome}.`);
   return {
     nome,
     tipo,
@@ -133,33 +138,28 @@ export async function prepararArquivo(
     atalho: null,
     partes,
     sem_texto: texto.sem_texto,
+    imagens: texto.imagens,
     arquivo_para_visao: texto.arquivo_para_visao,
+    no_layout: texto.no_layout,
+    ocr: texto.ocr,
+    estrategia: texto.estrategia,
     paginas: texto.paginas,
     remocoes,
-    lotes,
+    lotes: montarLotes(partes, tokensPorLote(o.limites.max_saida, o.limites.contexto)),
   };
 }
 
 export interface Capacidades {
+  /** Preferencia: o cabecalho vai por schema; sem ela, por JSON em texto. */
   saida_estruturada: boolean;
+  /** Preferencia: pagina escaneada vai como imagem; sem ela, por OCR. */
   visao: boolean;
   max_saida: number;
+  contexto: number;
 }
 
-/**
- * PDF escaneado e imagem so com modelo de visao. Saida estruturada nao e exigida:
- * as linhas vem em CSV de texto, e o cabecalho cai para JSON em texto sem ela.
- */
-export function conferirCapacidades(p: ArquivoPreparado, c: Capacidades): void {
-  if (p.arquivo_para_visao && !c.visao)
-    throw new ErroDeImportacao(
-      "modelo_sem_visao",
-      p.tipo === "imagem"
-        ? "Imagem só com um modelo que lê imagens (visão). Escolha outro modelo ou envie o PDF com texto."
-        : `${p.nome} tem páginas sem texto (${p.sem_texto.join(", ")}): parece escaneado. Só um modelo com visão lê essas páginas.`,
-      409,
-    );
-}
+/** Imagens por chamada de visao. */
+export const IMAGENS_POR_CHAMADA = 4;
 
 export interface Estimativa {
   chamadas: number;
@@ -170,9 +170,9 @@ export interface Estimativa {
 }
 
 /**
- * Estimativa antes de gastar: entrada pelo tamanho do texto (mais a pagina de
- * imagem), saida pela proporcao tipica da extracao, de 1,2 token por token lido,
- * limitada ao teto por chamada.
+ * Estimativa antes de gastar: entrada pelo tamanho do texto (mais as paginas de
+ * imagem), saida pela proporcao tipica da extracao em CSV, de 1,2 token por token
+ * lido, limitada ao teto por chamada. Mais uma rodada de autocorrecao pequena.
  */
 export function estimarImportacao(
   p: ArquivoPreparado,
@@ -180,19 +180,34 @@ export function estimarImportacao(
   maxSaida = MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
 ): Estimativa {
   const porLote = p.lotes.map(tokensDaChamada);
-  const visao = p.arquivo_para_visao
-    ? p.sem_texto.length * TOKENS_POR_PAGINA_DE_IMAGEM
-    : 0;
+  const paginasDeImagem =
+    p.imagens.length + (p.arquivo_para_visao ? p.sem_texto.length : 0);
+  const visao = paginasDeImagem * TOKENS_POR_PAGINA_DE_IMAGEM;
+  const chamadasDeVisao =
+    Math.ceil(p.imagens.length / IMAGENS_POR_CHAMADA) + (p.arquivo_para_visao ? 1 : 0);
   // O cabecalho: prompt curto, as primeiras e as ultimas paginas, e um JSON pequeno.
   const cabecalho = { entrada: 1_000 + Math.min(6_000, ...porLote) + visao, saida: 500 };
+  const lotes = porLote.reduce((s, t) => s + t, 0);
+  const saidaDosLotes = porLote.reduce(
+    (s, t) => s + Math.min(maxSaida, Math.ceil(t * 1.2)),
+    0,
+  );
+  const correcao = {
+    entrada: Math.ceil(lotes * 0.1),
+    saida: Math.ceil(saidaDosLotes * 0.1),
+  };
   const tokens_entrada =
-    cabecalho.entrada + porLote.reduce((s, t) => s + t, 0) + (visao ? visao + 3_000 : 0);
+    cabecalho.entrada +
+    lotes +
+    (visao ? visao + 3_000 * chamadasDeVisao : 0) +
+    correcao.entrada;
   const tokens_saida =
     cabecalho.saida +
-    porLote.reduce((s, t) => s + Math.min(maxSaida, Math.ceil(t * 1.2)), 0) +
-    (visao ? Math.min(maxSaida, visao * 2) : 0);
+    saidaDosLotes +
+    (visao ? Math.min(maxSaida * chamadasDeVisao, visao * 2) : 0) +
+    correcao.saida;
   return {
-    chamadas: 1 + p.lotes.length + (p.arquivo_para_visao ? 1 : 0),
+    chamadas: 1 + p.lotes.length + chamadasDeVisao,
     tokens_entrada,
     tokens_saida,
     custo_estimado: custoEstimado({ tokens_entrada, tokens_saida }, preco),

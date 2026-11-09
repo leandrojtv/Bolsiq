@@ -2,15 +2,31 @@ import { estimarTokens, LIMITE_DE_TOKENS } from "../orcamento.js";
 import { SISTEMA_DE_IMPORTACAO, blocoDoDocumento } from "../../prompts/importacao-v1.js";
 import type { Parte } from "./texto.js";
 
+/** Saida maxima quando o catalogo do provedor nao informa. */
+export const MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO = 8_000;
+/** Contexto quando o catalogo do provedor nao informa. */
+export const CONTEXTO_PADRAO = 32_000;
+
+/** O que o modelo aguenta por chamada, lido do catalogo (modelos.json ou API do provedor). */
+export interface LimitesDoModelo {
+  contexto: number;
+  max_saida: number;
+}
+
 /**
- * Entrada de cada chamada. Pequena de proposito: a saida em JSON tem mais tokens
- * que o texto que a originou (cada linha leva origem e trecho), e entrada mais
- * saida mais o prompt ficam abaixo de LIMITE_DE_TOKENS.
+ * Entrada de cada lote pelo orcamento do modelo: a saida em CSV tem cerca de 1,6
+ * token por token lido (cada linha leva origem e trecho), entao o lote fica em
+ * 60% da saida maxima; e entrada, prompt e saida cabem no contexto e abaixo de
+ * LIMITE_DE_TOKENS (100 mil por chamada).
  */
-export const MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO = 16_000;
-/** Entrada por chamada: 60% da saida maxima do modelo, ate 20 mil. */
-export const tokensPorLote = (maxSaida = MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO): number =>
-  Math.min(20_000, Math.floor(maxSaida * 0.6));
+export function tokensPorLote(
+  maxSaida = MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
+  contexto = CONTEXTO_PADRAO,
+): number {
+  const prompt = estimarTokens(SISTEMA_DE_IMPORTACAO);
+  const cabe = Math.min(contexto, LIMITE_DE_TOKENS) - maxSaida - prompt - 1_000;
+  return Math.max(1_000, Math.min(Math.floor(maxSaida * 0.6), cabe, 20_000));
+}
 /** O que uma pagina ou imagem custa na entrada, em media, nos provedores com visao. */
 export const TOKENS_POR_PAGINA_DE_IMAGEM = 1_600;
 

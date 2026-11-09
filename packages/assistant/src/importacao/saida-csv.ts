@@ -24,7 +24,7 @@ export interface BlocoCsv {
   conteudo: string;
 }
 
-export type SaidaDasLinhas = Omit<SaidaDaIA, "documento" | "avisos">;
+export type SaidaDasLinhas = Omit<SaidaDaIA, "documento" | "avisos" | "lotes_falhos">;
 
 export interface LeituraDaResposta {
   saida: SaidaDasLinhas;

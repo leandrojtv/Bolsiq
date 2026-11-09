@@ -41,6 +41,8 @@ interface Registro {
   capacidades?: Capacidade[];
   /** Teto de tokens de saida por chamada, para dividir o documento na importacao. */
   max_saida?: number;
+  /** Janela de contexto em tokens. */
+  contexto?: number;
   /** Resultado do `make eval-importacao`: "homologado" ou "nao_testado". */
   importacao?: string;
   avaliacao_importacao?: string;
@@ -86,6 +88,8 @@ export interface CapacidadesDoModelo {
   saida_estruturada: boolean;
   visao: boolean;
   max_saida: number;
+  /** Janela de contexto em tokens; sem registro, 32 mil. */
+  contexto: number;
   homologado_para_importar: boolean;
 }
 
@@ -103,6 +107,7 @@ export function capacidadesDoModelo(
     saida_estruturada: c.includes("saida_estruturada"),
     visao: c.includes("visao"),
     max_saida: r?.max_saida ?? 8_000,
+    contexto: r?.contexto ?? 32_000,
     homologado_para_importar: r?.importacao === "homologado",
   };
 }

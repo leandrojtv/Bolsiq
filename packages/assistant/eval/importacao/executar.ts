@@ -2,6 +2,11 @@ import { Decimal } from "decimal.js";
 import type { LanguageModel } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import type { CabecalhoDaIA, SaidaDaIA } from "../../src/importacao/esquema.js";
+import {
+  SenhaIncorreta,
+  type FerramentasDoSistema,
+} from "../../src/importacao/ferramentas.js";
+import type { SaidaDasLinhas } from "../../src/importacao/saida-csv.js";
 import { escreverBlocos } from "../../src/importacao/saida-csv.js";
 import { prepararArquivo, type Capacidades } from "../../src/importacao/pipeline.js";
 import {
@@ -64,18 +69,27 @@ export const cabecalhoDa = (r: SaidaDaIA): CabecalhoDaIA => ({
  * CSV so das paginas e abas que estao no pedido (como um modelo faria com o
  * lote). Pedido de visao, sem bloco de documento, leva todas as linhas.
  */
+export type FormaDoPedido = "json" | "cabecalho_em_texto" | "linhas" | "correcao";
+
 export function respostaGravada(
   r: SaidaDaIA,
   pedido: string,
-  forma: "json" | "cabecalho_em_texto" | "linhas",
+  forma: FormaDoPedido,
+  correcao?: SaidaDasLinhas,
 ): string {
   if (forma === "json") return JSON.stringify(cabecalhoDa(r));
   if (forma === "cabecalho_em_texto")
     return `Segue o cabeçalho:\n\`\`\`json\n${JSON.stringify(cabecalhoDa(r))}\n\`\`\``;
+  if (forma === "correcao") return correcao ? escreverBlocos(correcao) : "";
+  // Lote de texto: os blocos <documento>. Lote de imagens: a lista "na ordem: ...".
+  const imagens = /na ordem: ([^.]+)\./.exec(pedido)?.[1]?.split(", ") ?? [];
   const origens = new Set(
-    [...pedido.matchAll(/<documento origem=\\?"([^"\\]+)\\?">/g)].map((m) =>
-      (m[1] ?? "").toLowerCase(),
-    ),
+    [
+      ...[...pedido.matchAll(/<documento origem=\\?"([^"\\]+)\\?">/g)].map(
+        (m) => m[1] ?? "",
+      ),
+      ...imagens,
+    ].map((x) => x.toLowerCase()),
   );
   const daqui = <T extends { origem: { pagina_ou_aba: string } }>(xs: T[]) =>
     origens.size === 0
@@ -92,12 +106,30 @@ export function respostaGravada(
 
 /** O pedido do cabecalho, pelo prompt de sistema. */
 export const pedeCabecalho = (pedido: string) => pedido.includes("leia só o cabeçalho");
+/** O pedido de autocorrecao, pelo texto do usuario. */
+export const pedeCorrecao = (pedido: string) =>
+  pedido.includes("recusou as linhas abaixo");
+
+export const formaDoPedido = (pedido: string, json: boolean): FormaDoPedido =>
+  json
+    ? "json"
+    : pedeCabecalho(pedido)
+      ? "cabecalho_em_texto"
+      : pedeCorrecao(pedido)
+        ? "correcao"
+        : "linhas";
 
 export interface OpcoesDoRoteiro {
   /** O provedor recusa o schema do cabecalho (como o erro de gramatica). */
   recusarSchema?: boolean;
   /** As primeiras N respostas de linhas vem cortadas pelo limite de saida. */
   truncar?: number;
+  /** As primeiras N chamadas de linhas falham com este status (429, 500). */
+  falhar?: { vezes: number; status: number };
+  /** Lotes (por origem) que falham sempre, para ver o lote isolado. */
+  falharOrigem?: string;
+  /** O que a autocorrecao devolve. */
+  correcao?: SaidaDasLinhas;
 }
 
 /** Modelo de mentira que devolve a resposta gravada. Confere o harness, nao homologa. */
@@ -106,6 +138,7 @@ export function modeloDeRoteiro(
   o: OpcoesDoRoteiro = {},
 ): MockLanguageModelV4 {
   let truncadas = 0;
+  let falhas = 0;
   return new MockLanguageModelV4({
     provider: "roteiro",
     modelId: "roteiro",
@@ -118,14 +151,20 @@ export function modeloDeRoteiro(
             statusCode: 400,
           }),
         );
-      const forma = json
-        ? "json"
-        : pedeCabecalho(pedido)
-          ? "cabecalho_em_texto"
-          : "linhas";
+      const forma = formaDoPedido(pedido, json);
+      if (forma === "linhas" && o.falhar && falhas < o.falhar.vezes) {
+        falhas++;
+        return Promise.reject(
+          Object.assign(new Error("Too Many Requests"), { statusCode: o.falhar.status }),
+        );
+      }
+      if (forma === "linhas" && o.falharOrigem && pedido.includes(o.falharOrigem))
+        return Promise.reject(
+          Object.assign(new Error("Bad Gateway"), { statusCode: 502 }),
+        );
       const cortar = forma === "linhas" && truncadas < (o.truncar ?? 0);
       if (cortar) truncadas++;
-      const texto = respostaGravada(resposta, pedido, forma);
+      const texto = respostaGravada(resposta, pedido, forma, o.correcao);
       return Promise.resolve({
         content: [
           {
@@ -145,7 +184,29 @@ export const CAPACIDADES_COMPLETAS: Capacidades = {
   saida_estruturada: true,
   visao: true,
   max_saida: 16_000,
+  contexto: 200_000,
 };
+
+/**
+ * Programas do sistema de mentira: a "imagem" de uma pagina e o numero dela, e
+ * o OCR devolve o texto que a fixture diz que esta na pagina. Confere a
+ * estrategia (OCR quando o modelo nao ve imagem), nao o tesseract.
+ */
+export function ferramentasDaFixture(f: Fixture): FerramentasDoSistema {
+  return {
+    renderizar: (_pdf, pagina) =>
+      Promise.resolve(new TextEncoder().encode(`pagina:${pagina}`)),
+    ocr: (imagem) => {
+      const n = Number(/pagina:(\d+)/.exec(new TextDecoder().decode(imagem))?.[1] ?? 1);
+      return Promise.resolve(f.ocr?.[n - 1] ?? "");
+    },
+    decifrarPdf: (pdf, senha) => {
+      if (!f.senha || !f.decifrado) return Promise.resolve(pdf);
+      if (senha !== f.senha) return Promise.reject(new SenhaIncorreta());
+      return Promise.resolve(f.decifrado());
+    },
+  };
+}
 
 export async function executarFixture(
   f: Fixture,
@@ -156,10 +217,27 @@ export async function executarFixture(
     capacidades?: Capacidades;
     armazem?: ArmazemDeImportacao;
     preco?: { entrada: number | null; saida: number | null };
+    ferramentas?: FerramentasDoSistema;
+    espera_base_ms?: number;
   } = {},
 ): Promise<ResultadoDaImportacaoComIA> {
-  const capacidades = o.capacidades ?? CAPACIDADES_COMPLETAS;
-  const arquivo = await prepararArquivo(f.arquivo(), capacidades.max_saida);
+  const capacidades = {
+    ...(o.capacidades ?? CAPACIDADES_COMPLETAS),
+    ...(f.capacidades ?? {}),
+  };
+  const ferramentas = o.ferramentas ?? ferramentasDaFixture(f);
+  let entrada = f.arquivo();
+  // PDF com senha: o envio decifra (qpdf) antes de qualquer leitura.
+  if (f.senha && "bytes" in entrada && ferramentas.decifrarPdf)
+    entrada = {
+      ...entrada,
+      bytes: await ferramentas.decifrarPdf(entrada.bytes, f.senha),
+    };
+  const arquivo = await prepararArquivo(entrada, {
+    limites: { contexto: capacidades.contexto, max_saida: capacidades.max_saida },
+    visao: capacidades.visao,
+    ferramentas,
+  });
   return importarComIA({
     arquivo,
     original: null,
@@ -173,6 +251,8 @@ export async function executarFixture(
     hoje: HOJE,
     limite_diario: 100,
     aceitou_enviar_imagem: true,
+    espera_base_ms: o.espera_base_ms ?? 1,
+    ...(f.corretora ? { corretora: f.corretora } : {}),
     segredos: [],
   });
 }

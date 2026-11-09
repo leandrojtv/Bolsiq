@@ -16,7 +16,7 @@ import type {
   TransacaoDaIA,
   ProventoDaIA,
 } from "../../src/importacao/esquema.js";
-import type { Entrada } from "../../src/importacao/pipeline.js";
+import type { Capacidades, Entrada } from "../../src/importacao/pipeline.js";
 import { pdfDeTexto, pdfEscaneado, type LinhaDoPdf } from "./pdf.js";
 
 export interface LinhaEsperada {
@@ -30,6 +30,15 @@ export interface Fixture {
   descricao: string;
   arquivo: () => Entrada;
   resposta: SaidaDaIA;
+  /** Texto que o OCR "le" em cada pagina (ferramentas falsas do eval). */
+  ocr?: string[];
+  /** PDF com senha: a senha e o mesmo PDF sem ela (o que o qpdf devolveria). */
+  senha?: string;
+  decifrado?: () => Uint8Array;
+  /** Capacidades do modelo para esta fixture (sem visao, saida pequena). */
+  capacidades?: Partial<Capacidades>;
+  /** Corretora escolhida no envio. */
+  corretora?: string;
   esperado: {
     linhas: LinhaEsperada[];
     conciliada: boolean;
@@ -51,6 +60,7 @@ export const TICKERS = new Set([
   "BOVA11",
   "IVVB11",
   "KNRI11",
+  "ITSA4",
 ]);
 export const FAIXAS: Record<string, { minima: string; maxima: string }> = {
   "PETR4|2026-10-03": { minima: "37.10", maxima: "38.30" },
@@ -145,6 +155,7 @@ const saida = (
   s: Partial<SaidaDaIA> & { documento: SaidaDaIA["documento"] },
 ): SaidaDaIA => ({
   malformadas: [],
+  lotes_falhos: [],
   posicoes: [],
   transacoes: [],
   proventos: [],
@@ -1342,6 +1353,345 @@ export const respostaObediente: SaidaDaIA = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// v2 (ADR 0027): os mesmos extratos em outros formatos, e os casos dificeis
+// ---------------------------------------------------------------------------
+
+// XP em PDF: uma pagina por aba, as mesmas linhas.
+const ABAS_DA_XP = Object.keys(XP) as (keyof typeof XP)[];
+const paginaDaAba = (aba: string) =>
+  ABAS_DA_XP.indexOf(aba.replace(/^aba /, "") as keyof typeof XP) + 1;
+const linhaDaXp = (aba: string, trecho: string) =>
+  XP[aba.replace(/^aba /, "") as keyof typeof XP].find((l) => celulas(l) === trecho) ??
+  [];
+const naPagina = <
+  T extends { origem: { pagina_ou_aba: string; trecho_original: string } },
+>(
+  x: T,
+): T => ({
+  ...x,
+  origem: {
+    pagina_ou_aba: `página ${paginaDaAba(x.origem.pagina_ou_aba)}`,
+    trecho_original: colunas(
+      linhaDaXp(x.origem.pagina_ou_aba, x.origem.trecho_original).map(String),
+    ),
+  },
+});
+
+const fixtureXpPdf: Fixture = {
+  id: "xp-posicao-pdf",
+  descricao: "Posição detalhada XP em PDF: uma página por seção",
+  arquivo: () => ({
+    nome: "XP_Posicao_Detalhada.pdf",
+    mime: "application/pdf",
+    bytes: pdfDeTexto(
+      ABAS_DA_XP.map((aba) => [aba, ...XP[aba].map((l) => l.map(String))]),
+    ),
+  }),
+  resposta: {
+    ...fixtureXp.resposta,
+    posicoes: fixtureXp.resposta.posicoes.map(naPagina),
+    proventos: fixtureXp.resposta.proventos.map(naPagina),
+  },
+  esperado: fixtureXp.esperado,
+};
+
+// COE Santander em XLSX: titulo e titular antes da tabela (cabecalho na linha 5),
+// celulas mescladas (titulo e emissor) e valores como texto ("R$ 10.845,20").
+const SANTANDER_XLSX: (string | number)[][] = [
+  ["Banco Santander - Extrato de COE"],
+  ["Cliente: CARLOS ALBERTO NUNES"],
+  ["Ag. 1234 C/C 01-000123-4"],
+  ["Data base: 31/10/2026"],
+  [
+    "Código",
+    "Descrição",
+    "Emissor",
+    "Aplicação",
+    "Vencimento",
+    "Valor aplicado",
+    "Valor atual",
+  ],
+  [
+    "COE-SAN-0042",
+    "COE Santander Ibovespa Alta 2027",
+    "Banco Santander (Brasil) S.A.",
+    "05/04/2025",
+    "05/04/2027",
+    "R$ 10.000,00",
+    "R$ 10.845,20",
+  ],
+  [
+    "COE-SAN-0057",
+    "COE Santander Dólar Proteção 2028",
+    "",
+    "12/08/2025",
+    "14/08/2028",
+    "R$ 5.000,00",
+    "R$ 5.120,90",
+  ],
+  ["Total geral", "", "", "", "", "R$ 15.000,00", "R$ 15.966,10"],
+];
+
+function santanderXlsx(): Uint8Array {
+  const aba = XLSX.utils.aoa_to_sheet(SANTANDER_XLSX);
+  aba["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+    // Emissor mesclado nas duas linhas de COE: so a primeira tem o texto.
+    { s: { r: 5, c: 2 }, e: { r: 6, c: 2 } },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, aba, "COE");
+  return new Uint8Array(
+    XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer,
+  );
+}
+
+/** A linha como a leitura da planilha a escreve: mescla expandida, `;`. */
+const linhaDoSantander = (i: number) =>
+  (SANTANDER_XLSX[i] as string[])
+    .map((c, j) => (j === 2 && c === "" ? "Banco Santander (Brasil) S.A." : c))
+    .join(";");
+
+const fixtureSantanderXlsx: Fixture = {
+  id: "santander-coe-xlsx",
+  descricao:
+    "COE Santander em XLSX: cabeçalho na linha 5, células mescladas e valores como texto",
+  arquivo: () => ({
+    nome: "Extrato_COE_Santander.xlsx",
+    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    bytes: santanderXlsx(),
+  }),
+  resposta: saida({
+    documento: {
+      tipo: "posicao",
+      corretora: "Santander",
+      data_referencia: "31/10/2026",
+      totais_declarados: [{ descricao: "Total geral", valor: "R$ 15.966,10" }],
+    },
+    // O modelo copiou os valores como estao: "R$" e virgula. A normalizacao resolve.
+    posicoes: [
+      posicao("aba COE", linhaDoSantander(5), {
+        data_posicao: "",
+        corretora: "",
+        classe: "COE",
+        ativo: "COE Santander Ibovespa Alta 2027",
+        codigo: "COE-SAN-0042",
+        emissor: "Banco Santander (Brasil) S.A.",
+        data_aplicacao: "05/04/2025",
+        vencimento: "05/04/2027",
+        valor_aplicado: "R$ 10.000,00",
+        saldo_bruto: "R$ 10.845,20",
+      }),
+      posicao("aba COE", linhaDoSantander(6), {
+        data_posicao: "",
+        corretora: "",
+        classe: "COE",
+        ativo: "COE Santander Dólar Proteção 2028",
+        codigo: "COE-SAN-0057",
+        emissor: "Banco Santander (Brasil) S.A.",
+        data_aplicacao: "12/08/2025",
+        vencimento: "14/08/2028",
+        valor_aplicado: "R$ 5.000,00",
+        saldo_bruto: "R$ 5.120,90",
+      }),
+      // Linha de total que o modelo deixou passar: nao vira posicao.
+      posicao("aba COE", linhaDoSantander(7), {
+        classe: "",
+        ativo: "Total geral",
+        saldo_bruto: "R$ 15.966,10",
+      }),
+    ],
+  }),
+  corretora: "Santander",
+  esperado: {
+    conciliada: true,
+    linhas: [
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "coe",
+          codigo: "COE-SAN-0042",
+          saldo_bruto: "10845.20",
+          vencimento: "2027-04-05",
+          data_posicao: "2026-10-31",
+          quantidade: "1",
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: {
+          classe: "coe",
+          codigo: "COE-SAN-0057",
+          saldo_bruto: "5120.90",
+          corretora: "Santander",
+        },
+      },
+    ],
+  },
+};
+
+// Nota escaneada com modelo sem visao: OCR local, e o texto vira conferivel.
+const fixtureNotaOcr: Fixture = {
+  id: "nota-sinacor-ocr",
+  descricao: "Nota escaneada com um modelo sem visão: lida por OCR local",
+  arquivo: fixtureNotaEscaneada.arquivo,
+  ocr: [NOTA.map((l) => (typeof l === "string" ? l : colunas(l))).join("\n")],
+  capacidades: { visao: false, saida_estruturada: false },
+  resposta: respostaDaNota,
+  esperado: { conciliada: true, linhas: esperadoDaNota },
+};
+
+// PDF com senha: o envio decifra com a senha; a leitura e a do PDF comum.
+export const SENHA_DA_FIXTURE = "12345";
+const fixtureComSenha: Fixture = {
+  id: "nubank-pdf-com-senha",
+  descricao: "Extrato Nubank em PDF protegido por senha",
+  arquivo: () => ({
+    nome: "nubank-protegido.pdf",
+    mime: "application/pdf",
+    bytes: pdfDeTexto([NUBANK], SENHA_DA_FIXTURE),
+  }),
+  senha: SENHA_DA_FIXTURE,
+  decifrado: () => pdfDeTexto([NUBANK]),
+  resposta: fixtureNubank.resposta,
+  esperado: fixtureNubank.esperado,
+};
+
+// CSV em latin1 com ponto e virgula, como o Excel brasileiro exporta.
+const CSV_LATIN1 = `Ativo;Quantidade;Preço Médio;Saldo Atual
+ITSA4;500;9,80;5.150,00
+BBAS3;100;25,10;2.715,00
+Total da carteira;;;7.865,00`;
+const linhaLatin1 = (n: number) => CSV_LATIN1.split("\n")[n] ?? "";
+const fixtureCsvLatin1: Fixture = {
+  id: "csv-latin1",
+  descricao: "CSV em latin1 com ponto e vírgula e acentos no cabeçalho",
+  arquivo: () => ({
+    nome: "carteira-rico.csv",
+    mime: "text/csv",
+    bytes: new Uint8Array(Buffer.from(CSV_LATIN1, "latin1")),
+  }),
+  corretora: "Rico",
+  resposta: saida({
+    documento: {
+      tipo: "posicao",
+      corretora: "",
+      data_referencia: "",
+      totais_declarados: [{ descricao: "Total da carteira", valor: "7865.00" }],
+    },
+    posicoes: [
+      posicao("texto", linhaLatin1(1), {
+        classe: "acao",
+        ativo: "ITSA4",
+        codigo: "itsa4",
+        quantidade: "500",
+        preco_medio: "9,80",
+        saldo_bruto: "5.150,00",
+      }),
+      posicao("texto", linhaLatin1(2), {
+        classe: "acao",
+        ativo: "BBAS3",
+        codigo: "BBAS3",
+        quantidade: "100",
+        preco_medio: "25,10",
+        saldo_bruto: "2.715,00",
+      }),
+    ],
+  }),
+  esperado: {
+    conciliada: true,
+    linhas: [
+      {
+        tipo: "posicao",
+        campos: {
+          codigo: "ITSA4",
+          quantidade: "500",
+          preco_medio: "9.80",
+          saldo_bruto: "5150",
+          corretora: "Rico",
+          data_posicao: HOJE,
+        },
+      },
+      {
+        tipo: "posicao",
+        campos: { codigo: "BBAS3", quantidade: "100", saldo_bruto: "2715" },
+      },
+    ],
+  },
+};
+
+// Mais de 100 paginas: uma movimentacao por pagina, varios lotes em paralelo.
+export const PAGINAS_DO_EXTRATO_LONGO = 110;
+const movimento = (n: number) => {
+  const dia = String((n % 28) + 1).padStart(2, "0");
+  const mes = String(6 + (n % 5)).padStart(2, "0");
+  const ticker = n % 2 === 0 ? "PETR4" : "VALE3";
+  return {
+    data: `${dia}/${mes}/2026`,
+    iso: `2026-${mes}-${dia}`,
+    ticker,
+    quantidade: String(10 + n),
+    preco: n % 2 === 0 ? "37,50" : "59,20",
+  };
+};
+const PAGINAS_LONGAS: LinhaDoPdf[][] = Array.from(
+  { length: PAGINAS_DO_EXTRATO_LONGO },
+  (_, i) => {
+    const m = movimento(i + 1);
+    return [
+      `Extrato de movimentação - página ${i + 1}`,
+      [m.data, "Compra", m.ticker, m.quantidade, m.preco],
+    ];
+  },
+);
+const fixtureLonga: Fixture = {
+  id: "extrato-110-paginas",
+  descricao: "Extrato de 110 páginas: vários lotes, processados em paralelo",
+  arquivo: () => ({
+    nome: "extrato-anual.pdf",
+    mime: "application/pdf",
+    bytes: pdfDeTexto(PAGINAS_LONGAS),
+  }),
+  corretora: "XP",
+  // Saida pequena: o documento se divide em varios lotes.
+  capacidades: { max_saida: 2_000 },
+  resposta: saida({
+    documento: {
+      tipo: "transacoes",
+      corretora: "XP",
+      data_referencia: "",
+      totais_declarados: [],
+    },
+    transacoes: PAGINAS_LONGAS.map((p, i) => {
+      const m = movimento(i + 1);
+      return transacao(`página ${i + 1}`, colunas(p[1] as string[]), {
+        data: m.iso,
+        ticker: m.ticker,
+        tipo: "compra",
+        quantidade: m.quantidade,
+        preco: m.preco.replace(",", "."),
+        corretora: "XP",
+      });
+    }),
+  }),
+  esperado: {
+    conciliada: true,
+    linhas: PAGINAS_LONGAS.map((_, i) => {
+      const m = movimento(i + 1);
+      return {
+        tipo: "transacao" as const,
+        campos: {
+          ticker: m.ticker,
+          data: m.iso,
+          tipo: "compra",
+          quantidade: m.quantidade,
+        },
+      };
+    }),
+  },
+};
+
 export const FIXTURES: Fixture[] = [
   fixtureXp,
   fixtureNubank,
@@ -1352,4 +1702,10 @@ export const FIXTURES: Fixture[] = [
   fixtureNotaEscaneada,
   fixtureCsv,
   fixtureInjecao,
+  fixtureXpPdf,
+  fixtureSantanderXlsx,
+  fixtureNotaOcr,
+  fixtureComSenha,
+  fixtureCsvLatin1,
+  fixtureLonga,
 ];

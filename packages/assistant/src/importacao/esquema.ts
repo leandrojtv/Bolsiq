@@ -95,6 +95,12 @@ export const SaidaDaIA = z.object({
   proventos: z.array(ProventoDaIA),
   notas: z.array(NotaDaIA),
   avisos: z.array(z.string()),
+  /** Lotes que falharam (provedor fora, resposta ilegivel): a revisao oferece reprocessar. */
+  lotes_falhos: z
+    .array(
+      z.object({ indice: z.number(), origens: z.array(z.string()), motivo: z.string() }),
+    )
+    .default([]),
   /** Linhas dos blocos CSV que o parser nao conseguiu ler: viram rejeicao. */
   malformadas: z
     .array(z.object({ tipo: z.string(), motivo: z.string(), conteudo: z.string() }))
@@ -115,6 +121,7 @@ export const saidaVazia = (): SaidaDaIA => ({
   notas: [],
   avisos: [],
   malformadas: [],
+  lotes_falhos: [],
 });
 
 /**

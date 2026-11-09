@@ -39,7 +39,7 @@ if (real && !NOMES_DE_PROVEDOR.includes(EVAL_PROVEDOR as Provedor)) {
 
 const capacidades = real
   ? capacidadesDoModelo(EVAL_PROVEDOR as Provedor, EVAL_MODELO as string)
-  : { saida_estruturada: true, visao: true, max_saida: 16_000 };
+  : { saida_estruturada: true, visao: true, max_saida: 16_000, contexto: 200_000 };
 // Basta texto: sem saida estruturada, o cabecalho vai por JSON em texto.
 if (real && !capacidades.saida_estruturada)
   escrever(

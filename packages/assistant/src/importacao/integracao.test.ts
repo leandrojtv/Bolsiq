@@ -21,6 +21,13 @@ import { prepararArquivo } from "./pipeline.js";
 import { ErroDeImportacao } from "./recebimento.js";
 import { importarComIA } from "./servico.js";
 
+/** Preparo com modelo de visao e sem programas do sistema. */
+const PREPARO = {
+  limites: { contexto: 200_000, max_saida: 16_000 },
+  visao: true,
+  ferramentas: {},
+};
+
 /** Propriedades declaradas no schema, em qualquer nivel. */
 function propriedades(no: unknown): number {
   if (!no || typeof no !== "object") return 0;
@@ -132,6 +139,8 @@ describe("fluxo completo com provedor gravado", () => {
         descricao: "Patrimônio total",
         diferenca: "0.00",
         conciliada: true,
+        situacao: "conciliada",
+        secoes: [],
       },
     ]);
     expect(r.validacao.rejeicoes).toEqual([]);
@@ -178,14 +187,15 @@ describe("fluxo completo com provedor gravado", () => {
     expect(pedidos.map((x) => x.corpo).join()).toContain("02.332.886/0001-04");
   });
 
-  it("nota escaneada exige visao e vem desmarcada", async () => {
+  it("nota escaneada: sem visao e sem OCR, erro claro; com visao, vem desmarcada", async () => {
     const f = porId("nota-sinacor-escaneada");
     const { modelo, pedidos } = provedorGravado(f.resposta);
     await expect(
       executarFixture(f, modelo, {
         capacidades: { ...CAPACIDADES_COMPLETAS, visao: false },
+        ferramentas: {},
       }),
-    ).rejects.toThrow(/Só um modelo com visão/);
+    ).rejects.toThrow(/não tem OCR/);
     expect(pedidos).toHaveLength(0);
     const r = await executarFixture(f, modelo);
     expect(r.validacao.linhas).toHaveLength(3);
@@ -199,7 +209,7 @@ describe("fluxo completo com provedor gravado", () => {
     const { modelo } = provedorGravado(f.resposta);
     await expect(
       importarComIA({
-        arquivo: await prepararArquivo(f.arquivo()),
+        arquivo: await prepararArquivo(f.arquivo(), PREPARO),
         original: null,
         modelo,
         provedor: "deepseek",
@@ -227,7 +237,7 @@ describe("cache, limite e custo", () => {
       g,
       rodar: async (reprocessar = false) =>
         importarComIA({
-          arquivo: await prepararArquivo(porId("santander-coe").arquivo()),
+          arquivo: await prepararArquivo(porId("santander-coe").arquivo(), PREPARO),
           original: null,
           modelo: g.modelo,
           provedor: "deepseek",
@@ -288,7 +298,7 @@ describe("cache, limite e custo", () => {
         ),
     );
     const erro = await importarComIA({
-      arquivo: await prepararArquivo(porId("santander-coe").arquivo()),
+      arquivo: await prepararArquivo(porId("santander-coe").arquivo(), PREPARO),
       original: null,
       modelo: g.modelo,
       provedor: "deepseek",
@@ -353,8 +363,8 @@ describe("injecao de prompt", () => {
       "total declarado 1010530.00 não aparece no documento",
       "trecho_original parece instrução, não dado do extrato",
     ]);
-    // O total falso some, e a carga fica sem conciliar: precisa de confirmacao.
-    expect(obediente.validacao.conciliada).toBe(false);
+    // O total falso some: a carga fica sem total para conferir.
+    expect(obediente.validacao.conciliacao[0]?.situacao).toBe("sem_total");
     expect(saidas.join()).not.toContain(CHAVE);
   });
 });
@@ -418,7 +428,7 @@ describe("formato em texto: schema recusado, sem saida estruturada e resposta co
     );
     const log: string[] = [];
     const erro = await importarComIA({
-      arquivo: await prepararArquivo(f.arquivo()),
+      arquivo: await prepararArquivo(f.arquivo(), PREPARO),
       original: null,
       modelo: g.modelo,
       provedor: "deepseek",
@@ -438,5 +448,224 @@ describe("formato em texto: schema recusado, sem saida estruturada e resposta co
     expect((erro as ErroDeImportacao).detalhe).toMatch(/maximum context/);
     expect(log.join()).toMatch(/maximum context/);
     expect(log.join()).not.toContain("COE Santander");
+  });
+});
+
+describe("lotes grandes, retry e autocorrecao (v2)", () => {
+  const longa = () => porId("extrato-110-paginas");
+
+  it("110 paginas em varios lotes paralelos, todas as linhas na revisao", async () => {
+    const modelo = modeloDeRoteiro(longa().resposta);
+    const r = await executarFixture(longa(), modelo);
+    // Cabecalho e ao menos tres lotes.
+    expect(modelo.doGenerateCalls.length).toBeGreaterThanOrEqual(4);
+    expect(r.validacao.linhas).toHaveLength(110);
+    expect(r.lotes_falhos).toEqual([]);
+  });
+
+  it("429 do provedor: tenta de novo com espera e termina", async () => {
+    const modelo = modeloDeRoteiro(porId("santander-coe").resposta, {
+      falhar: { vezes: 2, status: 429 },
+    });
+    const r = await executarFixture(porId("santander-coe"), modelo);
+    expect(r.validacao.linhas).toHaveLength(2);
+    // Cabecalho, duas falhas e a que deu certo.
+    expect(modelo.doGenerateCalls).toHaveLength(4);
+  });
+
+  it("um lote que falha nao derruba os outros; reprocessar o lote recupera as linhas", async () => {
+    const f = longa();
+    const armazem = armazemEmMemoria();
+    const quebrado = modeloDeRoteiro(f.resposta, { falharOrigem: "página 1\\" });
+    const r = await executarFixture(f, quebrado, { armazem: armazem.armazem });
+    expect(r.lotes_falhos).toHaveLength(1);
+    expect(r.lotes_falhos[0]?.motivo).toMatch(/Tente de novo ou use outro modelo/);
+    expect(r.lotes_falhos[0]?.motivo).not.toMatch(/Bad Gateway/);
+    const faltando = 110 - r.validacao.linhas.length;
+    expect(faltando).toBeGreaterThan(0);
+
+    const { prepararArquivo: preparar } = await import("./pipeline.js");
+    const arquivo = await preparar(f.arquivo(), {
+      limites: { contexto: 200_000, max_saida: 2_000 },
+      visao: true,
+      ferramentas: {},
+    });
+    const refeito = await importarComIA({
+      arquivo,
+      original: null,
+      modelo: modeloDeRoteiro(f.resposta),
+      provedor: "roteiro",
+      nome_do_modelo: "roteiro",
+      preco: PRECO,
+      capacidades: { ...CAPACIDADES_COMPLETAS, max_saida: 2_000 },
+      armazem: armazem.armazem,
+      verificador: verificadorDasFixtures(),
+      hoje: HOJE,
+      limite_diario: 100,
+      reprocessar_lotes: r.lotes_falhos.map((l) => l.indice),
+      segredos: [],
+    });
+    expect(refeito.lotes_falhos).toEqual([]);
+    expect(refeito.validacao.linhas).toHaveLength(110);
+  });
+
+  it("autocorrecao manda so as recusadas, com o motivo, e recupera a linha", async () => {
+    const f = porId("santander-coe");
+    const [certa, outra] = f.resposta.posicoes;
+    // O modelo errou o saldo na primeira leitura (10.854,20 no lugar de 10.845,20).
+    const errada = { ...certa!, saldo_bruto: "10854.20" };
+    const modelo = modeloDeRoteiro(
+      { ...f.resposta, posicoes: [errada, outra!] },
+      {
+        correcao: {
+          posicoes: [certa!],
+          transacoes: [],
+          proventos: [],
+          notas: [],
+          malformadas: [],
+        },
+      },
+    );
+    const r = await executarFixture(f, modelo);
+    expect(r.correcao).toEqual({ rodadas: 1, recuperadas: 1 });
+    expect(r.validacao.rejeicoes).toEqual([]);
+    expect(r.validacao.linhas.map((l) => l.dados.saldo_bruto)).toEqual([
+      "5120.90",
+      "10845.20",
+    ]);
+    const pedido = JSON.stringify(modelo.doGenerateCalls.at(-1)?.prompt);
+    expect(pedido).toContain("saldo_bruto 10854.20 não aparece no trecho original");
+    expect(pedido).not.toContain("COE-SAN-0057;");
+  });
+
+  it("autocorrecao que nao devolve a linha mantem a recusa; linha nova nao entra", async () => {
+    const f = porId("santander-coe");
+    const [certa, outra] = f.resposta.posicoes;
+    const inventada = {
+      ...outra!,
+      codigo: "COE-INVENTADO",
+      ativo: "COE inventado",
+      origem: {
+        pagina_ou_aba: "texto",
+        trecho_original: "nada disso existe no documento",
+      },
+    };
+    const modelo = modeloDeRoteiro(
+      { ...f.resposta, posicoes: [{ ...certa!, saldo_bruto: "1.00" }, outra!] },
+      {
+        correcao: {
+          posicoes: [inventada],
+          transacoes: [],
+          proventos: [],
+          notas: [],
+          malformadas: [],
+        },
+      },
+    );
+    const r = await executarFixture(f, modelo);
+    expect(r.correcao.rodadas).toBe(2);
+    expect(r.validacao.rejeicoes.map((x) => x.motivo)).toEqual([
+      "saldo_bruto 1.00 não aparece no trecho original",
+    ]);
+    expect(r.validacao.linhas.map((l) => l.dados.codigo)).toEqual(["COE-SAN-0057"]);
+  });
+
+  it("abas no layout do Bolsiq entram sem IA, na mesma revisao", async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.aoa_to_sheet([
+        [
+          "data_posicao",
+          "corretora",
+          "classe",
+          "subclasse",
+          "ativo",
+          "codigo",
+          "cnpj",
+          "emissor",
+          "indexador",
+          "pct_indexador",
+          "taxa_aa",
+          "data_aplicacao",
+          "vencimento",
+          "liquidez_diaria",
+          "quantidade",
+          "preco_unitario",
+          "preco_medio",
+          "valor_aplicado",
+          "saldo_bruto",
+          "ir",
+          "iof",
+          "saldo_liquido",
+          "valorizacao",
+          "observacao",
+        ],
+        [
+          "2026-10-31",
+          "BTG",
+          "fii",
+          "",
+          "HGLG11",
+          "HGLG11",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "10",
+          "158",
+          "150",
+          "",
+          "1580",
+          "",
+          "",
+          "",
+          "cotacao_b3",
+          "",
+        ],
+      ]),
+      "Posicao",
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.aoa_to_sheet([
+        [
+          "Data do Negócio",
+          "Tipo de Movimentação",
+          "Código de Negociação",
+          "Quantidade",
+          "Preço",
+          "Instituição",
+        ],
+        ["03/10/2026", "Compra", "PETR4", 100, 37.85, "BTG"],
+      ]),
+      "Negociacao",
+    );
+    const bytes = new Uint8Array(
+      XLSX.write(wb, { type: "array", bookType: "xlsx" }) as ArrayBuffer,
+    );
+    const modelo = modeloDeRoteiro(porId("santander-coe").resposta);
+    const r = await executarFixture(
+      {
+        ...porId("santander-coe"),
+        arquivo: () => ({ nome: "btg.xlsx", mime: "", bytes }),
+      },
+      modelo,
+    );
+    // Nenhuma chamada ao provedor: as duas abas estao no layout. A posicao sem
+    // valor aplicado e preenchida pela politica.
+    expect(modelo.doGenerateCalls).toHaveLength(0);
+    expect(r.custo_estimado).toBe("0.000000");
+    expect(
+      r.validacao.linhas.map((l) => [l.tipo, l.dados.codigo || l.dados.ticker, l.grupo]),
+    ).toEqual([
+      ["posicao", "HGLG11", "preenchida"],
+      ["transacao", "PETR4", "pronta"],
+    ]);
   });
 });

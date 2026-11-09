@@ -13,5 +13,35 @@
       "avisos": []
     },
     "csv": "```csv posicoes\ndata_posicao;corretora;classe;subclasse;ativo;codigo;cnpj;emissor;indexador;pct_indexador;taxa_aa;data_aplicacao;vencimento;liquidez_diaria;quantidade;preco_unitario;preco_medio;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;observacao;pagina_ou_aba;trecho_original;confianca\n2026-10-31;XP;renda_fixa;Pós-Fixado;CDB BANCO ALFA - SET/2028;;;BANCO ALFA S.A.;CDI;1.10;;2025-09-15;2028-09-15;;;;;10000;11234.56;210.12;0;11024.44;curva;;aba Renda Fixa;\"CDB BANCO ALFA - SET/2028;BANCO ALFA S.A.;CDI;110% CDI;15/09/2025;15/09/2028;10000;11234.56;210.12;0;11024.44\";alta\n2026-10-31;XP;renda_fixa;Inflação;LCA BANCO BETA - MAR/2027;;;BANCO BETA S.A.;IPCA;;0.065;2025-03-10;2027-03-10;;;;;5000;5432.10;0;0;5432.10;curva;;aba Renda Fixa;\"LCA BANCO BETA - MAR/2027;BANCO BETA S.A.;IPCA;IPCA + 6,50%;10/03/2025;10/03/2027;5000;5432.1;0;0;5432.1\";alta\n2026-10-31;XP;acao;;PETR4;PETR4;;;;;;;;;100;38.42;32.50;;3842.00;;;;cotacao_b3;;aba Ações;\"PETR4;100;32.5;38.42;3842\";alta\n2026-10-31;XP;acao;;VALE3;VALE3;;;;;;;;;50;58.90;61.26;;2945.00;;;;cotacao_b3;;aba Ações;\"VALE3;50;61.26;58.9;2945\";alta\n2026-10-31;XP;fii;;HGLG11;HGLG11;;;;;;;;;30;158.00;160.10;;4740.00;;;;cotacao_b3;;aba FIIs;\"HGLG11;30;160.1;158;4740\";alta\n2026-10-31;XP;fii;;MXRF11;MXRF11;;;;;;;;;200;9.80;10.05;;1960.00;;;;cotacao_b3;;aba FIIs;\"MXRF11;200;10.05;9.8;1960\";alta\n2026-10-31;XP;fundo;;XP MACRO FIM;;12345678000190;;;;;;;;1000;10.5;;;10500.00;75.00;;10425.00;cota_cvm;;aba Fundos;\"XP MACRO FIM;12.345.678/0001-90;1000;10.5;10500;75;10425\";alta\n2026-10-31;XP;previdencia;;XP PREV 100 FIC FIM;;98765432000110;;;;;;;;;;;;8000.00;;;;cota_cvm;;aba Previdência;\"XP PREV 100 FIC FIM;98.765.432/0001-10;8000\";alta\n2026-10-31;XP;titulo_publico;;Tesouro IPCA+ 2035;NTNB_PRINC_2035-05-15;;;IPCA;;0.0612;;2035-05-15;;1.5;2900.00;;;4350.00;;;;tesouro;sem data de aplicação;aba Tesouro Direto;\"Tesouro IPCA+ 2035;15/05/2035;IPCA + 6,12%;1.5;2900;4350\";alta\n2026-10-31;XP;coe;;COE XP SP500 ALTA PROTEGIDA;COE123XP;;BANCO XP S.A.;;;;;2027-12-20;;;;;3000.00;3150.75;;;;manual;;aba COE;\"COE123XP;COE XP SP500 ALTA PROTEGIDA;BANCO XP S.A.;3000;3150.75;20/12/2027\";alta\n```\n\n```csv proventos\ndata_pagamento;ticker;tipo;quantidade;valor_por_cota;valor_total;corretora;pagina_ou_aba;trecho_original;confianca\n2026-10-15;PETR4;dividendo;100;;85.00;XP;aba Proventos;\"15/10/2026;PETR4;Dividendos;100;85\";alta\n2026-10-14;HGLG11;rendimento;30;;33.00;XP;aba Proventos;\"14/10/2026;HGLG11;Rendimentos;30;33\";alta\n```"
+  },
+  "Nu Invest - Extrato de Custódia": {
+    "cabecalho": {
+      "tipo": "posicao",
+      "corretora": "Nubank",
+      "data_referencia": "2026-10-31",
+      "totais_declarados": [
+        {
+          "descricao": "Total em custódia",
+          "valor": "43299.44"
+        }
+      ],
+      "avisos": []
+    },
+    "csv": "```csv posicoes\ndata_posicao;corretora;classe;subclasse;ativo;codigo;cnpj;emissor;indexador;pct_indexador;taxa_aa;data_aplicacao;vencimento;liquidez_diaria;quantidade;preco_unitario;preco_medio;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;observacao;pagina_ou_aba;trecho_original;confianca\n2026-10-31;Nubank;acao;;PETR4;PETR4;;;;;;;;;120;38.42;;;4610.40;;;;cotacao_b3;;página 1;PETR4 - PETROBRAS PN | 120 | 38,42 | 4.610,40;alta\n2026-10-31;Nubank;acao;;BBAS3;BBAS3;;;;;;;;;200;27.15;;;5430.00;;;;cotacao_b3;;página 1;BBAS3 - BANCO DO BRASIL | 200 | 27,15 | 5.430,00;alta\n2026-10-31;Nubank;fii;;KNRI11;KNRI11;;;;;;;;;40;142.30;;;5692.00;;;;cotacao_b3;;página 1;KNRI11 - KINEA RENDA | 40 | 142,30 | 5.692,00;alta\n2026-10-31;Nubank;etf;;IVVB11;IVVB11;;;;;;;;;15;352.10;;;5281.50;;;;cotacao_b3;;página 1;IVVB11 - ISHARES SP500 | 15 | 352,10 | 5.281,50;alta\n2026-10-31;Nubank;titulo_publico;;Tesouro Selic 2029;LFT_2029-03-01;;;SELIC;;;;2029-03-01;;0.85;;;;14035.54;;;;tesouro;;página 2;Tesouro Selic 2029 | 01/03/2029 | 0,85 | 14.035,54;alta\n2026-10-31;Nubank;renda_fixa;;CDB Nu 110% CDI;;;Nu Financeira;CDI;1.10;;;2027-06-15;;;;;;8250.00;;;;curva;;página 2;CDB Nu 110% CDI | 15/06/2027 |  | 8.250,00;alta\n```"
+  },
+  "Data base: 31/10/2026": {
+    "cabecalho": {
+      "tipo": "posicao",
+      "corretora": "Santander",
+      "data_referencia": "31/10/2026",
+      "totais_declarados": [
+        {
+          "descricao": "Total geral",
+          "valor": "R$ 15.966,10"
+        }
+      ],
+      "avisos": []
+    },
+    "csv": "```csv posicoes\ndata_posicao;corretora;classe;subclasse;ativo;codigo;cnpj;emissor;indexador;pct_indexador;taxa_aa;data_aplicacao;vencimento;liquidez_diaria;quantidade;preco_unitario;preco_medio;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;observacao;pagina_ou_aba;trecho_original;confianca\n;;COE;;COE Santander Ibovespa Alta 2027;COE-SAN-0042;;Banco Santander (Brasil) S.A.;;;;05/04/2025;05/04/2027;;;;;R$ 10.000,00;R$ 10.845,20;;;;;;aba COE;\"COE-SAN-0042;COE Santander Ibovespa Alta 2027;Banco Santander (Brasil) S.A.;05/04/2025;05/04/2027;R$ 10.000,00;R$ 10.845,20\";alta\n;;COE;;COE Santander Dólar Proteção 2028;COE-SAN-0057;;Banco Santander (Brasil) S.A.;;;;12/08/2025;14/08/2028;;;;;R$ 5.000,00;R$ 5.120,90;;;;;;aba COE;\"COE-SAN-0057;COE Santander Dólar Proteção 2028;Banco Santander (Brasil) S.A.;12/08/2025;14/08/2028;R$ 5.000,00;R$ 5.120,90\";alta\n;;;;Total geral;;;;;;;;;;;;;;R$ 15.966,10;;;;;;aba COE;\"Total geral;;Banco Santander (Brasil) S.A.;;;R$ 15.000,00;R$ 15.966,10\";alta\n```"
   }
 }

@@ -6,14 +6,19 @@ import { cadastrar, emailNovo } from "./conta";
 
 const CHAVE = "sk-e2e-chave-de-teste-do-bolsiq-1234";
 /** Gerados das fixtures do eval (pnpm --filter @bolsiq/assistant run e2e:importacao). */
-const fixture = (nome: string) => readFileSync(resolve(import.meta.dirname, "fixtures", nome));
+const fixture = (nome: string) =>
+  readFileSync(resolve(import.meta.dirname, "fixtures", nome));
 const ARQUIVOS = [
   {
     name: "XP_PosicaoDetalhada.xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     buffer: fixture("posicao-xp.xlsx"),
   },
-  { name: "Nubank_Extrato_de_Custodia.pdf", mimeType: "application/pdf", buffer: fixture("custodia-nubank.pdf") },
+  {
+    name: "Nubank_Extrato_de_Custodia.pdf",
+    mimeType: "application/pdf",
+    buffer: fixture("custodia-nubank.pdf"),
+  },
   {
     name: "Extrato_COE_Santander.xlsx",
     mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -45,33 +50,44 @@ test("importa XP, Nubank e Santander de uma vez com IA: progresso, revisão, con
 
   await sheet.getByLabel("Arquivos do extrato").setInputFiles(ARQUIVOS);
   // Corretora sugerida pelo nome do arquivo.
-  await expect(sheet.getByLabel("Corretora de XP_PosicaoDetalhada.xlsx")).toHaveValue("XP");
-  await expect(sheet.getByLabel("Corretora de Nubank_Extrato_de_Custodia.pdf")).toHaveValue("Nubank");
-  await expect(sheet.getByLabel("Corretora de Extrato_COE_Santander.xlsx")).toHaveValue("Santander");
+  await expect(sheet.getByLabel("Corretora de XP_PosicaoDetalhada.xlsx")).toHaveValue(
+    "XP",
+  );
+  await expect(
+    sheet.getByLabel("Corretora de Nubank_Extrato_de_Custodia.pdf"),
+  ).toHaveValue("Nubank");
+  await expect(sheet.getByLabel("Corretora de Extrato_COE_Santander.xlsx")).toHaveValue(
+    "Santander",
+  );
   await sheet.getByRole("button", { name: "Importar com IA" }).click();
 
   // Progresso por arquivo, em segundo plano, ate os tres ficarem prontos.
   const progresso = sheet.getByRole("region", { name: "Progresso da importação" });
   await expect(progresso).toBeVisible();
   for (const a of ARQUIVOS)
-    await expect(progresso.getByLabel(`Etapa de ${a.name}`)).toHaveText("Pronto", { timeout: 120_000 });
+    await expect(progresso.getByLabel(`Etapa de ${a.name}`)).toHaveText("Pronto", {
+      timeout: 120_000,
+    });
 
   // XP: revisao com os grupos, os totais conciliados e a origem anonimizada.
   const xp = sheet.getByRole("region", { name: "Revisão de XP_PosicaoDetalhada.xlsx" });
   await expect(xp).toContainText("extraído por IA");
   await expect(xp).toContainText("conciliado");
   await expect(xp).not.toContainText("não conciliado");
-  await expect(xp.getByRole("region", { name: "Preenchidas automaticamente" })).toBeVisible();
+  await expect(
+    xp.getByRole("region", { name: "Preenchidas automaticamente" }),
+  ).toBeVisible();
   await expect(xp.getByText("preenchido automaticamente").first()).toBeVisible();
   await xp.getByRole("button", { name: /aba Fundos: XP MACRO FIM/ }).click();
-  await expect(xp.getByRole("region", { name: "Origem da linha" })).toContainText("12.345.678/0001-90");
+  await expect(xp.getByRole("region", { name: "Origem da linha" })).toContainText(
+    "12.345.678/0001-90",
+  );
   await xp.getByRole("textbox", { name: "Ativo" }).first().fill("CDB ALFA EDITADO");
   await xp.getByRole("button", { name: /Revisar carga \(12 linhas\)/ }).click();
   await xp.getByRole("button", { name: "Confirmar importação" }).click();
-  await expect(sheet.getByRole("status").filter({ hasText: "XP_PosicaoDetalhada.xlsx" })).toContainText(
-    "linhas gravadas",
-    { timeout: 15_000 },
-  );
+  await expect(
+    sheet.getByRole("status").filter({ hasText: "XP_PosicaoDetalhada.xlsx" }),
+  ).toContainText("linhas gravadas", { timeout: 15_000 });
 
   // Nubank (PDF de custodia) e Santander (XLSX com cabecalho deslocado): conciliados.
   for (const nome of ["Nubank_Extrato_de_Custodia.pdf", "Extrato_COE_Santander.xlsx"]) {
@@ -80,9 +96,12 @@ test("importa XP, Nubank e Santander de uma vez com IA: progresso, revisão, con
     await expect(r).not.toContainText("não conciliado");
     await r.getByRole("button", { name: /Revisar carga/ }).click();
     await r.getByRole("button", { name: "Confirmar importação" }).click();
-    await expect(sheet.getByRole("status").filter({ hasText: nome })).toContainText("linhas gravadas", {
-      timeout: 15_000,
-    });
+    await expect(sheet.getByRole("status").filter({ hasText: nome })).toContainText(
+      "linhas gravadas",
+      {
+        timeout: 15_000,
+      },
+    );
   }
   await page.keyboard.press("Escape");
 

@@ -194,6 +194,9 @@ services:
       ASSISTANT_DAILY_MESSAGES: ${ASSISTANT_DAILY_MESSAGES:-100}
       ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
       ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
+      ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
+      ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
+      ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
       ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
       # Vazio usa a DeepSeek de verdade, como no `make dev-up`. So o job e2e aponta
       # para o provedor falso (ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434).
@@ -234,6 +237,16 @@ services:
       DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
       MARKET_DATA_URL: http://market-data:3001
       MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-mdk_test_chave_interna_de_desenvolvimento}
+      # Importacao com IA em segundo plano (ADR 0027): mesma chave-mestra do web.
+      ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:-ZGVzZW52b2x2aW1lbnRvLW5hby11c2FyLWVtLXByb2Q=}
+      ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
+      ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
+      ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
+      ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
+      ASSISTANT_IMPORT_MAX_PAGES: ${ASSISTANT_IMPORT_MAX_PAGES:-500}
+      ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
+      ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
     depends_on:
       market-data:
         condition: service_healthy

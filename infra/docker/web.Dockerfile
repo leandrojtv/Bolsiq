@@ -27,6 +27,10 @@ RUN node apps/web/scripts/checar-bundle.mjs
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# qpdf abre o PDF com senha no envio da importacao com IA; a senha nao e gravada.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends qpdf \
+    && rm -rf /var/lib/apt/lists/*
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 RUN useradd --system --create-home --shell /usr/sbin/nologin bolsiq

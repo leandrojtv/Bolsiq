@@ -1,12 +1,15 @@
 import { z } from "zod";
 import {
   conciliar,
-  type Atalho,
   type ConciliacaoDaCorretora,
+  type EstadoDoArquivo,
   type Estimativa,
+  type Estrategia,
+  type GrupoDaLinha,
   type LinhaProposta,
-  type Remocoes,
-  type ResultadoDaValidacao,
+  type Progresso,
+  type ResultadoDaImportacaoComIA,
+  type StatusDoJob,
 } from "@bolsiq/assistant/puro";
 
 /** Importacao com IA: formularios, eventos e contas da tela, sem banco. Navegador e BFF. */
@@ -26,6 +29,8 @@ export const PedidoDeRevisaoIA = z.object({
 });
 
 export const PedidoDeConfirmacaoIA = PedidoDeRevisaoIA.extend({
+  /** O job de onde a extracao veio: o arquivo dele sai do servidor na confirmacao. */
+  job_id: z.string().uuid().optional(),
   decisoes: z
     .array(
       z.object({
@@ -47,66 +52,118 @@ export const ConsentimentoDaImportacao = z.object({
 /** Campos do multipart, alem dos arquivos e do texto colado. */
 export const OpcoesDoEnvio = z.object({
   modelo: z.string().trim().max(200).optional(),
-  reprocessar: z.enum(["true", "false"]).default("false"),
   aceitar_imagem: z.enum(["true", "false"]).default("false"),
+  /** Corretora de cada arquivo, na ordem dos arquivos (JSON). */
+  corretoras: z.array(z.string().max(60)).max(50).default([]),
+  /** Senha de PDF por nome de arquivo (JSON). Nao e gravada. */
+  senhas: z.record(z.string().max(200), z.string().max(200)).default({}),
+});
+
+export const PedidoDeReprocessamento = z.object({
+  indice: z.number().int().min(0),
+  lotes: z.array(z.number().int().min(0)).max(500).optional(),
+  modelo: z.string().trim().max(200).optional(),
 });
 
 export interface EstadoDaImportacaoIA {
   configurado: boolean;
   provedor: string | null;
   modelo: string | null;
-  /** Ha modelo configurado: importar exige so texto (e visao para imagem). */
+  /** Ha modelo configurado: qualquer modelo de texto importa (ADR 0027). */
   pode_importar: boolean;
+  /** O modelo le imagem: pagina escaneada vai como imagem; senao, OCR local. */
   visao: boolean;
   consentiu: boolean;
   guardar_original: boolean;
   limite_diario: number;
   feitas_hoje: number;
-  /** Outros modelos do mesmo provedor que importam, para reprocessar. */
+  /** Outros modelos do mesmo provedor, para reprocessar. */
   modelos: { modelo: string; visao: boolean; homologado: boolean }[];
+  limites: { mb: number; paginas: number; arquivos: number; confirmar_acima_usd: number };
 }
 
-export interface EstimativaDoArquivo {
+export type ResultadoNaTela = ResultadoDaImportacaoComIA;
+
+export interface ArquivoDoJobNaTela {
+  indice: number;
   nome: string;
-  hash: string;
-  atalho: Atalho | null;
+  corretora: string | null;
+  estado: EstadoDoArquivo;
+  progresso: Progresso | null;
+  estrategia: Estrategia | null;
   estimativa: Estimativa | null;
-  /** Imagem ou pagina escaneada: vai sem anonimizacao, so com aceite. */
-  precisa_visao: boolean;
-  sem_texto: string[];
-  remocoes: Remocoes;
-  /** O mesmo arquivo ja foi extraido com este modelo: nao gasta de novo. */
-  em_cache: boolean;
+  erro: string | null;
+  tem_resultado: boolean;
+  /** O arquivo ainda esta no servidor: da para reprocessar. */
+  tem_arquivo: boolean;
 }
 
-export interface ResultadoNaTela {
-  extracao_id: string;
-  do_cache: boolean;
-  provedor: string;
-  modelo: string;
-  versao_prompt: string;
-  uso: { tokens_entrada: number; tokens_saida: number };
-  custo_estimado: string | null;
-  arquivo: { nome: string; tipo: string; hash: string; paginas: number };
-  remocoes: Remocoes;
-  partes: { origem: string; texto: string }[];
-  validacao: ResultadoDaValidacao;
+export interface JobNaTela {
+  id: string;
+  carteira_id: string;
+  status: StatusDoJob;
+  estimativa: { custo_estimado: string | null } | null;
+  erro: string | null;
+  criado_em: string;
+  arquivos: ArquivoDoJobNaTela[];
 }
 
-export type Etapa = "extraindo" | "analisando" | "validando";
+export const TERMINAIS: StatusDoJob[] = ["pronto", "falhou", "cancelado"];
 
-/** Uma linha do NDJSON que a rota de processamento devolve. */
-export type EventoDaImportacao =
-  | { tipo: "etapa"; arquivo: string; etapa: Etapa; detalhe?: string }
-  | { tipo: "atalho"; arquivo: string; atalho: Atalho }
-  | { tipo: "resultado"; arquivo: string; resultado: ResultadoNaTela }
-  | { tipo: "erro"; arquivo: string; codigo: string; mensagem: string };
-
-export const ROTULO_DA_ETAPA: Record<Etapa, string> = {
-  extraindo: "Extraindo texto",
-  analisando: "Analisando com IA",
-  validando: "Validando",
+export const ROTULO_DO_ESTADO: Record<EstadoDoArquivo, string> = {
+  pendente: "Na fila",
+  lendo: "Lendo o arquivo",
+  ocr: "Lendo páginas escaneadas (OCR)",
+  analisando: "IA",
+  corrigindo: "Corrigindo",
+  validando: "Conciliando",
+  pronto: "Pronto",
+  falhou: "Falhou",
+  cancelado: "Cancelado",
 };
+
+export const ROTULO_DA_ESTRATEGIA: Record<Estrategia, string> = {
+  texto: "texto",
+  visao: "páginas como imagem (visão)",
+  ocr: "OCR local",
+};
+
+/** "IA lote 2 de 5, 37 linhas", "Corrigindo (rodada 1 de 2)". */
+export function textoDoProgresso(
+  a: Pick<ArquivoDoJobNaTela, "estado" | "progresso">,
+): string {
+  const p = a.progresso;
+  const base = ROTULO_DO_ESTADO[a.estado];
+  if (!p || p.total === undefined) return base;
+  if (a.estado === "analisando")
+    return `IA lote ${p.feitos ?? 0} de ${p.total}${p.linhas ? `, ${p.linhas} linhas` : ""}`;
+  if (a.estado === "corrigindo")
+    return `Corrigindo (rodada ${p.feitos ?? 1} de ${p.total})`;
+  return base;
+}
+
+const CORRETORAS: [RegExp, string][] = [
+  [/\bxp\b|xpi/i, "XP"],
+  [/nubank|nu ?invest|\bnu\b/i, "Nubank"],
+  [/santander/i, "Santander"],
+  [/btg/i, "BTG"],
+  [/ita[uú]/i, "Itaú"],
+  [/\brico\b/i, "Rico"],
+  [/clear/i, "Clear"],
+  [/inter\b/i, "Inter"],
+  [/bradesco/i, "Bradesco"],
+  [/banco do brasil|\bbb\b/i, "Banco do Brasil"],
+  [/caixa/i, "Caixa"],
+  [/modal/i, "Modal"],
+  [/genial/i, "Genial"],
+  [/avenue/i, "Avenue"],
+];
+
+/** Sugestao de corretora pelo nome do arquivo; o usuario confirma. */
+export function sugerirCorretora(nome: string): string {
+  const limpo = nome.replace(/[_\-.[\]()]+/g, " ");
+  return CORRETORAS.find(([re]) => re.test(limpo))?.[1] ?? "";
+}
 
 /** Soma das linhas marcadas contra o total declarado, refeita a cada clique. */
 export function conciliacaoDaSelecao(
@@ -125,7 +182,7 @@ export function conciliacaoDaSelecao(
     .map(([corretora, saldos]) => conciliar(corretora, saldos, totais, tolerancia));
 }
 
-/** Campos editaveis na tela, por tipo. O resto segue como o modelo propos. */
+/** Campos editaveis na tela, por tipo. O campo com problema aparece sempre. */
 export const CAMPOS_EDITAVEIS: Record<
   LinhaProposta["tipo"],
   { campo: string; rotulo: string }[]
@@ -136,6 +193,8 @@ export const CAMPOS_EDITAVEIS: Record<
     { campo: "classe", rotulo: "Classe" },
     { campo: "quantidade", rotulo: "Qtd." },
     { campo: "saldo_bruto", rotulo: "Saldo bruto" },
+    { campo: "corretora", rotulo: "Corretora" },
+    { campo: "data_posicao", rotulo: "Data" },
   ],
   transacao: [
     { campo: "data", rotulo: "Data" },
@@ -151,6 +210,23 @@ export const CAMPOS_EDITAVEIS: Record<
     { campo: "quantidade", rotulo: "Qtd." },
     { campo: "preco", rotulo: "Por cota" },
   ],
+};
+
+/** Os campos que a linha mostra: os padrao do tipo e os que tem problema. */
+export function camposDaLinha(
+  l: Pick<LinhaProposta, "tipo" | "problemas">,
+): { campo: string; rotulo: string }[] {
+  const padrao = CAMPOS_EDITAVEIS[l.tipo];
+  const extras = l.problemas
+    .filter((p) => !padrao.some((c) => c.campo === p))
+    .map((p) => ({ campo: p, rotulo: p.replace(/_/g, " ") }));
+  return [...padrao, ...extras];
+}
+
+export const ROTULO_DO_GRUPO: Record<GrupoDaLinha, string> = {
+  pronta: "Prontas",
+  preenchida: "Preenchidas automaticamente",
+  ajuste: "Precisam de ajuste",
 };
 
 /** Custo em dolares para a tela: "US$ 0,0021", ou "sem preço". */

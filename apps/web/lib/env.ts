@@ -68,6 +68,12 @@ const Env = z.object({
   ASSISTANT_IMPORT_DAILY: z.coerce.number().int().positive().default(20),
   /** Tolerancia da conciliacao da importacao com IA, em fracao: 0.005 e 0,5%. */
   ASSISTANT_IMPORT_TOLERANCE: z.coerce.number().min(0).max(0.1).default(0.005),
+  /** Limites do envio da importacao com IA (ADR 0027): MB por arquivo e arquivos por envio. */
+  ASSISTANT_IMPORT_MAX_MB: z.coerce.number().int().positive().default(50),
+  ASSISTANT_IMPORT_MAX_PAGES: z.coerce.number().int().positive().default(500),
+  ASSISTANT_IMPORT_MAX_FILES: z.coerce.number().int().positive().default(20),
+  /** Custo estimado (US$) acima do qual o job espera a confirmacao do usuario. */
+  ASSISTANT_IMPORT_CONFIRM_USD: z.coerce.number().min(0).default(0.5),
   /** Mensagens por dia na chave da plataforma, por plano: `gratis:20,pro:200`. */
   ASSISTANT_PLATFORM_LIMITS: z.string().default("gratis:20"),
 });

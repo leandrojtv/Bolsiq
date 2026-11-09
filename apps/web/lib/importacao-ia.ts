@@ -1,30 +1,32 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import PgBoss from "pg-boss";
 import {
+  acessoParaImportar as acessoNoBanco,
+  apagarArquivosDoJob,
   capacidadesDoModelo,
-  criarModelo,
   csvDePosicoes,
   csvDeTransacoes,
-  decifrarChave,
+  decodificar,
+  detectarAtalho,
   ErroDeImportacao,
-  estimarImportacao,
-  importarComIA,
+  exigeSenha,
+  ferramentasDoSistema,
+  importacoesHoje,
+  lerChaveMestra,
   modelosParaImportar,
-  prepararArquivo,
-  registroDoModelo,
   schema,
+  SenhaIncorreta,
+  tipoDoArquivo,
   validarLinhasEditadas,
-  VERSAO_DO_PROMPT_DE_IMPORTACAO,
-  type ArmazemDeImportacao,
-  type ArquivoPreparado,
-  type Entrada,
-  type Etapa,
+  verificadorPorHttp,
+  type Atalho,
+  type OpcoesDaCredencial,
   type Provedor,
   type ResultadoDaValidacao,
   type Verificador,
 } from "@bolsiq/assistant";
-import type { Candle } from "@bolsiq/contracts";
 import {
   COLUNAS_BOLSIQ,
   COLUNAS_POSICAO,
@@ -32,13 +34,7 @@ import {
   type RevisaoDeCarga,
 } from "@bolsiq/portfolio";
 import { banco } from "./analytics";
-import {
-  baseDoProvedor,
-  ErroDoAssistente,
-  inicioDoDia,
-  mestra,
-  registrarErro,
-} from "./assistente";
+import { ErroDoAssistente } from "./assistente";
 import {
   importar,
   importarPosicao,
@@ -47,8 +43,9 @@ import {
 } from "./carteira";
 import { env } from "./env";
 import type {
+  ArquivoDoJobNaTela,
   EstadoDaImportacaoIA,
-  EstimativaDoArquivo,
+  JobNaTela,
   LinhaEditada,
   PedidoDeConfirmacaoIA,
   ResultadoNaTela,
@@ -56,12 +53,15 @@ import type {
 import { hojeEmSp } from "./indicadores-tecnicos";
 import { buscarV1, VALIDADE } from "./market-data";
 
-const { settings, usage, extractions } = schema;
+const { settings, extractions, importJobs, importJobFiles } = schema;
 
 /**
- * Importacao com IA (ADR 0026). A IA so propoe linhas: a gravacao e a mesma do
- * CSV de posicoes e do CSV de transacoes, e so acontece na confirmacao.
+ * Importacao com IA (ADR 0026 e 0027). O web recebe os arquivos, cria o job e
+ * acompanha; quem processa e o portfolio-worker. A IA so propoe linhas: a
+ * gravacao e a da carga de posicao e do CSV de transacoes, so na confirmacao.
  */
+
+export const FILA_DA_IMPORTACAO = "assistant.importacao";
 
 const lerSettings = (uid: string) =>
   comoUsuario(banco(), uid, async (tx) => {
@@ -69,23 +69,11 @@ const lerSettings = (uid: string) =>
     return s ?? null;
   });
 
-const contarHoje = (uid: string) =>
-  comoUsuario(banco(), uid, async (tx) => {
-    const [n] = await tx
-      .select({ n: count() })
-      .from(usage)
-      .where(
-        and(
-          eq(usage.user_id, uid),
-          gte(usage.criado_em, inicioDoDia()),
-          eq(usage.origem, "importacao"),
-        ),
-      );
-    return n?.n ?? 0;
-  });
-
 export async function estadoDaImportacaoIA(uid: string): Promise<EstadoDaImportacaoIA> {
-  const [s, feitas] = await Promise.all([lerSettings(uid), contarHoje(uid)]);
+  const [s, feitas] = await Promise.all([
+    lerSettings(uid),
+    importacoesHoje(banco(), uid, hojeEmSp()),
+  ]);
   const provedor = (s?.provedor ?? null) as Provedor | null;
   const modelo = s?.modelo ?? null;
   const c = provedor && modelo ? capacidadesDoModelo(provedor, modelo) : null;
@@ -93,7 +81,7 @@ export async function estadoDaImportacaoIA(uid: string): Promise<EstadoDaImporta
     configurado: Boolean(provedor && modelo),
     provedor,
     modelo,
-    // Basta texto: as linhas vem em CSV (ADR 0026, Revisao).
+    // Basta texto (ADR 0027): as capacidades escolhem a estrategia, nao bloqueiam.
     pode_importar: c !== null,
     visao: c?.visao ?? false,
     consentiu: Boolean(s?.consentimento_importacao_em),
@@ -101,6 +89,12 @@ export async function estadoDaImportacaoIA(uid: string): Promise<EstadoDaImporta
     limite_diario: env.ASSISTANT_IMPORT_DAILY,
     feitas_hoje: feitas,
     modelos: provedor ? modelosParaImportar(provedor) : [],
+    limites: {
+      mb: env.ASSISTANT_IMPORT_MAX_MB,
+      paginas: env.ASSISTANT_IMPORT_MAX_PAGES,
+      arquivos: env.ASSISTANT_IMPORT_MAX_FILES,
+      confirmar_acima_usd: env.ASSISTANT_IMPORT_CONFIRM_USD,
+    },
   };
 }
 
@@ -127,260 +121,363 @@ export async function registrarConsentimentoDaImportacao(
   );
 }
 
-interface Acesso {
-  provedor: Provedor;
-  modelo: string;
-  chave: string | null;
-  baseUrl: string | null;
-  preco: { entrada: number | null; saida: number | null };
-  capacidades: ReturnType<typeof capacidadesDoModelo>;
-  guardar_original: boolean;
-}
-
-/**
- * Chave e modelo do usuario, a mesma configuracao do assistente. Outro modelo so
- * do mesmo provedor e da lista com saida estruturada: e a mesma chave.
- */
-async function acessoParaImportar(uid: string, outroModelo?: string): Promise<Acesso> {
-  const s = await lerSettings(uid);
-  if (!s?.provedor || !s.modelo)
-    throw new ErroDoAssistente(
-      409,
-      "nao_configurado",
-      "Configure um modelo em Configurações do assistente para importar com IA.",
-    );
-  if (!s.consentimento_importacao_em)
-    throw new ErroDoAssistente(
-      409,
-      "consentimento",
-      "Confirme o envio do documento ao provedor antes da primeira importação com IA.",
-    );
-  const provedor = s.provedor as Provedor;
-  const modelo = outroModelo || s.modelo;
-  if (outroModelo && !modelosParaImportar(provedor).some((m) => m.modelo === outroModelo))
-    throw new ErroDoAssistente(
-      422,
-      "modelo_invalido",
-      "Modelo fora da lista de importação.",
-    );
-  const registro = registroDoModelo(provedor, modelo);
-  const mesmo = modelo === s.modelo;
+function opcoesDaCredencial(): OpcoesDaCredencial {
+  let mestra: Buffer | null = null;
+  try {
+    mestra = lerChaveMestra(env.ASSISTANT_MASTER_KEY);
+  } catch {
+    mestra = null;
+  }
   return {
-    provedor,
-    modelo,
-    chave: s.chave_cifrada ? decifrarChave(s.chave_cifrada, mestra(), uid) : null,
-    baseUrl: baseDoProvedor(provedor, s.base_url),
-    preco: {
-      entrada:
-        mesmo && s.preco_entrada !== null
-          ? Number(s.preco_entrada)
-          : (registro?.preco_entrada ?? null),
-      saida:
-        mesmo && s.preco_saida !== null
-          ? Number(s.preco_saida)
-          : (registro?.preco_saida ?? null),
-    },
-    capacidades: capacidadesDoModelo(provedor, modelo),
-    guardar_original: s.guardar_original,
+    mestra,
+    ollama_url: env.ASSISTANT_OLLAMA_URL,
+    ollama_hosts: env.ASSISTANT_OLLAMA_HOSTS.split(",")
+      .map((h) => h.trim())
+      .filter(Boolean),
+    deepseek_url: env.ASSISTANT_DEEPSEEK_URL ?? null,
   };
 }
 
-/** Cache e consumo no schema `assistant`, preso ao usuario pela RLS. */
-function armazemDoUsuario(
-  uid: string,
-  provedor: string,
-  modelo: string,
-): ArmazemDeImportacao {
-  const db = banco();
-  return {
-    buscar: (c) =>
-      comoUsuario(db, uid, async (tx) => {
-        const [l] = await tx
-          .select({ id: extractions.id, saida: extractions.extraido })
-          .from(extractions)
-          .where(
-            and(
-              eq(extractions.user_id, uid),
-              eq(extractions.hash, c.hash),
-              eq(extractions.versao_prompt, c.versao_prompt),
-              eq(extractions.provedor, c.provedor),
-              eq(extractions.modelo, c.modelo),
-            ),
-          );
-        return l ?? null;
-      }),
-    feitasHoje: () => contarHoje(uid),
-    gravar: (r) =>
-      comoUsuario(db, uid, async (tx) => {
-        const valores = {
-          extraido: r.saida,
-          relatorio: r.relatorio,
-          tokens_entrada: r.uso.tokens_entrada,
-          tokens_saida: r.uso.tokens_saida,
-          custo_estimado: r.custo_estimado,
-          original: r.original ? Buffer.from(r.original.dados) : null,
-          original_mime: r.original?.mime ?? null,
-          nome_arquivo: r.nome_arquivo.slice(0, 200),
-          tipo_arquivo: r.tipo_arquivo,
-          confirmado_em: null,
-        };
-        // Reprocessar o mesmo arquivo com o mesmo modelo substitui a extracao.
-        const [l] = await tx
-          .insert(extractions)
-          .values({
-            id: randomUUID(),
-            user_id: uid,
-            hash: r.chave.hash,
-            versao_prompt: r.chave.versao_prompt,
-            provedor: r.chave.provedor,
-            modelo: r.chave.modelo,
-            ...valores,
-          })
-          .onConflictDoUpdate({
-            target: [
-              extractions.user_id,
-              extractions.hash,
-              extractions.versao_prompt,
-              extractions.provedor,
-              extractions.modelo,
-            ],
-            set: { ...valores, criado_em: sql`now()` },
-          })
-          .returning({ id: extractions.id });
-        return (l as { id: string }).id;
-      }),
-    atualizarRelatorio: (id, relatorio) =>
-      comoUsuario(db, uid, async (tx) => {
-        await tx.update(extractions).set({ relatorio }).where(eq(extractions.id, id));
-      }),
-    registrarUso: (uso, custo) =>
-      comoUsuario(db, uid, async (tx) => {
-        await tx.insert(usage).values({
-          id: randomUUID(),
-          user_id: uid,
-          conversation_id: null,
-          provedor,
-          modelo,
-          plataforma: false,
-          origem: "importacao",
-          tokens_entrada: uso.tokens_entrada,
-          tokens_saida: uso.tokens_saida,
-          custo_estimado: custo,
-        });
-      }),
-  };
-}
-
-/**
- * O que o market-data sabe: ticker existe (`/v1/assets/:t`) e minima e maxima do
- * pregao (`/v1/history`, sem ajuste, que e o preco negociado).
- */
+/** O que o market-data sabe, pelo /v1 com o cache do Next. */
 export function verificadorDoMarketData(): Verificador {
-  return {
-    async tickersExistentes(tickers) {
-      const r = await Promise.all(
-        tickers.map(async (t) => {
-          if (!/^[A-Z0-9]{4,12}$/.test(t)) return [t, 404] as const;
-          const x = await buscarV1<unknown>(`assets/${t}`, VALIDADE.assets);
-          return [t, x.status] as const;
-        }),
-      );
-      if (r.some(([, s]) => s !== 200 && s !== 404)) return null;
-      return new Set(r.filter(([, s]) => s === 200).map(([t]) => t));
-    },
-    async faixaDoDia(ticker, data) {
-      const r = await buscarV1<{ data: { candles: Candle[] } }>(
-        `history/${ticker}?interval=1d&from=${data}&to=${data}&adjusted=false`,
-        VALIDADE.history,
-      );
-      const c =
-        r.status === 200 ? r.corpo.data.candles.find((x) => x.date === data) : null;
-      return c ? { minima: c.low, maxima: c.high } : null;
-    },
-  };
-}
-
-export type EntradaDoUsuario = Entrada;
-
-const preparar = (e: EntradaDoUsuario, maxSaida: number): Promise<ArquivoPreparado> =>
-  prepararArquivo(e, maxSaida);
-
-export async function estimarImportacaoIA(
-  uid: string,
-  entradas: EntradaDoUsuario[],
-  outroModelo?: string,
-): Promise<EstimativaDoArquivo[]> {
-  const a = await acessoParaImportar(uid, outroModelo);
-  const armazem = armazemDoUsuario(uid, a.provedor, a.modelo);
-  return Promise.all(
-    entradas.map(async (e) => {
-      const p = await preparar(e, a.capacidades.max_saida);
-      const emCache =
-        !p.atalho &&
-        (await armazem.buscar({
-          hash: p.hash,
-          versao_prompt: VERSAO_DO_PROMPT_DE_IMPORTACAO,
-          provedor: a.provedor,
-          modelo: a.modelo,
-        })) !== null;
-      return {
-        nome: p.nome,
-        hash: p.hash,
-        atalho: p.atalho,
-        estimativa: p.atalho
-          ? null
-          : estimarImportacao(p, a.preco, a.capacidades.max_saida),
-        precisa_visao: p.arquivo_para_visao !== null,
-        sem_texto: p.sem_texto,
-        remocoes: p.remocoes,
-        em_cache: emCache,
-      };
-    }),
+  return verificadorPorHttp((caminho) =>
+    buscarV1<unknown>(
+      caminho,
+      caminho.startsWith("history") ? VALIDADE.history : VALIDADE.assets,
+    ),
   );
 }
 
-export interface OpcoesDoProcesso {
-  outroModelo?: string;
-  reprocessar: boolean;
-  aceitarImagem: boolean;
-  aoAvancar: (arquivo: string, etapa: Etapa, detalhe?: string) => void;
-  abortar?: AbortSignal;
+// ---------------------------------------------------------------------------
+// Fila
+// ---------------------------------------------------------------------------
+
+let fila: Promise<PgBoss> | null = null;
+
+/** Cliente do pg-boss so para enfileirar: quem trabalha e o portfolio-worker. */
+function filaDoWeb(): Promise<PgBoss> {
+  fila ??= (async () => {
+    const boss = new PgBoss({
+      connectionString: env.DATABASE_URL,
+      schema: "pgboss",
+      supervise: false,
+      schedule: false,
+    });
+    boss.on("error", (e) =>
+      process.stderr.write(
+        `${JSON.stringify({ level: "error", modulo: "importacao", msg: String(e) })}\n`,
+      ),
+    );
+    await boss.start();
+    await boss.createQueue(FILA_DA_IMPORTACAO, {
+      name: FILA_DA_IMPORTACAO,
+      retryLimit: 0,
+      expireInSeconds: 60 * 60 * 3,
+    });
+    return boss;
+  })();
+  return fila;
 }
 
-/** Processa um arquivo. Atalho volta como tal: o navegador usa o importador de sempre. */
-export async function processarImportacaoIA(
-  uid: string,
-  e: EntradaDoUsuario,
-  o: OpcoesDoProcesso,
-): Promise<{ atalho: ArquivoPreparado["atalho"]; resultado: ResultadoNaTela | null }> {
-  const a = await acessoParaImportar(uid, o.outroModelo);
-  const nome = "texto" in e ? "texto colado" : e.nome;
-  o.aoAvancar(nome, "extraindo");
-  const arquivo = await preparar(e, a.capacidades.max_saida);
-  if (arquivo.atalho) return { atalho: arquivo.atalho, resultado: null };
-  const r = await importarComIA({
-    arquivo,
-    original:
-      a.guardar_original && !("texto" in e) ? { mime: e.mime, dados: e.bytes } : null,
-    modelo: criarModelo(a, a.modelo),
-    provedor: a.provedor,
-    nome_do_modelo: a.modelo,
-    preco: a.preco,
-    capacidades: a.capacidades,
-    armazem: armazemDoUsuario(uid, a.provedor, a.modelo),
-    verificador: verificadorDoMarketData(),
-    hoje: hojeEmSp(),
-    tolerancia: env.ASSISTANT_IMPORT_TOLERANCE,
-    limite_diario: env.ASSISTANT_IMPORT_DAILY,
-    reprocessar: o.reprocessar,
-    aceitou_enviar_imagem: o.aceitarImagem,
-    segredos: a.chave ? [a.chave] : [],
-    aoErrar: (detalhe) => registrarErro(`importacao: ${detalhe}`),
-    aoAvancar: (etapa, detalhe) => o.aoAvancar(nome, etapa, detalhe),
-    ...(o.abortar ? { abortar: o.abortar } : {}),
-  });
-  return { atalho: null, resultado: r };
+async function enfileirar(dados: {
+  job_id: string;
+  user_id: string;
+  modelo?: string;
+  reprocessar?: { indice: number; lotes?: number[] };
+}): Promise<void> {
+  await (await filaDoWeb()).send(FILA_DA_IMPORTACAO, dados);
 }
+
+// ---------------------------------------------------------------------------
+// Envio
+// ---------------------------------------------------------------------------
+
+export interface ArquivoEnviado {
+  nome: string;
+  mime: string;
+  bytes: Uint8Array;
+  corretora: string;
+  senha: string;
+}
+
+export interface ResultadoDoEnvio {
+  job_id: string | null;
+  /** Arquivos ja no layout do Bolsiq: a tela os manda pelo importador sem IA. */
+  atalhos: { nome: string; atalho: Atalho }[];
+}
+
+/**
+ * Cria o job. Antes, sem IA: limites, atalho (CSV ja no layout vai pelo
+ * importador de sempre), e o PDF com senha, aberto aqui com qpdf; a senha nao e
+ * gravada nem vai ao worker, so o PDF decifrado, que sai do banco no fim.
+ */
+export async function criarJobDeImportacao(
+  uid: string,
+  carteira: string,
+  arquivos: ArquivoEnviado[],
+  o: { modelo?: string; aceitar_imagem: boolean },
+): Promise<ResultadoDoEnvio> {
+  if (arquivos.length > env.ASSISTANT_IMPORT_MAX_FILES)
+    throw new ErroDeImportacao(
+      "arquivos_demais",
+      `Envie até ${env.ASSISTANT_IMPORT_MAX_FILES} arquivos por vez.`,
+    );
+  // Confere configuracao e consentimento antes de guardar qualquer arquivo.
+  await acessoNoBanco(banco(), uid, opcoesDaCredencial(), o.modelo);
+
+  const limite = env.ASSISTANT_IMPORT_MAX_MB * 1024 * 1024;
+  const atalhos: ResultadoDoEnvio["atalhos"] = [];
+  const precisaSenha: string[] = [];
+  const paraOJob: ArquivoEnviado[] = [];
+  const ferramentas = await ferramentasDoSistema();
+  for (const a of arquivos) {
+    if (a.bytes.byteLength === 0)
+      throw new ErroDeImportacao("vazio", `${a.nome} está vazio.`);
+    if (a.bytes.byteLength > limite)
+      throw new ErroDeImportacao(
+        "grande_demais",
+        `${a.nome} passa de ${env.ASSISTANT_IMPORT_MAX_MB} MB. Divida o arquivo por período ou por conta.`,
+        413,
+      );
+    const tipo = tipoDoArquivo(a.nome, a.mime, a.bytes);
+    if (tipo === "csv" || tipo === "txt") {
+      const atalho = detectarAtalho(decodificar(a.bytes));
+      if (atalho) {
+        atalhos.push({ nome: a.nome, atalho });
+        continue;
+      }
+    }
+    if (tipo === "pdf" && (await exigeSenha(a.bytes))) {
+      if (!a.senha) {
+        precisaSenha.push(a.nome);
+        continue;
+      }
+      if (!ferramentas.decifrarPdf)
+        throw new ErroDeImportacao(
+          "sem_qpdf",
+          "Este servidor não consegue abrir PDF com senha. Salve o PDF sem senha e envie de novo.",
+          503,
+        );
+      try {
+        paraOJob.push({
+          ...a,
+          bytes: await ferramentas.decifrarPdf(a.bytes, a.senha),
+          senha: "",
+        });
+      } catch (e) {
+        if (e instanceof SenhaIncorreta)
+          throw new ErroDeImportacao(
+            "senha_incorreta",
+            `A senha de ${a.nome} não confere.`,
+            422,
+          );
+        throw e;
+      }
+      continue;
+    }
+    paraOJob.push(a);
+  }
+  if (precisaSenha.length > 0)
+    throw new ErroDeImportacao(
+      "precisa_senha",
+      `${precisaSenha.join(", ")} ${precisaSenha.length === 1 ? "tem" : "têm"} senha. Informe para abrir (muitos bancos usam parte do CPF).`,
+      422,
+    );
+  if (paraOJob.length === 0) return { job_id: null, atalhos };
+
+  const id = randomUUID();
+  await comoUsuario(banco(), uid, async (tx) => {
+    await tx.insert(importJobs).values({
+      id,
+      user_id: uid,
+      carteira_id: carteira,
+      status: "lendo",
+      modelo: o.modelo ?? null,
+      aceitou_imagem: o.aceitar_imagem,
+    });
+    await tx.insert(importJobFiles).values(
+      paraOJob.map((a, indice) => ({
+        id: randomUUID(),
+        job_id: id,
+        user_id: uid,
+        indice,
+        nome: a.nome.slice(0, 200),
+        mime: a.mime,
+        tamanho: a.bytes.byteLength,
+        corretora: a.corretora.trim().slice(0, 60) || null,
+        dados: Buffer.from(a.bytes),
+        estado: "pendente",
+      })),
+    );
+  });
+  await enfileirar({
+    job_id: id,
+    user_id: uid,
+    ...(o.modelo ? { modelo: o.modelo } : {}),
+  });
+  return { job_id: id, atalhos };
+}
+
+// ---------------------------------------------------------------------------
+// Acompanhamento
+// ---------------------------------------------------------------------------
+
+/** O job como a tela ve, sem os bytes e sem o resultado (que vem por arquivo). */
+export async function lerJob(uid: string, jobId: string): Promise<JobNaTela> {
+  const r = await comoUsuario(banco(), uid, async (tx) => {
+    const [j] = await tx.select().from(importJobs).where(eq(importJobs.id, jobId));
+    if (!j) return null;
+    const arquivos = await tx
+      .select({
+        indice: importJobFiles.indice,
+        nome: importJobFiles.nome,
+        corretora: importJobFiles.corretora,
+        estado: importJobFiles.estado,
+        progresso: importJobFiles.progresso,
+        estrategia: importJobFiles.estrategia,
+        estimativa: importJobFiles.estimativa,
+        erro: importJobFiles.erro,
+        tem_resultado: sql<boolean>`${importJobFiles.resultado} is not null`,
+        tem_arquivo: sql<boolean>`${importJobFiles.dados} is not null`,
+      })
+      .from(importJobFiles)
+      .where(eq(importJobFiles.job_id, jobId))
+      .orderBy(importJobFiles.indice);
+    return { j, arquivos };
+  });
+  if (!r)
+    throw new ErroDeImportacao("job_nao_encontrado", "Importação não encontrada.", 404);
+  return {
+    id: r.j.id,
+    carteira_id: r.j.carteira_id,
+    status: r.j.status as JobNaTela["status"],
+    estimativa: (r.j.estimativa as JobNaTela["estimativa"]) ?? null,
+    erro: r.j.erro,
+    criado_em: r.j.criado_em,
+    arquivos: r.arquivos as ArquivoDoJobNaTela[],
+  };
+}
+
+export async function lerResultadoDoArquivo(
+  uid: string,
+  jobId: string,
+  indice: number,
+): Promise<ResultadoNaTela> {
+  const r = await comoUsuario(banco(), uid, async (tx) => {
+    const [l] = await tx
+      .select({ resultado: importJobFiles.resultado })
+      .from(importJobFiles)
+      .where(and(eq(importJobFiles.job_id, jobId), eq(importJobFiles.indice, indice)));
+    return l?.resultado ?? null;
+  });
+  if (!r)
+    throw new ErroDeImportacao(
+      "sem_resultado",
+      "Este arquivo ainda não tem resultado.",
+      404,
+    );
+  return r as ResultadoNaTela;
+}
+
+export async function confirmarCustoDoJob(uid: string, jobId: string): Promise<void> {
+  const job = await lerJob(uid, jobId);
+  if (job.status !== "aguardando_confirmacao")
+    throw new ErroDeImportacao(
+      "estado_invalido",
+      "Esta importação não está esperando confirmação.",
+      409,
+    );
+  await comoUsuario(banco(), uid, (tx) =>
+    tx
+      .update(importJobs)
+      .set({ confirmado: true, status: "lendo", atualizado_em: sql`now()` })
+      .where(eq(importJobs.id, jobId)),
+  );
+  await enfileirar({ job_id: jobId, user_id: uid });
+}
+
+/** Cancela e apaga os arquivos. Se o worker estiver no meio, ele para no proximo lote. */
+export async function cancelarJob(uid: string, jobId: string): Promise<void> {
+  const job = await lerJob(uid, jobId);
+  await comoUsuario(banco(), uid, (tx) =>
+    tx
+      .update(importJobs)
+      .set({
+        cancelado: true,
+        ...(job.status === "extraindo" ? {} : { status: "cancelado" }),
+        atualizado_em: sql`now()`,
+      })
+      .where(eq(importJobs.id, jobId)),
+  );
+  if (job.status !== "extraindo") await apagarArquivosDoJob(banco(), uid, jobId);
+}
+
+/** Outra tentativa de um arquivo: os lotes que falharam, ou tudo com outro modelo. */
+export async function reprocessarArquivo(
+  uid: string,
+  jobId: string,
+  indice: number,
+  o: { lotes?: number[]; modelo?: string },
+): Promise<void> {
+  const job = await lerJob(uid, jobId);
+  const arquivo = job.arquivos.find((a) => a.indice === indice);
+  if (!arquivo)
+    throw new ErroDeImportacao("arquivo_nao_encontrado", "Arquivo não encontrado.", 404);
+  if (!arquivo.tem_arquivo)
+    throw new ErroDeImportacao(
+      "arquivo_apagado",
+      "O arquivo já saiu do servidor (confirmado, cancelado ou com mais de 24 horas). Envie de novo.",
+      410,
+    );
+  await acessoNoBanco(banco(), uid, opcoesDaCredencial(), o.modelo);
+  await comoUsuario(banco(), uid, async (tx) => {
+    await tx
+      .update(importJobs)
+      .set({
+        status: "extraindo",
+        cancelado: false,
+        confirmado: true,
+        atualizado_em: sql`now()`,
+      })
+      .where(eq(importJobs.id, jobId));
+    await tx
+      .update(importJobFiles)
+      .set({ estado: "pendente", erro: null, atualizado_em: sql`now()` })
+      .where(and(eq(importJobFiles.job_id, jobId), eq(importJobFiles.indice, indice)));
+  });
+  await enfileirar({
+    job_id: jobId,
+    user_id: uid,
+    ...(o.modelo ? { modelo: o.modelo } : {}),
+    reprocessar: { indice, ...(o.lotes?.length ? { lotes: o.lotes } : {}) },
+  });
+}
+
+/** O ultimo job da carteira que ainda importa (para voltar a pagina depois). */
+export async function ultimoJob(
+  uid: string,
+  carteira: string,
+): Promise<JobNaTela | null> {
+  const id = await comoUsuario(banco(), uid, async (tx) => {
+    const [j] = await tx
+      .select({ id: importJobs.id })
+      .from(importJobs)
+      .where(
+        and(
+          eq(importJobs.carteira_id, carteira),
+          sql`${importJobs.criado_em} > now() - interval '24 hours'`,
+        ),
+      )
+      .orderBy(sql`${importJobs.criado_em} desc`)
+      .limit(1);
+    return j?.id ?? null;
+  });
+  return id ? lerJob(uid, id) : null;
+}
+
+// ---------------------------------------------------------------------------
+// Revisao e confirmacao
+// ---------------------------------------------------------------------------
 
 async function lerExtracao(uid: string, id: string) {
   const l = await comoUsuario(banco(), uid, async (tx) => {
@@ -426,6 +523,7 @@ export async function revisarImportacaoIA(
  * Grava o que o usuario confirmou, pelos caminhos de sempre: posicoes pela carga
  * de posicao, transacoes e proventos pelo CSV do Bolsiq. Linha editada passa de
  * novo pelas conferencias que nao dependem do documento (data, ticker, faixa).
+ * Depois, o arquivo do job sai do banco.
  */
 export async function confirmarImportacaoIA(
   uid: string,
@@ -436,7 +534,7 @@ export async function confirmarImportacaoIA(
   if (extracao.relatorio && !extracao.relatorio.conciliada && !p.aceitar_nao_conciliada)
     throw new ErroDeImportacao(
       "nao_conciliada",
-      "A carga não está conciliada com o documento. Confirme que conferiu os totais.",
+      "Os totais não batem com o documento. Confira e confirme que quer importar assim.",
       409,
     );
   const conferidas = await validarLinhasEditadas(p.linhas, verificadorDoMarketData(), {
@@ -469,6 +567,7 @@ export async function confirmarImportacaoIA(
       .set({ confirmado_em: sql`now()` })
       .where(eq(extractions.id, p.extracao_id)),
   );
+  if (p.job_id) await apagarArquivosDoJob(banco(), uid, p.job_id);
   return {
     linhas_lidas: relatorios.reduce((s, r) => s + r.linhas_lidas, 0),
     linhas_aceitas: relatorios.reduce((s, r) => s + r.linhas_aceitas, 0),
@@ -477,3 +576,5 @@ export async function confirmarImportacaoIA(
     duracao_ms: Math.round(performance.now() - inicio),
   };
 }
+
+export { ErroDoAssistente };

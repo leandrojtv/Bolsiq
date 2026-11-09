@@ -294,6 +294,10 @@ export interface MedidaDaFixture {
   linhas_esperadas: number;
   faltantes: string[];
   inventados: string[];
+  /** Linhas esperadas encontradas em "pronta" ou "preenchida" (nao "ajuste"). */
+  prontas_ou_preenchidas: number;
+  /** Campo que a politica de padroes nunca preenche, mas veio preenchido. */
+  campos_inventados: string[];
   conciliacao_certa: boolean;
   erro: string | null;
 }
@@ -312,12 +316,20 @@ export function medir(
       linhas_esperadas: f.esperado.linhas.length,
       faltantes: f.esperado.linhas.map((l) => rotulo(l.tipo, l.campos)),
       inventados: [],
+      prontas_ou_preenchidas: 0,
+      campos_inventados: [],
       conciliacao_certa: false,
       erro,
     };
   const obtidas = [...r.validacao.linhas];
   let certos = 0;
+  let prontas = 0;
   const faltantes: string[] = [];
+  const camposInventados = r.validacao.linhas.flatMap((o) =>
+    o.preenchidos
+      .filter((c) => nuncaPreencher(o.tipo, o.dados).includes(c))
+      .map((c) => `${rotulo(o.tipo, o.dados)}: ${c}`),
+  );
   for (const e of f.esperado.linhas) {
     const i = obtidas.findIndex((o) => casa(e, o));
     const o = i === -1 ? undefined : obtidas.splice(i, 1)[0];
@@ -325,6 +337,7 @@ export function medir(
       faltantes.push(rotulo(e.tipo, e.campos));
       continue;
     }
+    if (o.grupo !== "ajuste") prontas++;
     for (const [campo, valor] of Object.entries(e.campos))
       if (igual(o.dados[campo], valor)) certos++;
   }
@@ -335,12 +348,32 @@ export function medir(
     linhas_esperadas: f.esperado.linhas.length,
     faltantes,
     inventados: obtidas.map((o) => rotulo(o.tipo, o.dados)),
+    prontas_ou_preenchidas: prontas,
+    campos_inventados: camposInventados,
     conciliacao_certa: r.validacao.conciliada === f.esperado.conciliada,
     erro,
   };
 }
 
-export const CRITERIOS = { acerto_por_campo: 0.95, linhas_faltantes: 0.05 } as const;
+const RENDA_VARIAVEL = ["acao", "fii", "bdr", "etf"];
+
+/** O que a politica de padroes nunca preenche (NUNCA_INVENTAR em padroes.ts). */
+function nuncaPreencher(tipo: string, d: Record<string, string>): string[] {
+  if (tipo === "transacao") return ["ticker", "quantidade", "preco", "data"];
+  if (tipo === "provento") return ["ticker", "data"];
+  return [
+    "saldo_bruto",
+    "codigo",
+    "ticker",
+    ...(RENDA_VARIAVEL.includes(d.classe ?? "") ? ["quantidade"] : []),
+  ];
+}
+
+export const CRITERIOS = {
+  acerto_por_campo: 0.95,
+  linhas_faltantes: 0.05,
+  prontas_ou_preenchidas: 0.95,
+} as const;
 
 export function resumirMedidas(m: MedidaDaFixture[]) {
   const soma = (f: (x: MedidaDaFixture) => number) => m.reduce((s, x) => s + f(x), 0);
@@ -358,6 +391,13 @@ export function resumirMedidas(m: MedidaDaFixture[]) {
       soma((x) => x.linhas_esperadas),
     );
   const inventados = soma((x) => x.inventados.length);
+  const camposInventados = soma((x) => x.campos_inventados.length);
+  const prontas =
+    soma((x) => x.prontas_ou_preenchidas) /
+    Math.max(
+      1,
+      soma((x) => x.linhas_esperadas),
+    );
   const conciliacao = m.filter((x) => x.conciliacao_certa).length / Math.max(1, m.length);
   return {
     fixtures: m.length,
@@ -365,11 +405,15 @@ export function resumirMedidas(m: MedidaDaFixture[]) {
     conciliacao_de_totais: Number(conciliacao.toFixed(4)),
     ativos_inventados: inventados,
     linhas_faltantes: faltantes,
+    prontas_ou_preenchidas: Number(prontas.toFixed(4)),
+    campos_inventados: camposInventados,
     aprovado:
       m.length > 0 &&
       acerto >= CRITERIOS.acerto_por_campo &&
       conciliacao === 1 &&
       inventados === 0 &&
+      camposInventados === 0 &&
+      prontas >= CRITERIOS.prontas_ou_preenchidas &&
       fracaoFaltante <= CRITERIOS.linhas_faltantes,
   };
 }

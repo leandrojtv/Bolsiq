@@ -31,6 +31,7 @@ describe("ferramentas", () => {
     ["proventos", { ticker: "VALE3" }],
     ["fundamentos", { ticker: "PETR4" }],
     ["indicadores", { tickers: ["PETR4"] }],
+    ["analise_tecnica", { ticker: "VALE3" }],
     ["comparar", { tickers: ["PETR4", "PRIO3"] }],
     ["screener", { preset: "graham" }],
     ["cenario_macro", {}],
@@ -45,6 +46,23 @@ describe("ferramentas", () => {
       expect(p.fonte).toBeTruthy();
       expect(p.data).toBeTruthy();
     }
+  });
+
+  it("indicadores trazem o sinal calculado de cada um", async () => {
+    const s = await chamar(f, "indicadores", { tickers: ["PETR4"] });
+    const [petr] = s.ativos as { sinais: Record<string, { nivel: string; leitura: string }> }[];
+    expect(petr?.sinais.pl?.nivel).toBe("verde");
+    expect(petr?.sinais.pl?.leitura).toMatch(/Graham/);
+    expect(petr?.sinais.dy_12m?.nivel).toBe("verde");
+  });
+
+  it("analise_tecnica usa as medias e o IFR do grafico", async () => {
+    const s = await chamar(f, "analise_tecnica", { ticker: "VALE3" });
+    expect(s.mm20).toBe(59.58);
+    expect(s.mm50).toBeNull();
+    expect(s.ifr14).toBe(100);
+    expect((s.sinais as { ifr: { nivel: string } }).ifr.nivel).toBe("vermelho");
+    expect(s.link).toBe("/ativo/VALE3");
   });
 
   it("minha_carteira nao manda a serie do grafico", async () => {

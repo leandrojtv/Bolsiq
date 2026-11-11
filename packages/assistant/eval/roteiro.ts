@@ -50,6 +50,7 @@ function respostaDoCaso(caso: Caso, prompt: MensagemDeFerramenta[]): string {
 function textoQueCasa(re: RegExp): string {
   const fonte = re.source;
   if (fonte.includes("bilh")) return "37 bilhões";
+  if (fonte.includes("sobrecomprado")) return "sobrecomprado";
   if (fonte.includes("encontr") && fonte.includes("tenho")) return "não tenho esse dado";
   if (fonte.includes("not[ií]cias")) return "notícias";
   if (fonte.includes("sem acesso")) return "sem acesso";

@@ -30,6 +30,8 @@ export function rotuloDoPasso(
       return `Consultando fundamentos de ${texto(e.ticker)}`;
     case "indicadores":
       return `Consultando indicadores de ${lista(e.tickers)}`;
+    case "analise_tecnica":
+      return `Calculando médias móveis e IFR de ${texto(e.ticker)}`;
     case "comparar":
       return `Comparando ${lista(e.tickers)}`;
     case "screener":

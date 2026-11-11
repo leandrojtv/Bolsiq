@@ -50,7 +50,9 @@ describe("ferramentas", () => {
 
   it("indicadores trazem o sinal calculado de cada um", async () => {
     const s = await chamar(f, "indicadores", { tickers: ["PETR4"] });
-    const [petr] = s.ativos as { sinais: Record<string, { nivel: string; leitura: string }> }[];
+    const [petr] = s.ativos as {
+      sinais: Record<string, { nivel: string; leitura: string }>;
+    }[];
     expect(petr?.sinais.pl?.nivel).toBe("verde");
     expect(petr?.sinais.pl?.leitura).toMatch(/Graham/);
     expect(petr?.sinais.dy_12m?.nivel).toBe("verde");

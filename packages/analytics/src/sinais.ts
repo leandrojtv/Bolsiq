@@ -149,7 +149,8 @@ export const REGRAS_DOS_SINAIS: Partial<Record<IndicadorFiltravel, Regra>> = {
     },
   },
   roa: {
-    descricao: "Retorno sobre os ativos: lucro / ativo total. Banco tem ROA baixo por natureza.",
+    descricao:
+      "Retorno sobre os ativos: lucro / ativo total. Banco tem ROA baixo por natureza.",
     sentido: "maior",
     verde: 0.07,
     amarelo: 0.03,

@@ -9,7 +9,6 @@ import {
   nivelDeTaxa,
   presets,
   sinaisTecnicos,
-  type IndicadorFiltravel,
   type LinhaDoScreener,
   type NomeDePreset,
   type PeriodoDeComparacao,
@@ -311,13 +310,16 @@ export function criarFerramentas(
             ativos: tickers.map((t) => {
               const i = mapa.get(t);
               if (!i) return { ticker: t, erro: "sem_indicadores" };
-              const { reference_date: _d, preco_graham: _g, preco_bazin: _b, ...valores } = i;
+              const {
+                reference_date: _d,
+                preco_graham: _g,
+                preco_bazin: _b,
+                ...valores
+              } = i;
               return {
                 ticker: t,
                 ...i,
-                sinais: avaliarIndicadores(
-                  valores as Partial<Record<IndicadorFiltravel, number | null>>,
-                ),
+                sinais: avaliarIndicadores(valores),
                 link: `/ativo/${t}`,
               };
             }),

@@ -9,7 +9,12 @@ describe("mediaMovel e ifr", () => {
   it("IFR: so alta da 100, so queda da 0", () => {
     const subindo = Array.from({ length: 20 }, (_, i) => i);
     expect(ifr(subindo, 14).at(-1)).toBe(100);
-    expect(ifr(subindo.map((v) => -v), 14).at(-1)).toBe(0);
+    expect(
+      ifr(
+        subindo.map((v) => -v),
+        14,
+      ).at(-1),
+    ).toBe(0);
   });
 });
 

@@ -44,7 +44,7 @@ const COR_DA_CONFIANCA = {
   media: "text-warn",
   baixa: "text-down",
 } as const;
-const GRUPOS: GrupoDaLinha[] = ["pronta", "preenchida", "ajuste"];
+const GRUPOS: GrupoDaLinha[] = ["pronta", "preenchida", "ajuste", "a_receber"];
 
 interface ArquivoEscolhido {
   arquivo: File;
@@ -778,6 +778,12 @@ function RevisaoDaIA({
                 documento...). Confira.
               </p>
             )}
+            {grupo === "a_receber" && (
+              <p className="m-0 text-xs text-text-3">
+                Proventos provisionados no documento, com pagamento ainda por vir. Não
+                entram na carteira agora: importe o extrato depois do pagamento.
+              </p>
+            )}
             <TabelaDeLinhas
               linhas={doGrupo}
               marcadas={marcadas}
@@ -909,6 +915,7 @@ function TabelaDeLinhas({
                   type="checkbox"
                   aria-label={`Importar ${l.dados.ativo || l.dados.ticker || l.id}`}
                   checked={marcadas.has(l.id)}
+                  disabled={l.grupo === "a_receber"}
                   onChange={(e) => onMarcar(l.id, e.target.checked)}
                 />
               </td>

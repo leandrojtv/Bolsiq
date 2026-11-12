@@ -288,6 +288,37 @@ describe("validadores do layout e market-data", () => {
     });
   });
 
+  it("provento com pagamento futuro vai para a receber, desmarcado e sem autocorrecao", async () => {
+    const texto = "HGLG11;34;0,01%;R$ 39,78;R$ 39,78;RENDIMENTO;16/11/2026";
+    const r = await validar(
+      doc({
+        proventos: [
+          {
+            data_pagamento: "16/11/2026",
+            ticker: "HGLG11",
+            tipo: "rendimento",
+            quantidade: "34",
+            valor_por_cota: "",
+            valor_total: "39.78",
+            corretora: "XP",
+            origem: { pagina_ou_aba: "texto", trecho_original: texto },
+            confianca: "alta",
+          },
+        ],
+      }),
+      verificadorDasFixtures(),
+      [{ origem: "texto", texto }],
+    );
+    expect(r.linhas[0]).toMatchObject({
+      tipo: "provento",
+      grupo: "a_receber",
+      marcada: false,
+      motivo: null,
+    });
+    expect(r.linhas[0]?.avisos.join(" ")).toMatch(/pagamento previsto em 16\/11\/2026/);
+    expect(r.para_corrigir).toEqual([]);
+  });
+
   it("transacao invalida no CSV de sempre vai para ajuste com o motivo dele", async () => {
     const r = await validar(
       doc({

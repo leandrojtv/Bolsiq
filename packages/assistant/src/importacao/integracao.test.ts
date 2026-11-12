@@ -153,6 +153,65 @@ describe("fluxo completo com provedor gravado", () => {
     expect(r.remocoes.conta).toBeGreaterThan(0);
   });
 
+  it("Anthropic: so o cabecalho vai com schema, sem union, e as linhas em texto", async () => {
+    const xp = porId("xp-posicao-detalhada");
+    const corpos: Record<string, unknown>[] = [];
+    const f = ((_url: string, init?: RequestInit) => {
+      const bruto = typeof init?.body === "string" ? init.body : "{}";
+      const corpo = JSON.parse(bruto) as Record<string, unknown>;
+      corpos.push(corpo);
+      const tools = (corpo.tools ?? []) as { name: string }[];
+      const content = tools.length
+        ? [
+            {
+              type: "tool_use",
+              id: "t1",
+              name: tools[0]!.name,
+              input: JSON.parse(respostaGravada(xp.resposta, bruto, "json")),
+            },
+          ]
+        : [
+            {
+              type: "text",
+              text: respostaGravada(
+                xp.resposta,
+                bruto,
+                corpo.output_config ? "json" : "linhas",
+              ),
+            },
+          ];
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: "msg_gravada",
+            type: "message",
+            role: "assistant",
+            model: "claude",
+            content,
+            stop_reason: tools.length ? "tool_use" : "end_turn",
+            usage: { input_tokens: 5000, output_tokens: 900 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+    const modelo = criarModelo(
+      { provedor: "anthropic", chave: CHAVE },
+      "claude-haiku-5-5",
+      f,
+    );
+    const r = await executarFixture(xp, modelo);
+
+    expect(corpos).toHaveLength(2);
+    const texto = JSON.stringify(corpos);
+    expect(texto).not.toMatch(/123\.456\.789-09|12345678909|MARIA DA SILVA/);
+    // Nenhum campo com union: nem "type" em lista, nem anyOf.
+    expect(texto).not.toMatch(/"type":\[|"anyOf"/);
+    expect(r.validacao.conciliada).toBe(true);
+    expect(r.validacao.rejeicoes).toEqual([]);
+    expect(r.validacao.linhas.filter((l) => l.tipo === "posicao")).toHaveLength(10);
+  });
+
   it.each(["nubank-renda-fixa", "santander-coe"])(
     "%s concilia com o total do extrato",
     async (id) => {

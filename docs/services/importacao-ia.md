@@ -93,6 +93,11 @@ mesma (mesma página e trecho, ou mesmo ativo); linha nova que aparece na corre�
 descartada. Linha recusada por origem (valor que não está no documento) não volta: é
 invenção.
 
+Na Anthropic, o limite de 16 campos com union e o de tamanho da gramática compilada
+(issue #37) não se aplicam: o único schema enviado é `CabecalhoDaIA`, sem campos anuláveis
+e com sete propriedades, e as linhas vêm em texto. Se o provedor ainda assim recusar o
+schema, o cabeçalho é refeito em texto, num bloco `json` validado pelo mesmo Zod.
+
 ## Validação
 
 Em `validacao.ts`, nesta ordem:
@@ -224,7 +229,7 @@ reenviado não vai ao provedor.
 
 - Consentimento próprio na primeira importação com IA, separado do chat.
 - Anonimização antes do envio (CPF, conta, agência, código de cliente, e-mail, telefone,
-  CEP, nome e endereço), com teste que lê o corpo da requisição ao provedor. O texto de
+  CEP, nome e endereço, nome da saudação da XP), com teste que lê o corpo da requisição ao provedor. O texto de
   OCR passa pela mesma anonimização; imagem enviada por visão não tem como.
 - A senha do PDF só existe na requisição do envio: o PDF é decifrado e a senha descartada.
 - O arquivo original sai do banco na confirmação, no cancelamento ou em 24 horas. Fica o

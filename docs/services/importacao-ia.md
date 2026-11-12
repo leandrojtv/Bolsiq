@@ -67,14 +67,24 @@ Nenhuma com ferramentas.
    recusado, o modelo responde um bloco ` ```json ` validado pelo mesmo Zod. Um teste
    (`esquema.test.ts`) falha se qualquer schema enviado passar de 10 propriedades.
 2. **Linhas**, por lote, com `generateText` e sem schema: blocos ` ```csv posicoes `,
-   ` ```csv transacoes `, ` ```csv proventos ` e ` ```csv notas `, separador `;`. Formato
+   ` ```csv transacoes `, ` ```csv proventos ` e ` ```csv notas `, separador `;`.
+   Posições vêm num bloco por seção, com o cabeçalho só das colunas que a seção usa
+   (obrigatórias: `data_posicao`, `classe`, `ativo`, `saldo_bruto` e a origem): 27
+   colunas quase vazias faziam o modelo errar a conta dos separadores (#43). Formato
    em [prompt-normalizacao.md](../importacao/prompt-normalizacao.md#formato-da-resposta-da-importação-com-ia).
 
 ### Lotes
 
 O tamanho do lote sai do catálogo do modelo (`max_saida` e `contexto` em `modelos.json`;
-fora dele, 8 mil e 32 mil): 60% da saída máxima, sem passar do contexto, no máximo 20 mil
-tokens. Aba grande é dividida repetindo o cabeçalho da tabela. Páginas em imagem vão de 4
+fora dele, 8 mil e 32 mil): 25% da saída máxima, sem passar do contexto, no máximo 20 mil
+tokens. A saída em CSV dá cerca de 4 tokens por token lido (27 colunas, origem e trecho em
+cada linha), e toda chamada de lote pede a saída máxima do modelo.
+
+**Raciocínio desligado** (#43). Converter não pede raciocínio, e o raciocínio adaptativo
+dos Claude 5.x gastava a saída inteira do lote sem escrever uma linha (a posição da XP
+voltava só com os proventos). `semRaciocinio` em `extracao.ts`: `thinking: disabled` onde
+a API aceita, `between_tools` no Sonnet 5.5, esforço `low` no Opus 5.5, Fable e Mythos,
+que não desligam. Aba grande é dividida repetindo o cabeçalho da tabela. Páginas em imagem vão de 4
 em 4. Três lotes em paralelo por arquivo.
 
 - **Resposta cortada** (`finishReason: "length"`): o lote é dividido ao meio e refeito.
@@ -88,7 +98,9 @@ em 4. Três lotes em paralelo por arquivo.
 ### Autocorreção
 
 Linha recusada por formato, layout ou campo obrigatório volta ao modelo com o motivo, até
-2 rodadas (`RODADAS_DE_CORRECAO`). A linha corrigida só substitui a original se for a
+2 rodadas (`RODADAS_DE_CORRECAO`). Linha do CSV com colunas a mais ou a menos também volta,
+como veio, com o cabeçalho do bloco; a corrigida entra se trouxer o mesmo ativo e a mesma
+página (#43). A linha corrigida só substitui a original se for a
 mesma (mesma página e trecho, ou mesmo ativo); linha nova que aparece na correção é
 descartada. Linha recusada por origem (valor que não está no documento) não volta: é
 invenção.
@@ -108,7 +120,9 @@ Em `validacao.ts`, nesta ordem:
    em maiúsculas e sem sufixo `F`, sinônimos de classe ("Tesouro Direto" é
    `titulo_publico`, "FII" é `fii`), indexador e liquidez.
 2. **Origem**, sobre os valores do modelo: o `trecho_original` está no texto anonimizado,
-   e cada valor da linha está no trecho ou na linha do documento que o contém. O que não
+   e cada valor da linha está no trecho ou na linha do documento que o contém. Trecho
+   copiado pulando uma coluna vale quando uma única linha do documento tem todos os
+   campos dele, na ordem; os valores são conferidos nessa linha. O que não
    aparece é invenção e a linha cai com o motivo. Trecho com cara de instrução também cai.
 3. **Política de preenchimento** (abaixo).
 4. **Layout**: os validadores de sempre (`importarPosicaoBolsiq`, `importarCsvBolsiq`).
@@ -119,6 +133,10 @@ Em `validacao.ts`, nesta ordem:
 
 Linha de total ou subtotal ("Total", "Subtotal Renda Fixa") não vira posição: sai com um
 aviso no arquivo.
+
+Posição com coluna vazia a mais antes de `observacao` (erro comum do modelo) é consertada
+na leitura, só quando a `valorizacao` cai no lugar certo e o excesso tem no máximo um
+texto. Outro desalinhamento vira rejeição com o motivo.
 
 ### Política de preenchimento
 
@@ -232,7 +250,7 @@ As de limite valem no web (recebimento) e no worker (que também precisa de
 DeepSeek). Não há limite por número de tokens: o documento é dividido em quantos lotes
 precisar.
 
-A estimativa conta o cabeçalho, os lotes (entrada pelo texto, saída 1,2 token por token
+A estimativa conta o cabeçalho, os lotes (entrada pelo texto, saída 4 tokens por token
 lido, imagem a 1.600 tokens por página) e uma parte para a autocorreção. O custo real
 (tokens devolvidos pelo provedor) vai para `assistant.usage` com `origem = 'importacao'`.
 **Cache** por hash do arquivo + versão do prompt + provedor + modelo: o mesmo arquivo

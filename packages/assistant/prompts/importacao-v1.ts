@@ -11,8 +11,12 @@ import { FORMATO_DE_SAIDA, REGRAS_DE_NORMALIZACAO } from "./importacao-regras.js
  *
  * v3: proventos provisionados (pagamento futuro) dentro da posicao viram
  * proventos, e o tipo sai do texto do documento (#43).
+ *
+ * v4: linha com exatamente as colunas do cabecalho; chamadas sem raciocinio e
+ * com a saida inteira do modelo. A extracao da v3 gravada sem posicoes deixa de
+ * valer (#43).
  */
-export const VERSAO_DO_PROMPT_DE_IMPORTACAO = "importacao-v3";
+export const VERSAO_DO_PROMPT_DE_IMPORTACAO = "importacao-v4";
 
 const PAPEL =
   "Você converte extratos de bancos e corretoras brasileiras para os layouts do Bolsiq.";

@@ -9,20 +9,20 @@ entre schemas de servicos diferentes.
 
 ## Estado atual
 
-| Parte                                                               | Estado                                                   |
-| ------------------------------------------------------------------- | -------------------------------------------------------- |
-| Apuracao: preco medio, posicao, resultado realizado e nao realizado | pronto, conferido contra calculo independente            |
-| TWR diario e comparacao com benchmark                               | pronto                                                   |
-| Eventos corporativos aplicados a carteira                           | pronto                                                   |
-| Importacao de CSV e do extrato da B3                                | pronto, 500 linhas em menos de 5 s                       |
-| Importacao de posicoes (renda fixa, fundos, COE)                    | pronto; valor pelo extrato (ADR 0025)                    |
-| Importacao com IA, qualquer formato                                 | pronto: [importacao-ia.md](importacao-ia.md) (ADR 0026)  |
-| Alocacao e proventos por mes                                        | pronto                                                   |
-| Schema com RLS forcada                                              | pronto, 12 testes contra Postgres real                   |
-| Autenticacao (Better Auth)                                          | pronto: `packages/auth`, telas no `apps/web` (ADR 0022)  |
-| Telas `/carteiras`                                                  | prontas no `apps/web` ([web.md](web.md#carteira))        |
-| Snapshot diario gravado                                             | pronto: `portfolio-worker`, job e recalculo por marcacao |
-| Exportacao e exclusao LGPD                                          | pronto: `/configuracoes/conta`                           |
+| Parte                                                               | Estado                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Apuracao: preco medio, posicao, resultado realizado e nao realizado | pronto, conferido contra calculo independente                  |
+| TWR diario e comparacao com benchmark                               | pronto                                                         |
+| Eventos corporativos aplicados a carteira                           | pronto                                                         |
+| Importacao de CSV e do extrato da B3                                | pronto, 500 linhas em menos de 5 s                             |
+| Importacao de posicoes (renda fixa, fundos, COE)                    | pronto; valor pelo extrato (ADR 0025)                          |
+| Importacao com IA, qualquer formato                                 | pronto: [importacao-ia.md](importacao-ia.md) (ADR 0026 e 0027) |
+| Alocacao e proventos por mes                                        | pronto                                                         |
+| Schema com RLS forcada                                              | pronto, 12 testes contra Postgres real                         |
+| Autenticacao (Better Auth)                                          | pronto: `packages/auth`, telas no `apps/web` (ADR 0022)        |
+| Telas `/carteiras`                                                  | prontas no `apps/web` ([web.md](web.md#carteira))              |
+| Snapshot diario gravado                                             | pronto: `portfolio-worker`, job e recalculo por marcacao       |
+| Exportacao e exclusao LGPD                                          | pronto: `/configuracoes/conta`                                 |
 
 ## Modelo de dados
 
@@ -318,6 +318,9 @@ separada de `SELECT` e `INSERT`. Nem a aplicacao reescreve auditoria.
 - Preco: `/v1/history?adjusted=false`. Ativo sem fechamento entra pelo custo.
 - O mesmo processo aplica as migrations dos schemas `app` e `portfolio`
   (`portfolio-migrate` no compose).
+- Tambem consome a fila `assistant.importacao`: a importacao com IA em segundo
+  plano, com OCR e leitura de PDF na imagem dele ([importacao-ia.md](importacao-ia.md),
+  ADR 0027).
 
 ## LGPD
 

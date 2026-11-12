@@ -1,10 +1,12 @@
-import { api, ErroDaApi } from "@/lib/api";
-import type {
-  EstadoDaImportacaoIA,
-  EstimativaDoArquivo,
-  EventoDaImportacao,
-  LinhaEditada,
+import { api } from "@/lib/api";
+import {
+  TERMINAIS,
+  type EstadoDaImportacaoIA,
+  type JobNaTela,
+  type LinhaEditada,
+  type ResultadoNaTela,
 } from "@/lib/importacao-ia-modelo";
+import type { Atalho } from "@bolsiq/assistant/puro";
 import type { NovaTransacao } from "@/lib/carteira-modelo";
 import type { PainelDaCarteira, RelatorioNaTela } from "@/lib/carteira";
 import type { DecisaoDeDivergencia, RevisaoDeCarga } from "@bolsiq/portfolio";
@@ -68,57 +70,76 @@ export const consentirImportacaoIA = (guardar_original: boolean) =>
     json("POST", { guardar_original }),
   ).then((r) => r.data);
 
-function formDaIA(
-  arquivos: File[],
-  texto: string,
-  extra: Record<string, string | undefined> = {},
-) {
+export interface EnvioDaIA {
+  arquivos: { arquivo: File; corretora: string }[];
+  texto: string;
+  corretora_do_texto: string;
+  senhas: Record<string, string>;
+  modelo?: string;
+  aceitar_imagem: boolean;
+}
+
+/** Cria o job; o worker processa. CSV ja no layout volta em `atalhos`. */
+export function enviarParaIA(id: string, e: EnvioDaIA) {
   const form = new FormData();
-  for (const a of arquivos) form.append("arquivos", a);
-  if (texto.trim()) form.set("texto", texto);
-  for (const [k, v] of Object.entries(extra)) if (v) form.set(k, v);
-  return form;
+  for (const a of e.arquivos) form.append("arquivos", a.arquivo);
+  if (e.texto.trim()) form.set("texto", e.texto);
+  form.set(
+    "corretoras",
+    JSON.stringify([...e.arquivos.map((a) => a.corretora), e.corretora_do_texto]),
+  );
+  form.set("senhas", JSON.stringify(e.senhas));
+  if (e.modelo) form.set("modelo", e.modelo);
+  form.set("aceitar_imagem", e.aceitar_imagem ? "true" : "false");
+  return api<{
+    data: { job_id: string | null; atalhos: { nome: string; atalho: Atalho }[] };
+  }>(`carteiras/${id}/importacoes/ia/jobs`, { method: "POST", body: form }).then(
+    (r) => r.data,
+  );
 }
 
-export const estimarIA = (id: string, arquivos: File[], texto: string, modelo?: string) =>
-  api<{ data: EstimativaDoArquivo[] }>(`carteiras/${id}/importacoes/ia/estimativa`, {
-    method: "POST",
-    body: formDaIA(arquivos, texto, { modelo }),
-  }).then((r) => r.data);
+export const ultimoJobDaIA = (id: string) =>
+  api<{ data: JobNaTela | null }>(`carteiras/${id}/importacoes/ia/jobs`).then(
+    (r) => r.data,
+  );
 
-/** Le o NDJSON da rota e entrega cada evento assim que chega. */
-export async function processarIA(
+/** Progresso por SSE. Devolve a funcao que fecha a conexao. */
+export function acompanharJob(
   id: string,
-  arquivos: File[],
-  texto: string,
-  opcoes: { modelo?: string; reprocessar?: boolean; aceitar_imagem?: boolean },
-  aoEvento: (e: EventoDaImportacao) => void,
-): Promise<void> {
-  const res = await fetch(`/api/carteiras/${id}/importacoes/ia`, {
-    method: "POST",
-    body: formDaIA(arquivos, texto, {
-      modelo: opcoes.modelo,
-      reprocessar: opcoes.reprocessar ? "true" : undefined,
-      aceitar_imagem: opcoes.aceitar_imagem ? "true" : undefined,
-    }),
-  });
-  if (!res.ok || !res.body) {
-    const corpo = (await res.json().catch(() => null)) as {
-      error?: { message: string };
-    } | null;
-    throw new ErroDaApi(res.status, corpo?.error?.message ?? `erro ${res.status}`);
-  }
-  const leitor = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let resto = "";
-  for (;;) {
-    const { value, done } = await leitor.read();
-    if (done) break;
-    resto += value;
-    const linhas = resto.split("\n");
-    resto = linhas.pop() ?? "";
-    for (const l of linhas) if (l.trim()) aoEvento(JSON.parse(l) as EventoDaImportacao);
-  }
+  job: string,
+  aoMudar: (j: JobNaTela) => void,
+): () => void {
+  const fonte = new EventSource(
+    `/api/carteiras/${id}/importacoes/ia/jobs/${job}/eventos`,
+  );
+  fonte.onmessage = (ev: MessageEvent<string>) => {
+    const j = JSON.parse(ev.data) as JobNaTela;
+    aoMudar(j);
+    if (TERMINAIS.includes(j.status)) fonte.close();
+  };
+  return () => fonte.close();
 }
+
+export const resultadoDoArquivo = (id: string, job: string, indice: number) =>
+  api<{ data: ResultadoNaTela }>(
+    `carteiras/${id}/importacoes/ia/jobs/${job}/arquivos/${indice}`,
+  ).then((r) => r.data);
+
+export const confirmarCustoDaIA = (id: string, job: string) =>
+  api<null>(`carteiras/${id}/importacoes/ia/jobs/${job}/confirmar`, { method: "POST" });
+
+export const cancelarJobDaIA = (id: string, job: string) =>
+  api<null>(`carteiras/${id}/importacoes/ia/jobs/${job}/cancelar`, { method: "POST" });
+
+export const reprocessarNaIA = (
+  id: string,
+  job: string,
+  corpo: { indice: number; lotes?: number[]; modelo?: string },
+) =>
+  api<null>(
+    `carteiras/${id}/importacoes/ia/jobs/${job}/reprocessar`,
+    json("POST", corpo),
+  );
 
 export const revisarIA = (id: string, extracao_id: string, linhas: LinhaEditada[]) =>
   api<{ data: RevisaoDeCarga | null }>(
@@ -130,6 +151,7 @@ export const confirmarIA = (
   id: string,
   corpo: {
     extracao_id: string;
+    job_id?: string;
     linhas: LinhaEditada[];
     decisoes: DecisaoDeDivergencia[];
     aceitar_nao_conciliada: boolean;

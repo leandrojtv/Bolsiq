@@ -29,6 +29,20 @@
       "when": 1794152101355,
       "tag": "0003_rls_extractions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794230499663,
+      "tag": "0004_importacao_em_segundo_plano",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794230500663,
+      "tag": "0005_rls_import_jobs",
+      "breakpoints": true
     }
   ]
 }

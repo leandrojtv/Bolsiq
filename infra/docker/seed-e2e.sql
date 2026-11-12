@@ -18,7 +18,11 @@ VALUES
   ('XPML11', 'XPML11', 'BRXPMLCTF000', '28757546000100', NULL, 'XP MALLS', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
   ('BOVA11', 'BOVA11', 'BRBOVACTF003', NULL, NULL, 'ISHARES BOVA', NULL, 'etf', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
   -- Importacao com IA: a posicao da XP traz MXRF11.
-  ('MXRF11', 'MXRF11', 'BRMXRFCTF002', '97521225000125', NULL, 'MAXI RENDA', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e')
+  ('MXRF11', 'MXRF11', 'BRMXRFCTF002', '97521225000125', NULL, 'MAXI RENDA', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
+  -- Importacao com IA v2: a custodia da Nubank traz BBAS3, KNRI11 e IVVB11.
+  ('BBAS3', 'BBAS3', 'BRBBASACNOR3', NULL, NULL, 'BANCO DO BRASIL', NULL, 'stock', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
+  ('KNRI11', 'KNRI11', 'BRKNRICTF007', NULL, NULL, 'KINEA RENDA', NULL, 'fii', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e'),
+  ('IVVB11', 'IVVB11', 'BRIVVBCTF000', NULL, NULL, 'ISHARES SP500', NULL, 'etf', NULL, NULL, 'b3-cotahist', now(), 'proprietaria B3, sem direito de redistribuicao', 'seed-e2e')
 ON CONFLICT (id) DO NOTHING;
 
 -- 180 dias uteis ate ontem, com tendencia e oscilacao deterministica.

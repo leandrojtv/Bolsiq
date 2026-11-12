@@ -9,6 +9,7 @@ import { createServer } from "node:http";
 import PgBoss from "pg-boss";
 import { criarDb, criarPool } from "@bolsiq/db-core";
 import { carregarEnv } from "./config.js";
+import { iniciarImportacao } from "./importacao.js";
 import {
   clienteDePrecos,
   desmarcar,
@@ -43,6 +44,7 @@ await boss.work(JOB, async () => {
   log("info", "carteiras marcadas para o snapshot do dia", { total });
   return { total };
 });
+await iniciarImportacao(boss, db, env, log);
 
 let ultimoCiclo = Date.now();
 let parado = false;

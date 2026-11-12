@@ -103,6 +103,46 @@ describe("fluxo completo com provedor gravado", () => {
     expect(r.remocoes.conta).toBeGreaterThan(0);
   });
 
+  it("Anthropic recebe o schema no prompt, sem saida estruturada nem ferramenta", async () => {
+    const xp = porId("xp-posicao-detalhada");
+    const corpos: string[] = [];
+    const f = ((_url: string, init?: RequestInit) => {
+      corpos.push(typeof init?.body === "string" ? init.body : "");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            id: "msg_gravada",
+            type: "message",
+            role: "assistant",
+            model: "claude-haiku-5-5",
+            content: [
+              { type: "text", text: "```json\n" + JSON.stringify(xp.resposta) + "\n```" },
+            ],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 5000, output_tokens: 900 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+    const modelo = criarModelo(
+      { provedor: "anthropic", chave: CHAVE },
+      "claude-haiku-5-5",
+      f,
+    );
+    const r = await executarFixture(xp, modelo);
+
+    expect(corpos).toHaveLength(1);
+    const corpo = JSON.parse(corpos[0]!) as Record<string, unknown>;
+    expect(corpo).not.toHaveProperty("tools");
+    expect(corpo).not.toHaveProperty("output_config");
+    expect(corpos[0]).toContain("JSON Schema");
+    expect(corpos[0]).not.toMatch(/123\.456\.789-09|12345678909|MARIA DA SILVA/);
+    expect(r.validacao.conciliada).toBe(true);
+    expect(r.validacao.rejeicoes).toEqual([]);
+    expect(r.validacao.linhas.filter((l) => l.tipo === "posicao")).toHaveLength(10);
+  });
+
   it.each(["nubank-renda-fixa", "santander-coe"])(
     "%s concilia com o total do extrato",
     async (id) => {

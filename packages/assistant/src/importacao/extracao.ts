@@ -1,4 +1,10 @@
-import { generateObject, type LanguageModel, type UserContent } from "ai";
+import {
+  generateObject,
+  generateText,
+  type LanguageModel,
+  type LanguageModelUsage,
+  type UserContent,
+} from "ai";
 import { mensagemSegura } from "../chaves.js";
 import type { Uso } from "../orcamento.js";
 import { SISTEMA_DE_IMPORTACAO } from "../../prompts/importacao-v1.js";
@@ -133,6 +139,53 @@ export function juntarSaidas(saidas: SaidaDaIA[]): SaidaDaIA {
 }
 
 /**
+ * A saida estruturada nativa da Anthropic compila o schema numa gramatica, e o
+ * desta saida passa do limite ("compiled grammar is too large"). Nela o schema
+ * vai no prompt e a resposta e texto, validada pelo mesmo Zod.
+ */
+export const semGramatica = (m: LanguageModel) =>
+  typeof m === "object" && m.provider.startsWith("anthropic");
+
+/** O objeto JSON da resposta, com ou sem cerca de codigo em volta. */
+export function jsonDoTexto(texto: string): unknown {
+  const inicio = texto.indexOf("{");
+  const fim = texto.lastIndexOf("}");
+  if (inicio < 0 || fim < inicio) throw new Error("a resposta não tem um objeto JSON");
+  return JSON.parse(texto.slice(inicio, fim + 1));
+}
+
+async function gerar(
+  p: PedidoDeExtracao,
+  content: UserContent,
+): Promise<{ objeto: SaidaDaIA; usage: LanguageModelUsage }> {
+  const base = {
+    model: p.modelo,
+    messages: [{ role: "user" as const, content }],
+    maxOutputTokens: p.maxSaida ?? MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
+    temperature: 0,
+    maxRetries: 1,
+    ...(p.abortar ? { abortSignal: p.abortar } : {}),
+  };
+  if (!semGramatica(p.modelo)) {
+    const r = await generateObject({
+      ...base,
+      system: SISTEMA_DE_IMPORTACAO,
+      schema: SaidaDaIAParaOModelo,
+      schemaName: "extrato_bolsiq",
+    });
+    return { objeto: r.object, usage: r.usage };
+  }
+  const esquema = JSON.stringify(await SaidaDaIAParaOModelo.jsonSchema);
+  const r = await generateText({
+    ...base,
+    system: `${SISTEMA_DE_IMPORTACAO}\n\nResponda só com um objeto JSON, sem texto antes ou depois, que siga este JSON Schema:\n${esquema}`,
+  });
+  const v = await SaidaDaIAParaOModelo.validate!(jsonDoTexto(r.text));
+  if (!v.success) throw v.error;
+  return { objeto: v.value, usage: r.usage };
+}
+
+/**
  * Uma chamada por lote, sem ferramentas: `generateObject` so devolve o objeto do
  * schema. Sem `telemetry`, como a conversa: trace levaria o extrato para fora.
  */
@@ -146,18 +199,8 @@ export async function extrairComIA(p: PedidoDeExtracao): Promise<ResultadoDaExtr
   for (const [i, content] of pedidos.entries()) {
     p.aoProgredir?.(i, pedidos.length);
     try {
-      const r = await generateObject({
-        model: p.modelo,
-        system: SISTEMA_DE_IMPORTACAO,
-        messages: [{ role: "user", content }],
-        schema: SaidaDaIAParaOModelo,
-        schemaName: "extrato_bolsiq",
-        maxOutputTokens: p.maxSaida ?? MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
-        temperature: 0,
-        maxRetries: 1,
-        ...(p.abortar ? { abortSignal: p.abortar } : {}),
-      });
-      saidas.push(r.object);
+      const r = await gerar(p, content);
+      saidas.push(r.objeto);
       uso.tokens_entrada += r.usage.inputTokens ?? 0;
       uso.tokens_saida += r.usage.outputTokens ?? 0;
     } catch (erro) {

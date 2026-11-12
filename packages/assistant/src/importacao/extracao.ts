@@ -140,11 +140,16 @@ export function juntarSaidas(saidas: SaidaDaIA[]): SaidaDaIA {
 
 /**
  * A saida estruturada nativa da Anthropic compila o schema numa gramatica, e o
- * desta saida passa do limite ("compiled grammar is too large"). Nela o schema
- * vai no prompt e a resposta e texto, validada pelo mesmo Zod.
+ * desta saida passa do limite ("compiled grammar is too large"). Nela a resposta
+ * vem como entrada de uma ferramenta `json` forcada e sem `strict`: a API entrega
+ * o objeto ja parseado, sem gramatica. Modelo que recusa ferramenta forcada volta
+ * para a saida nativa e bate no limite; ai o schema vai no prompt e a resposta e
+ * texto. Nos tres casos, a validacao e o mesmo Zod.
  */
 export const semGramatica = (m: LanguageModel) =>
   typeof m === "object" && m.provider.startsWith("anthropic");
+
+const GRAMATICA_GRANDE = /grammar is too large|too many parameters with union/i;
 
 /** O objeto JSON da resposta, com ou sem cerca de codigo em volta. */
 export function jsonDoTexto(texto: string): unknown {
@@ -166,14 +171,22 @@ async function gerar(
     maxRetries: 1,
     ...(p.abortar ? { abortSignal: p.abortar } : {}),
   };
-  if (!semGramatica(p.modelo)) {
+  const comObjeto = async (anthropic?: { structuredOutputMode: "jsonTool" }) => {
     const r = await generateObject({
       ...base,
       system: SISTEMA_DE_IMPORTACAO,
       schema: SaidaDaIAParaOModelo,
       schemaName: "extrato_bolsiq",
+      ...(anthropic ? { providerOptions: { anthropic } } : {}),
     });
     return { objeto: r.object, usage: r.usage };
+  };
+  if (!semGramatica(p.modelo)) return comObjeto();
+  try {
+    return await comObjeto({ structuredOutputMode: "jsonTool" });
+  } catch (erro) {
+    if (!GRAMATICA_GRANDE.test(erro instanceof Error ? erro.message : String(erro)))
+      throw erro;
   }
   const esquema = JSON.stringify(await SaidaDaIAParaOModelo.jsonSchema);
   const r = await generateText({
@@ -186,8 +199,9 @@ async function gerar(
 }
 
 /**
- * Uma chamada por lote, sem ferramentas: `generateObject` so devolve o objeto do
- * schema. Sem `telemetry`, como a conversa: trace levaria o extrato para fora.
+ * Uma chamada por lote, sem ferramentas do assistente: `generateObject` so
+ * devolve o objeto do schema. Sem `telemetry`, como a conversa: trace levaria o
+ * extrato para fora.
  */
 export async function extrairComIA(p: PedidoDeExtracao): Promise<ResultadoDaExtracao> {
   const pedidos: UserContent[] = [

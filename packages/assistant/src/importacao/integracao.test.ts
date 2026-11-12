@@ -103,28 +103,37 @@ describe("fluxo completo com provedor gravado", () => {
     expect(r.remocoes.conta).toBeGreaterThan(0);
   });
 
-  it("Anthropic recebe o schema no prompt, sem saida estruturada nem ferramenta", async () => {
-    const xp = porId("xp-posicao-detalhada");
-    const corpos: string[] = [];
+  /** Anthropic de mentira: cada resposta da lista atende uma requisicao, em ordem. */
+  function anthropicGravada(respostas: (() => Response)[]) {
+    const corpos: Record<string, unknown>[] = [];
     const f = ((_url: string, init?: RequestInit) => {
-      corpos.push(typeof init?.body === "string" ? init.body : "");
-      return Promise.resolve(
-        new Response(
-          JSON.stringify({
-            id: "msg_gravada",
-            type: "message",
-            role: "assistant",
-            model: "claude-haiku-5-5",
-            content: [
-              { type: "text", text: "```json\n" + JSON.stringify(xp.resposta) + "\n```" },
-            ],
-            stop_reason: "end_turn",
-            usage: { input_tokens: 5000, output_tokens: 900 },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      );
+      corpos.push(JSON.parse(typeof init?.body === "string" ? init.body : "{}"));
+      return Promise.resolve(respostas[corpos.length - 1]!());
     }) as typeof fetch;
+    return { f, corpos };
+  }
+  const mensagem = (content: unknown[], stop_reason: string) => () =>
+    new Response(
+      JSON.stringify({
+        id: "msg_gravada",
+        type: "message",
+        role: "assistant",
+        model: "claude",
+        content,
+        stop_reason,
+        usage: { input_tokens: 5000, output_tokens: 900 },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+
+  it("Anthropic: a resposta vem pela ferramenta json, sem strict e sem gramatica", async () => {
+    const xp = porId("xp-posicao-detalhada");
+    const { f, corpos } = anthropicGravada([
+      mensagem(
+        [{ type: "tool_use", id: "t1", name: "json", input: xp.resposta }],
+        "tool_use",
+      ),
+    ]);
     const modelo = criarModelo(
       { provedor: "anthropic", chave: CHAVE },
       "claude-haiku-5-5",
@@ -133,14 +142,54 @@ describe("fluxo completo com provedor gravado", () => {
     const r = await executarFixture(xp, modelo);
 
     expect(corpos).toHaveLength(1);
-    const corpo = JSON.parse(corpos[0]!) as Record<string, unknown>;
-    expect(corpo).not.toHaveProperty("tools");
+    const corpo = corpos[0]!;
     expect(corpo).not.toHaveProperty("output_config");
-    expect(corpos[0]).toContain("JSON Schema");
-    expect(corpos[0]).not.toMatch(/123\.456\.789-09|12345678909|MARIA DA SILVA/);
+    const tools = corpo.tools as { name: string; strict?: boolean }[];
+    expect(tools.map((t) => t.name)).toEqual(["json"]);
+    expect(tools[0]).not.toHaveProperty("strict");
+    expect((corpo.tool_choice as { type: string }).type).toMatch(/^(any|tool)$/);
+    expect(JSON.stringify(corpo)).not.toMatch(
+      /123\.456\.789-09|12345678909|MARIA DA SILVA/,
+    );
     expect(r.validacao.conciliada).toBe(true);
     expect(r.validacao.rejeicoes).toEqual([]);
     expect(r.validacao.linhas.filter((l) => l.tipo === "posicao")).toHaveLength(10);
+  });
+
+  it("Anthropic sem ferramenta forcada: gramatica grande cai para o schema no prompt", async () => {
+    const xp = porId("xp-posicao-detalhada");
+    const { f, corpos } = anthropicGravada([
+      () =>
+        new Response(
+          JSON.stringify({
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message:
+                "The compiled grammar is too large, which would cause performance issues.",
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+      mensagem(
+        [{ type: "text", text: "```json\n" + JSON.stringify(xp.resposta) + "\n```" }],
+        "end_turn",
+      ),
+    ]);
+    const modelo = criarModelo(
+      { provedor: "anthropic", chave: CHAVE },
+      "claude-opus-5-5",
+      f,
+    );
+    const r = await executarFixture(xp, modelo);
+
+    expect(corpos).toHaveLength(2);
+    expect(corpos[0]).toHaveProperty("output_config");
+    expect(corpos[1]).not.toHaveProperty("output_config");
+    expect(corpos[1]).not.toHaveProperty("tools");
+    expect(JSON.stringify(corpos[1])).toContain("JSON Schema");
+    expect(r.validacao.conciliada).toBe(true);
+    expect(r.validacao.rejeicoes).toEqual([]);
   });
 
   it.each(["nubank-renda-fixa", "santander-coe"])(

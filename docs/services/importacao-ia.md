@@ -20,7 +20,7 @@ arquivo ou texto
                     PDF texto por página (pdf.js); página sem texto e imagem: visão
   4 anonimização    CPF, conta, agência, código de cliente, e-mail, telefone, CEP,
                     linhas de nome e endereço, nome da saudação da XP; CNPJ e códigos ficam
-  5 IA              generateObject (Anthropic: generateText com o schema no prompt),
+  5 IA              generateObject (Anthropic: ferramenta json sem strict),
                     sem ferramentas, schema Zod, uma chamada por lote
   6 lotes           por página/aba, aba grande dividida repetindo o cabeçalho;
                     juntar e tirar repetidas (origem, ou ativo com os mesmos valores)
@@ -74,10 +74,13 @@ anuláveis. O modelo devolve `""` onde não há valor, e `vazioParaNulo` convert
 nos campos anuláveis antes de validar com o Zod de `SaidaDaIA`. `null` continua aceito.
 
 Na Anthropic nem esse schema serve à saída estruturada nativa: a gramática compilada passa
-do limite ("compiled grammar is too large"). Para ela (`semGramatica`), a chamada é
-`generateText`, o JSON Schema vai no fim do prompt de sistema, e o objeto da resposta
-(`jsonDoTexto`, com ou sem cerca de código) passa pela mesma validação. Os demais
-provedores seguem com `generateObject`.
+do limite ("compiled grammar is too large"). Para ela (`semGramatica`), `generateObject` usa
+`structuredOutputMode: "jsonTool"`: a resposta vem como entrada de uma ferramenta `json`
+forçada e sem `strict`, que a API entrega já como objeto. Modelo que recusa ferramenta
+forçada (Opus 5.5, Sonnet 5.5, Fable 5.1) volta à saída nativa e bate no limite; aí a
+chamada é refeita com `generateText`, o JSON Schema no fim do prompt de sistema e o objeto
+da resposta (`jsonDoTexto`) na mesma validação. Os demais provedores seguem com
+`generateObject` e a saída nativa.
 
 ## Validação
 

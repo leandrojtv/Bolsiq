@@ -19,8 +19,9 @@ arquivo ou texto
   3 texto, sem IA   CSV/TXT direto; XLSX/XLS uma tabela por aba (SheetJS);
                     PDF texto por página (pdf.js); página sem texto e imagem: visão
   4 anonimização    CPF, conta, agência, código de cliente, e-mail, telefone, CEP,
-                    linhas de nome e endereço; CNPJ e códigos ficam
-  5 IA              generateObject, sem ferramentas, schema Zod, uma chamada por lote
+                    linhas de nome e endereço, nome da saudação da XP; CNPJ e códigos ficam
+  5 IA              generateObject (Anthropic: generateText com o schema no prompt),
+                    sem ferramentas, schema Zod, uma chamada por lote
   6 lotes           por página/aba, aba grande dividida repetindo o cabeçalho;
                     juntar e tirar repetidas (origem, ou ativo com os mesmos valores)
   7 validação       origem, layout, market-data, conciliação, nota de corretagem
@@ -71,6 +72,12 @@ O schema que vai ao provedor não tem `null` (`SaidaDaIAParaOModelo`): a Anthrop
 mais de 16 campos com union (`type` em lista ou `anyOf`), e a saída tem dezenas de campos
 anuláveis. O modelo devolve `""` onde não há valor, e `vazioParaNulo` converte para `null`
 nos campos anuláveis antes de validar com o Zod de `SaidaDaIA`. `null` continua aceito.
+
+Na Anthropic nem esse schema serve à saída estruturada nativa: a gramática compilada passa
+do limite ("compiled grammar is too large"). Para ela (`semGramatica`), a chamada é
+`generateText`, o JSON Schema vai no fim do prompt de sistema, e o objeto da resposta
+(`jsonDoTexto`, com ou sem cerca de código) passa pela mesma validação. Os demais
+provedores seguem com `generateObject`.
 
 ## Validação
 

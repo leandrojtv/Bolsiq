@@ -122,6 +122,13 @@ quantidade do nada.
 
 ## Layout do CSV
 
+A tela de importacao oferece um modelo de cada formato para baixar ("Baixar
+modelo"), servido de `apps/web/public/modelos/`: `transacoes-bolsiq.csv`,
+`posicoes-bolsiq.csv` e `extrato-b3.csv` (exemplo do arquivo exportado da B3). Um
+teste (`apps/web/lib/modelos-de-importacao.test.ts`) importa os tres pelos
+importadores do Bolsiq e exige zero rejeicao, para o modelo nao ficar defasado do
+layout. A importacao com IA nao tem modelo: aceita qualquer formato.
+
 Cabecalho obrigatorio. Separador `;` ou `,`, detectado no cabecalho -- nao numa
 linha de dados, porque valor em pt-BR usa virgula decimal e a deteccao sairia
 errada.

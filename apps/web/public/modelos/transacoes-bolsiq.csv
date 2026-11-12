@@ -1,0 +1,7 @@
+data;ticker;tipo;quantidade;preco;taxas;corretora
+15/01/2026;PETR4;compra;100;35,00;5,00;XP
+20/02/2026;HGLG11;compra;10;160,50;0;XP
+05/03/2026;PETR4;provento;100;0,80;0;XP
+10/04/2026;ITUB4;compra;200;33,10;0;Nubank
+12/05/2026;PETR4;venda;50;38,20;3,00;XP
+10/06/2026;ITUB4;desdobramento;2;0;0;

@@ -44,7 +44,7 @@ const COR_DA_CONFIANCA = {
   media: "text-warn",
   baixa: "text-down",
 } as const;
-const GRUPOS: GrupoDaLinha[] = ["pronta", "preenchida", "ajuste"];
+const GRUPOS: GrupoDaLinha[] = ["pronta", "preenchida", "ajuste", "a_receber"];
 
 interface ArquivoEscolhido {
   arquivo: File;
@@ -573,6 +573,7 @@ function RevisaoDaIA({
     conciliacao.some((c) => c.declarado !== null && !c.conciliada) ||
     v.notas.some((n) => !n.conciliada);
   const soTransacoes = !selecionadas.some((l) => l.tipo === "posicao");
+  const marcaveis = linhas.filter((l) => l.grupo !== "a_receber").map((l) => l.id);
 
   function editar(id: string, campo: string, valor: string) {
     setLinhas((ls) =>
@@ -745,6 +746,28 @@ function RevisaoDaIA({
         </p>
       ))}
 
+      {marcaveis.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="text-text-3">
+            {selecionadas.length} de {marcaveis.length} linhas marcadas
+          </span>
+          <button
+            type="button"
+            className="text-link underline"
+            onClick={() => marcar(marcaveis, true)}
+          >
+            Marcar todas
+          </button>
+          <button
+            type="button"
+            className="text-link underline"
+            onClick={() => marcar(marcaveis, false)}
+          >
+            Desmarcar todas
+          </button>
+        </div>
+      )}
+
       {GRUPOS.map((grupo) => {
         const doGrupo = linhas.filter((l) => l.grupo === grupo);
         if (doGrupo.length === 0) return null;
@@ -754,22 +777,8 @@ function RevisaoDaIA({
             aria-label={ROTULO_DO_GRUPO[grupo]}
             className="flex flex-col gap-1.5"
           >
-            <h3 className="m-0 flex flex-wrap items-center justify-between gap-2 text-[13px] font-semibold">
+            <h3 className="m-0 text-[13px] font-semibold">
               {ROTULO_DO_GRUPO[grupo]} ({doGrupo.length})
-              {grupo === "pronta" && (
-                <button
-                  type="button"
-                  className="text-xs font-normal text-link underline"
-                  onClick={() =>
-                    marcar(
-                      doGrupo.map((l) => l.id),
-                      true,
-                    )
-                  }
-                >
-                  Aceitar todas as prontas
-                </button>
-              )}
             </h3>
             {grupo === "preenchida" && (
               <p className="m-0 text-xs text-text-3">
@@ -778,10 +787,16 @@ function RevisaoDaIA({
                 documento...). Confira.
               </p>
             )}
+            {grupo === "a_receber" && (
+              <p className="m-0 text-xs text-text-3">
+                Proventos provisionados no documento, com pagamento ainda por vir. Não
+                entram na carteira agora: importe o extrato depois do pagamento.
+              </p>
+            )}
             <TabelaDeLinhas
               linhas={doGrupo}
               marcadas={marcadas}
-              onMarcar={(id, sim) => marcar([id], sim)}
+              onMarcar={(ids, sim) => marcar(ids, sim)}
               onEditar={editar}
               onOrigem={(l) => {
                 setOrigem(l);
@@ -878,17 +893,32 @@ function TabelaDeLinhas({
 }: {
   linhas: LinhaProposta[];
   marcadas: Set<string>;
-  onMarcar: (id: string, sim: boolean) => void;
+  onMarcar: (ids: string[], sim: boolean) => void;
   onEditar: (id: string, campo: string, valor: string) => void;
   onOrigem: (l: LinhaProposta) => void;
 }) {
+  const ids = linhas.filter((l) => l.grupo !== "a_receber").map((l) => l.id);
+  const todas = ids.length > 0 && ids.every((id) => marcadas.has(id));
+  const algumas = !todas && ids.some((id) => marcadas.has(id));
   return (
     <div className="max-h-96 overflow-auto rounded-control border border-border">
       <table className="w-full border-collapse text-[12px]">
         <thead className="sticky top-0 bg-surface text-text-3">
           <tr>
             <th scope="col" className="p-2 text-left font-medium">
-              Importar
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  aria-label="Marcar todas do grupo"
+                  checked={todas}
+                  disabled={ids.length === 0}
+                  ref={(el) => {
+                    if (el) el.indeterminate = algumas;
+                  }}
+                  onChange={(e) => onMarcar(ids, e.target.checked)}
+                />
+                Importar
+              </label>
             </th>
             <th scope="col" className="p-2 text-left font-medium">
               Confiança
@@ -909,7 +939,8 @@ function TabelaDeLinhas({
                   type="checkbox"
                   aria-label={`Importar ${l.dados.ativo || l.dados.ticker || l.id}`}
                   checked={marcadas.has(l.id)}
-                  onChange={(e) => onMarcar(l.id, e.target.checked)}
+                  disabled={l.grupo === "a_receber"}
+                  onChange={(e) => onMarcar([l.id], e.target.checked)}
                 />
               </td>
               <td className={`p-2 ${COR_DA_CONFIANCA[l.confianca]}`}>

@@ -65,8 +65,11 @@ export interface OpcoesDaValidacao {
 
 export type TipoDeLinha = "posicao" | "transacao" | "provento";
 
-/** Pronta, preenchida pela politica de padroes, ou precisa de ajuste do usuario. */
-export type GrupoDaLinha = "pronta" | "preenchida" | "ajuste";
+/**
+ * Pronta, preenchida pela politica de padroes, precisa de ajuste do usuario, ou
+ * provento provisionado (pagamento futuro), que nao entra na carteira agora.
+ */
+export type GrupoDaLinha = "pronta" | "preenchida" | "ajuste" | "a_receber";
 
 export interface LinhaProposta {
   id: string;
@@ -250,7 +253,7 @@ class Fontes {
       declarada && declarada.compacta.includes(trecho)
         ? declarada
         : [...this.porOrigem.values()].find((f) => f.compacta.includes(trecho));
-    if (!fonte) return { achado: false, texto: o.trecho_original };
+    if (!fonte) return this.porCampos(o, declarada);
     const linhas = fonte.linhas
       .filter(
         (l) =>
@@ -260,6 +263,35 @@ class Fontes {
       )
       .map((l) => l.texto);
     return { achado: true, texto: [o.trecho_original, ...linhas].join("\n") };
+  }
+
+  /**
+   * O modelo copia a linha pulando uma coluna ("CURY3;R$ 4.590,11;-1,19%" para
+   * "CURY3;R$ 4.590,11;0,9%;-1,19%", #43). Vale a linha do documento que tem
+   * todos os campos do trecho, nessa ordem; os valores sao conferidos nela.
+   */
+  private porCampos(o: Origem, declarada?: Fonte): { achado: boolean; texto: string } {
+    const campos = o.trecho_original
+      .split(/[;|\t]/)
+      .map(compacto)
+      .filter((c) => c.length >= 2);
+    const nao = { achado: false, texto: o.trecho_original };
+    if (campos.length < 3) return nao;
+    const emOrdem = (linha: string) => {
+      let i = 0;
+      for (const c of campos) {
+        const j = linha.indexOf(c, i);
+        if (j < 0) return false;
+        i = j + c.length;
+      }
+      return true;
+    };
+    const fontes = declarada ? [declarada] : [...this.porOrigem.values()];
+    const linhas = fontes.flatMap((f) =>
+      f.linhas.filter((l) => emOrdem(l.compacta)).map((l) => l.texto),
+    );
+    if (linhas.length !== 1) return nao;
+    return { achado: true, texto: linhas.join("\n") };
   }
 }
 
@@ -409,6 +441,8 @@ interface Candidata {
   avisos: string[];
   nota: string | null;
   motivo: string | null;
+  /** Provento com pagamento futuro: informativo, nao e lancado. */
+  a_receber?: boolean;
 }
 
 function conferirTransacao(fontes: Fontes, t: TransacaoDaIA): Conferida {
@@ -956,7 +990,12 @@ export async function validarExtracao(
     if (c.motivo !== null) continue;
     const tk = c.dados.ticker ?? "";
     const dia = c.dados.data ?? "";
-    if (dia > o.hoje) c.motivo = `data: ${dia} no futuro`;
+    if (c.tipo === "provento" && dia > o.hoje) {
+      c.a_receber = true;
+      c.avisos.push(
+        `Provento provisionado, pagamento previsto em ${dia.split("-").reverse().join("/")}: não entra na carteira até ser pago. Importe o extrato depois do pagamento.`,
+      );
+    } else if (dia > o.hoje) c.motivo = `data: ${dia} no futuro`;
     else if (existentes && !existentes.has(tk))
       c.motivo = `ticker: ${tk} não existe no market-data`;
     else if (c.tipo === "transacao" && existentes) {
@@ -973,7 +1012,7 @@ export async function validarExtracao(
     if (ajuste && c.motivo && corrigivel(c.motivo))
       para_corrigir.push({ tipo: c.tipo, original: c.original, motivo: c.motivo });
     const notaOk = c.nota === null || notaConciliada.get(compacto(c.nota)) === true;
-    const grupo = grupoDe(c.preenchidos, ajuste);
+    const grupo = c.a_receber ? "a_receber" : grupoDe(c.preenchidos, ajuste);
     linhas.push({
       id: novoId(c.tipo),
       tipo: c.tipo,
@@ -981,7 +1020,8 @@ export async function validarExtracao(
       dados: c.dados,
       origem: recorte(c.origem),
       confianca: c.confianca,
-      marcada: grupo !== "ajuste" && c.confianca !== "baixa" && notaOk,
+      marcada:
+        grupo !== "ajuste" && grupo !== "a_receber" && c.confianca !== "baixa" && notaOk,
       preenchidos: c.preenchidos,
       problemas: c.motivo ? [campoDoMotivo(c.motivo) ?? ""].filter(Boolean) : [],
       motivo: c.motivo,

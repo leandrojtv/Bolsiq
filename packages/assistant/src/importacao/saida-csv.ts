@@ -105,6 +105,47 @@ const vazia = (): SaidaDasLinhas => ({
 });
 
 /**
+ * Posicao pode vir com o cabecalho curto, so com as colunas que a secao usa: 27
+ * colunas quase vazias fazem o modelo errar a conta dos separadores (#43).
+ */
+const OBRIGATORIAS_DA_POSICAO = [
+  "data_posicao",
+  "classe",
+  "ativo",
+  "saldo_bruto",
+  "pagina_ou_aba",
+  "trecho_original",
+  "confianca",
+];
+
+const VALORIZACOES = ["cotacao_b3", "curva", "tesouro", "cota_cvm", "manual"];
+
+/**
+ * Posicao com colunas a mais entre `valorizacao` e a origem: o modelo deixa um
+ * campo vazio antes de `observacao` ("cotacao_b3;;preço médio indefinido;aba",
+ * #43). So conserta quando o resto da linha confirma o lugar das colunas: a
+ * `valorizacao` e um valor conhecido e o excesso tem no maximo um texto, que vira
+ * a observacao. Qualquer outro desalinhamento fica como esta e vira rejeicao.
+ */
+function reparar(tipo: TipoDeBloco, cabecalho: string[], campos: string[]): string[] {
+  if (tipo !== "posicoes" || campos.length <= cabecalho.length) return campos;
+  const obs = cabecalho.indexOf("observacao");
+  const depois = cabecalho.length - obs - 1;
+  if (obs < 1 || cabecalho[obs - 1] !== "valorizacao") return campos;
+  if (!VALORIZACOES.includes(semAcento((campos[obs - 1] ?? "").trim()))) return campos;
+  const meio = campos
+    .slice(obs, campos.length - depois)
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (meio.length > 1) return campos;
+  return [
+    ...campos.slice(0, obs),
+    meio[0] ?? "",
+    ...campos.slice(campos.length - depois),
+  ];
+}
+
+/**
  * Le um bloco pelos nomes do cabecalho, em qualquer ordem. Coluna obrigatoria
  * faltando invalida o bloco; linha com colunas a mais ou a menos vira rejeicao
  * com o motivo, sem derrubar as outras.
@@ -119,12 +160,15 @@ function lerBloco(
   const cabecalho = dividirCsv(primeira, separador).map((c: string) =>
     semAcento(c.trim()),
   );
-  const esperado = COLUNAS_DO_BLOCO[bloco.tipo] as readonly string[];
+  const esperado =
+    bloco.tipo === "posicoes"
+      ? OBRIGATORIAS_DA_POSICAO
+      : (COLUNAS_DO_BLOCO[bloco.tipo] as readonly string[]);
   const faltando = esperado.filter((c) => !cabecalho.includes(c));
   if (faltando.length > 0) return `cabeçalho sem as colunas: ${faltando.join(", ")}`;
 
   for (const bruta of linhas.slice(1)) {
-    const campos = dividirCsv(bruta, separador);
+    const campos = reparar(bloco.tipo, cabecalho, dividirCsv(bruta, separador));
     if (campos.length !== cabecalho.length) {
       saida.malformadas.push({
         tipo: bloco.tipo,

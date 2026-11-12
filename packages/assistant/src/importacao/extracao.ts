@@ -6,7 +6,7 @@ import {
   type UserContent,
 } from "ai";
 import { mensagemSegura } from "../chaves.js";
-import { estimarTokens, type Uso } from "../orcamento.js";
+import type { Uso } from "../orcamento.js";
 import {
   PEDIDO_DO_CABECALHO_EM_JSON,
   SISTEMA_DE_IMPORTACAO,
@@ -15,7 +15,9 @@ import {
 } from "../../prompts/importacao-v1.js";
 import {
   CabecalhoDaIA,
+  COLUNAS_DO_BLOCO,
   saidaVazia,
+  type TipoDeBloco,
   type Origem,
   type PosicaoDaIA,
   type ProventoDaIA,
@@ -36,6 +38,9 @@ import type { Imagem, Parte } from "./texto.js";
 
 export interface PedidoDeExtracao {
   modelo: LanguageModel;
+  /** Provedor e nome do modelo: decidem como desligar o raciocinio. */
+  provedor?: string;
+  nome_do_modelo?: string;
   lotes: Lote[];
   /** Texto das paginas e abas, para o cabecalho (primeiras e ultimas). */
   partes: Parte[];
@@ -118,12 +123,31 @@ const somar = (
 };
 
 // O retry e nosso (comRetry): o do AI SDK nao tem jitter nem chega a 5.
-const comum = (p: PedidoDeExtracao) => ({
-  model: p.modelo,
-  temperature: 0,
-  maxRetries: 0,
-  ...(p.abortar ? { abortSignal: p.abortar } : {}),
-});
+/**
+ * Conversao nao pede raciocinio, e o raciocinio adaptativo do Claude gasta a
+ * saida inteira do lote sem escrever uma linha (#43). Desligado onde a API
+ * aceita; Sonnet 5.5 so desliga por `between_tools`; Opus 5.5, Fable e Mythos
+ * nao desligam, entao vao com esforco baixo.
+ */
+export function semRaciocinio(provedor = "", modelo = "") {
+  if (provedor !== "anthropic" || !modelo.startsWith("claude-")) return undefined;
+  if (/^claude-(opus-5-5|fable|mythos)/.test(modelo))
+    return { anthropic: { effort: "low" as const } };
+  if (modelo.startsWith("claude-sonnet-5-5"))
+    return { anthropic: { thinking: { type: "between_tools" as const } } };
+  return { anthropic: { thinking: { type: "disabled" as const } } };
+}
+
+const comum = (p: PedidoDeExtracao) => {
+  const opcoes = semRaciocinio(p.provedor, p.nome_do_modelo);
+  return {
+    model: p.modelo,
+    temperature: 0,
+    maxRetries: 0,
+    ...(opcoes ? { providerOptions: opcoes } : {}),
+    ...(p.abortar ? { abortSignal: p.abortar } : {}),
+  };
+};
 
 const dormir = (ms: number, sinal?: AbortSignal) =>
   new Promise<void>((ok) => {
@@ -262,10 +286,6 @@ async function extrairCabecalho(p: PedidoDeExtracao, uso: Uso): Promise<Cabecalh
   };
 }
 
-/** Saida pelo tamanho do lote: CSV tem cerca de 1,5 token por token lido. */
-const saidaDoLote = (l: Lote, max: number) =>
-  Math.min(max, Math.max(2_000, Math.ceil(estimarTokens(textoDoLote(l)) * 1.6)));
-
 interface Pedaco {
   saida: SaidaDasLinhas;
   avisos: string[];
@@ -306,7 +326,7 @@ async function extrairLinhas(
         ...comum(p),
         system: SISTEMA_DE_IMPORTACAO,
         messages: mensagens,
-        maxOutputTokens: lote ? saidaDoLote(lote, max) : max,
+        maxOutputTokens: max,
       }),
     );
   } catch (erro) {
@@ -358,7 +378,7 @@ async function extrairLinhas(
               content: `O formato saiu errado: ${leitura.cabecalhos_invalidos.map((x) => `${x.tipo}: ${x.motivo}`).join("; ")}. Reescreva todos os blocos, exatamente com os cabeçalhos pedidos, sem texto fora deles.`,
             },
           ],
-          maxOutputTokens: lote ? saidaDoLote(lote, max) : max,
+          maxOutputTokens: max,
         }),
       );
       somar(uso, correcao);
@@ -613,12 +633,16 @@ export async function corrigirLinhas(
   p: PedidoDeExtracao,
   pendentes: ParaCorrigir[],
   uso: Uso,
+  malformadas: SaidaDaIA["malformadas"] = [],
 ): Promise<SaidaDasLinhas> {
   const origens = new Set(
     pendentes.map((x) => x.original.origem.pagina_ou_aba.toLowerCase()),
   );
+  // Linha malformada nao tem origem lida: vale a pagina que aparece nela.
+  const comMalformada = (x: Parte) =>
+    malformadas.some((m) => m.conteudo.toLowerCase().includes(x.origem.toLowerCase()));
   const paginas = p.partes
-    .filter((x) => origens.has(x.origem.toLowerCase()))
+    .filter((x) => origens.has(x.origem.toLowerCase()) || comMalformada(x))
     .map((x) => blocoDoDocumento(x.origem, x.texto))
     .join("\n\n")
     .slice(0, 60_000);
@@ -633,6 +657,13 @@ export async function corrigirLinhas(
       });
       return `Linha ${i + 1}, recusada porque: ${x.motivo}\n${bloco}`;
     })
+    .concat(
+      malformadas.map((m, i) => {
+        const tipo = m.tipo as TipoDeBloco;
+        const cabecalho = (COLUNAS_DO_BLOCO[tipo] ?? []).join(";");
+        return `Linha ${pendentes.length + i + 1}, recusada porque: ${m.motivo}\n\`\`\`csv ${m.tipo}\n${cabecalho}\n${m.conteudo}\n\`\`\``;
+      }),
+    )
     .join("\n\n");
   const r = await comRetry(p, "autocorreção", () =>
     generateText({
@@ -646,7 +677,7 @@ export async function corrigirLinhas(
       ],
       maxOutputTokens: Math.min(
         p.maxSaida ?? MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
-        1_000 + pendentes.length * 400,
+        1_000 + (pendentes.length + malformadas.length) * 400,
       ),
     }),
   );

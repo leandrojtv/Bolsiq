@@ -181,6 +181,8 @@ no worker). A fila não repete o job sozinha (`retryLimit` 0): a tela oferece re
 
 O progresso chega por SSE (`/eventos`): o web lê o job a cada segundo e manda o estado de
 cada arquivo; o resultado de cada arquivo é buscado à parte quando ele fica pronto.
+O worker grava o progresso de cada arquivo em fila e só grava o estado final depois que
+a fila termina: gravação de progresso atrasada não sobrescreve o `pronto` (#41).
 Cancelar marca o job, e o worker interrompe as chamadas em andamento.
 
 ## Rotas

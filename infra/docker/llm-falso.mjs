@@ -39,6 +39,79 @@ function respostaDaImportacao(corpo) {
   return achada?.csv ?? "";
 }
 
+let ultimaAutorizacao = null;
+
+const ferramentaDa = (texto) => {
+  const t = texto.toLowerCase();
+  if (t.includes("avalie")) return ["avaliar_carteira", {}];
+  if (t.includes("aportar")) return ["sugerir_aporte", { valor: 1000 }];
+  if (t.includes("alerta"))
+    return ["criar_alerta", { ticker: "PETR4", tipo: "preco_acima", valor: 40 }];
+  return null;
+};
+
+function respostaFinal(ferramenta, saida) {
+  if (ferramenta === "avaliar_carteira") {
+    const a = saida.concentracao?.por_ativo ?? [];
+    const d = saida.desvio_da_alocacao ?? [];
+    return [
+      "Concentração:",
+      ...a.map((l) => `- ${l.chave}: ${(l.fracao * 100).toFixed(2)}%`),
+      "Desvio da alocação-alvo:",
+      ...d.map(
+        (l) =>
+          `- ${l.classe}: atual ${(l.atual * 100).toFixed(2)}%, alvo ${(l.alvo * 100).toFixed(2)}%`,
+      ),
+      `Risco: volatilidade ${saida.risco?.volatilidade_anual ?? "sem dado"}.`,
+    ].join("\n");
+  }
+  if (ferramenta === "sugerir_aporte") {
+    if (saida.erro) return `Sem candidatos: ${saida.mensagem}`;
+    const linhas = saida.classes.flatMap((c) =>
+      c.candidatos.map(
+        (x) =>
+          `- ${x.ticker}: score ${x.score}; critérios ${x.metodos.join(", ")}; riscos: ${x.riscos.join("; ") || "nenhum apontado"}`,
+      ),
+    );
+    return [
+      "Candidatos:",
+      ...linhas,
+      ...saida.classes.flatMap((c) => (c.sem_candidatos ? [c.sem_candidatos] : [])),
+    ].join("\n");
+  }
+  if (ferramenta === "criar_alerta")
+    return "Preparei o alerta. Confirme na tela para criá-lo.";
+  return "Consulta feita.";
+}
+
+const sse = (res, corpo, modelo) => {
+  res.writeHead(200, { "content-type": "text/event-stream" });
+  const pedaco = (delta, fim = null, extra = {}) =>
+    res.write(
+      `data: ${JSON.stringify({
+        id: "falso",
+        object: "chat.completion.chunk",
+        created: 1,
+        model: modelo,
+        choices: [{ index: 0, delta, finish_reason: fim }],
+        ...extra,
+      })}\n\n`,
+    );
+  pedaco({ role: "assistant", content: "" });
+  corpo(pedaco);
+  res.write(
+    `data: ${JSON.stringify({
+      id: "falso",
+      object: "chat.completion.chunk",
+      created: 1,
+      model: modelo,
+      choices: [],
+      usage: { prompt_tokens: 1200, completion_tokens: 80, total_tokens: 1280 },
+    })}\n\n`,
+  );
+  res.end("data: [DONE]\n\n");
+};
+
 function ler(req) {
   return new Promise((ok) => {
     let b = "";

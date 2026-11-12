@@ -96,7 +96,7 @@ invenção.
 Na Anthropic, o limite de 16 campos com union e o de tamanho da gramática compilada
 (issue #37) não se aplicam: o único schema enviado é `CabecalhoDaIA`, sem campos anuláveis
 e com sete propriedades, e as linhas vêm em texto. Se o provedor ainda assim recusar o
-schema, o cabeçalho é refeito em texto, num bloco ```json``` validado pelo mesmo Zod.
+schema, o cabeçalho é refeito em texto, num bloco `json` validado pelo mesmo Zod.
 
 ## Validação
 

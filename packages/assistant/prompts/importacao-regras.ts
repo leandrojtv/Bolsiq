@@ -65,7 +65,15 @@ Proventos (dividendos, JCP, rendimentos):
 
 - data_pagamento AAAA-MM-DD, ticker, tipo (dividendo, jcp, rendimento ou outro),
   quantidade de cotas ou ações, valor_por_cota e valor_total, como no documento.
-- Valor líquido de IR quando o documento trouxer os dois.
+- tipo pelo texto do documento: DIVIDENDO é dividendo; JUROS SOBRE CAPITAL PROPRIO
+  ou JCP é jcp; RENDIMENTO (FII) é rendimento.
+- Valor líquido de IR quando o documento trouxer os dois (JCP traz bruto e
+  líquido: valor_total é o líquido).
+- Proventos provisionados, a receber ou com pagamento futuro, mesmo dentro de um
+  extrato de posição (uma tabela com ticker, quantidade, valor e data de pagamento
+  na aba ou página da carteira), são proventos: viram linha em proventos, com a data
+  de pagamento prevista. Nunca viram posição nem transação. Não deixe de fora por a
+  data ser futura: o Bolsiq separa os que ainda não foram pagos.
 
 Documento:
 

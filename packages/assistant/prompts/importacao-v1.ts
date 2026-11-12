@@ -8,8 +8,11 @@ import { FORMATO_DE_SAIDA, REGRAS_DE_NORMALIZACAO } from "./importacao-regras.js
  *
  * v2: linhas em blocos CSV de texto e cabecalho por schema pequeno (ADR 0026,
  * Revisao). O cache da v1 deixa de valer.
+ *
+ * v3: proventos provisionados (pagamento futuro) dentro da posicao viram
+ * proventos, e o tipo sai do texto do documento (#43).
  */
-export const VERSAO_DO_PROMPT_DE_IMPORTACAO = "importacao-v2";
+export const VERSAO_DO_PROMPT_DE_IMPORTACAO = "importacao-v3";
 
 const PAPEL =
   "Você converte extratos de bancos e corretoras brasileiras para os layouts do Bolsiq.";

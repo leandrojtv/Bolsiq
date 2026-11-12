@@ -170,7 +170,9 @@ preenchido.
 | Precisam de ajuste          | layout, market-data ou data reprovou; campos editáveis, com o problema destacado                           |
 | Proventos a receber         | provento provisionado, com pagamento depois de hoje; informativo, não se marca nem vai à autocorreção      |
 
-"Aceitar todas as prontas" marca o primeiro grupo de uma vez.
+"Marcar todas" e "Desmarcar todas", acima dos grupos, valem para todas as linhas
+marcáveis; a caixa no cabeçalho "Importar" de cada grupo marca ou desmarca o grupo
+inteiro. Proventos a receber ficam de fora.
 
 **Proventos provisionados** (#43). Extrato de posição costuma trazer, na mesma aba ou
 página, os proventos anunciados e ainda não pagos (a XP lista em "Sua carteira":

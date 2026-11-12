@@ -113,7 +113,8 @@ Em `validacao.ts`, nesta ordem:
 3. **Política de preenchimento** (abaixo).
 4. **Layout**: os validadores de sempre (`importarPosicaoBolsiq`, `importarCsvBolsiq`).
 5. **Market-data**: ticker existe, preço de negócio entre a mínima e a máxima do pregão,
-   data não futura.
+   data não futura. Provento com pagamento futuro não é erro: vai para "Proventos a
+   receber" (abaixo).
 6. **Conciliação por seção** (abaixo).
 
 Linha de total ou subtotal ("Total", "Subtotal Renda Fixa") não vira posição: sai com um
@@ -149,8 +150,18 @@ preenchido.
 | Prontas                     | tudo do documento, ou só campos menores preenchidos (IR, IOF, liquidez, valorização, saldo líquido, taxas) |
 | Preenchidas automaticamente | a política preencheu algo que pesa (quantidade, preço, valor aplicado, data, corretora)                    |
 | Precisam de ajuste          | layout, market-data ou data reprovou; campos editáveis, com o problema destacado                           |
+| Proventos a receber         | provento provisionado, com pagamento depois de hoje; informativo, não se marca nem vai à autocorreção      |
 
 "Aceitar todas as prontas" marca o primeiro grupo de uma vez.
+
+**Proventos provisionados** (#43). Extrato de posição costuma trazer, na mesma aba ou
+página, os proventos anunciados e ainda não pagos (a XP lista em "Sua carteira":
+ticker, quantidade, valor bruto e líquido, RENDIMENTO, DIVIDENDO ou JUROS SOBRE CAPITAL
+PROPRIO e a data de pagamento). O prompt manda o modelo devolver essas linhas em
+`proventos`, nunca como posição, com o líquido no JCP. A validação separa os de data
+futura em "Proventos a receber", com o aviso da data prevista: provento só entra na
+carteira depois de pago, então essas linhas não são gravadas; importe o extrato depois
+do pagamento.
 
 ### Conciliação
 

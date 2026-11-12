@@ -215,6 +215,9 @@ export async function executarJob(
         }
       });
     }, d.conferir_cancelamento_ms ?? 2_000);
+    // Progresso em fila: gravacao solta pode chegar depois do "pronto" e
+    // sobrescreve-lo, e o arquivo fica preso em "Conciliando".
+    let progresso: Promise<unknown> = Promise.resolve();
     const avancar = limitado((x) => {
       const estado: EstadoDoArquivo =
         x.etapa === "corrigindo"
@@ -222,7 +225,9 @@ export async function executarJob(
           : x.etapa === "validando"
             ? "validando"
             : "analisando";
-      void d.repo.atualizarArquivo(a.indice, { estado, progresso: x });
+      progresso = progresso
+        .then(() => d.repo.atualizarArquivo(a.indice, { estado, progresso: x }))
+        .catch(() => undefined);
     });
     try {
       const resultado = await importarComIA({
@@ -254,6 +259,7 @@ export async function executarJob(
             ? { reprocessar: true }
             : {}),
       });
+      await progresso;
       await d.repo.atualizarArquivo(a.indice, {
         estado: cancelado ? "cancelado" : "pronto",
         resultado,
@@ -262,6 +268,7 @@ export async function executarJob(
       });
     } catch (erro) {
       d.aoErrar?.(`extração de ${a.nome}: ${(erro as Error).message}`);
+      await progresso;
       await d.repo.atualizarArquivo(a.indice, {
         estado: cancelado ? "cancelado" : "falhou",
         erro: cancelado ? "Cancelado." : mensagem(erro),

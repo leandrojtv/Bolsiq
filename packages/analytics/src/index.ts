@@ -10,3 +10,5 @@ export * from "./executarScreener.js";
 export * from "./worker.js";
 export * from "./db/schema.js";
 export * from "./comparador.js";
+export * from "./sinais.js";
+export * from "./tecnicos.js";

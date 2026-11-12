@@ -25,6 +25,7 @@ anterior como `substituído por`.
 | [0025](0025-posicoes-sem-ticker.md)          | Posições sem ticker e carga por fotografia             | aceito       |
 | [0026](0026-importacao-com-ia.md)            | Importação com IA, em qualquer formato                 | aceito       |
 | [0027](0027-importacao-ia-v2.md)             | Importação com IA v2: segundo plano, OCR, autocorreção | aceito       |
+| [0028](0028-sinais-dos-indicadores.md)       | Sinais verde, amarelo e vermelho dos indicadores       | aceito       |
 
 ## Números reservados
 

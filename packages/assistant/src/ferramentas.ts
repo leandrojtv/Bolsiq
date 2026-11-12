@@ -1,10 +1,14 @@
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import {
+  AJUDA_TECNICA,
+  avaliarIndicadores,
   FiltroDeScreener,
   filtroDoPreset,
+  MESES_PARA_TECNICOS,
   nivelDeTaxa,
   presets,
+  sinaisTecnicos,
   type LinhaDoScreener,
   type NomeDePreset,
   type PeriodoDeComparacao,
@@ -198,6 +202,7 @@ export const NOMES_DAS_FERRAMENTAS = [
   "proventos",
   "fundamentos",
   "indicadores",
+  "analise_tecnica",
   "comparar",
   "screener",
   "cenario_macro",
@@ -296,7 +301,7 @@ export function criarFerramentas(
 
     indicadores: tool({
       description:
-        "Indicadores calculados de até 10 ativos: P/L, P/VP, DY, ROE, margens, endividamento, volatilidade, beta e preço justo de Graham e Bazin.",
+        "Indicadores calculados de até 10 ativos: P/L, P/VP, DY, ROE, margens, endividamento, volatilidade, beta e preço justo de Graham e Bazin. Cada indicador vem com o sinal do Bolsiq (verde, amarelo ou vermelho) e a leitura da faixa.",
       inputSchema: z.object({ tickers: z.array(Ticker).min(1).max(10) }),
       execute: ({ tickers }) =>
         seguro(async () => {
@@ -304,13 +309,45 @@ export function criarFerramentas(
           return {
             ativos: tickers.map((t) => {
               const i = mapa.get(t);
-              return i
-                ? { ticker: t, ...i, link: `/ativo/${t}` }
-                : { ticker: t, erro: "sem_indicadores" };
+              if (!i) return { ticker: t, erro: "sem_indicadores" };
+              const {
+                reference_date: _d,
+                preco_graham: _g,
+                preco_bazin: _b,
+                ...valores
+              } = i;
+              return {
+                ticker: t,
+                ...i,
+                sinais: avaliarIndicadores(valores),
+                link: `/ativo/${t}`,
+              };
             }),
             proveniencia: [...mapa.values()].map((i) =>
               provIndicadores(i.reference_date),
             ),
+          };
+        }),
+    }),
+
+    analise_tecnica: tool({
+      description:
+        "Análise técnica calculada pelo Bolsiq no último pregão: médias móveis de 20, 50 e 200 pregões e IFR 14, as mesmas do gráfico, com o sinal de tendência, de curto prazo e do IFR (verde, amarelo ou vermelho).",
+      inputSchema: z.object({ ticker: Ticker }),
+      execute: ({ ticker }) =>
+        seguro(async () => {
+          const r = await fontes.historico(ticker, anosAtras(hoje, MESES_PARA_TECNICOS));
+          const t = sinaisTecnicos(r.dados.map((c) => Number(c.close)));
+          return {
+            ticker,
+            data: ultimo(r.dados)?.date ?? null,
+            pregoes: r.dados.length,
+            ...t,
+            criterios: Object.fromEntries(
+              Object.entries(AJUDA_TECNICA).map(([k, a]) => [k, a.faixas]),
+            ),
+            link: `/ativo/${ticker}`,
+            proveniencia: r.proveniencia,
           };
         }),
     }),

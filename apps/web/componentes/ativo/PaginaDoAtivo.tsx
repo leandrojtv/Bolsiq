@@ -9,7 +9,13 @@ import type { Indicadores } from "@/lib/analytics";
 import { Cabecalho, TopoMobile } from "./Cabecalho";
 import { Detalhes } from "./Detalhes";
 import type { GraficoProps } from "./Grafico";
-import { GradeDeIndicadores, LateralMobile, PrecoJusto } from "./Lateral";
+import type { SinaisTecnicos } from "@bolsiq/analytics/puro";
+import {
+  GradeDeIndicadores,
+  LateralMobile,
+  PrecoJusto,
+  SinaisTecnicosCard,
+} from "./Lateral";
 import type { DadosDoAtivo } from "./tipos";
 import { useCotacaoAoVivo } from "./useCotacaoAoVivo";
 
@@ -37,10 +43,12 @@ export function PaginaDoAtivo({
   dados,
   historico,
   indicadores,
+  tecnicos,
 }: {
   dados: DadosDoAtivo;
   historico: GraficoProps["inicial"];
   indicadores: Indicadores | null;
+  tecnicos: SinaisTecnicos | null;
 }) {
   const ativo = dados.ativo.data;
   const celular = useCelular();
@@ -85,9 +93,14 @@ export function PaginaDoAtivo({
         >
           <GradeDeIndicadores indicadores={indicadores} />
           <PrecoJusto indicadores={indicadores} preco={cotacao?.price ?? null} />
+          <SinaisTecnicosCard tecnicos={tecnicos} />
         </aside>
       </div>
-      <LateralMobile indicadores={indicadores} preco={cotacao?.price ?? null} />
+      <LateralMobile
+        indicadores={indicadores}
+        preco={cotacao?.price ?? null}
+        tecnicos={tecnicos}
+      />
       <Detalhes
         ativo={ativo}
         proventos={dados.proventos?.data ?? null}

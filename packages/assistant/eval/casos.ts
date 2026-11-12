@@ -64,6 +64,14 @@ export const CASOS: Caso[] = [
     numeros: [27.32],
   },
   {
+    id: "analise-tecnica",
+    pergunta: "Como estão a MM 20 e o IFR de VALE3?",
+    ferramentas: [{ nome: "analise_tecnica", parametros: { ticker: "VALE3" } }],
+    // 21 fechamentos sempre em alta: IFR 100 (sobrecomprado), MM 20 = media dos 20 ultimos.
+    numeros: [59.58, 100],
+    deve_conter: [/sobrecomprado/i],
+  },
+  {
     id: "comparar",
     pergunta: "Compare PETR4 e PRIO3 em 1 ano.",
     ferramentas: [

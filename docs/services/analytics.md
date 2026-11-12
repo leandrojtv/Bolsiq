@@ -243,6 +243,13 @@ negativos, e e o caso em que um sinal trocado passaria despercebido.
 Existe para o screener filtrar por setor e tipo sem uma chamada de API por
 linha, o que tornaria impossivel a meta de 300 ms.
 
+## Sinais
+
+`sinais.ts` classifica cada indicador em verde, amarelo ou vermelho, com a leitura da
+faixa e o helper; `tecnicos.ts` tem MM, IFR e `sinaisTecnicos`. Tela do ativo e
+assistente usam as mesmas funções. Faixas e motivo no
+[ADR 0028](../adr/0028-sinais-dos-indicadores.md).
+
 ## Screener
 
 Filtro validado por Zod em `src/screener.ts`, com faixas por indicador, setor,

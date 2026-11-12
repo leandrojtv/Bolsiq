@@ -67,7 +67,8 @@ falha, `{ erro: "indisponivel" }`, que o modelo lê como "não tenho o dado".
 | `historico`        | `/v1/history`               | resumo e até 60 pontos, não a série inteira |
 | `proventos`        | `/v1/dividends`             |                                             |
 | `fundamentos`      | `/v1/fundamentals`          |                                             |
-| `indicadores`      | `analytics.indicators`      | até 10                                      |
+| `indicadores`      | `analytics.indicators`      | até 10, com `sinais` (nível e leitura)      |
+| `analise_tecnica`  | `/v1/history` (14 meses)    | MM 20/50/200 e IFR 14, com sinais           |
 | `comparar`         | `montarComparacao`          | sem as séries                               |
 | `screener`         | `executarScreener`          | preset ou faixas, até 20 linhas             |
 | `cenario_macro`    | `/v1/macro`                 | Selic, IPCA, CDI e IBOV                     |

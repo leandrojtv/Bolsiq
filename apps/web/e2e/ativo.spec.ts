@@ -16,6 +16,12 @@ test.describe("pagina do ativo", () => {
     await expect(page.locator("canvas").first()).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Indicadores" })).toBeVisible();
+    await page.getByRole("button", { name: "Como ler P/L" }).first().click();
+    await expect(page.getByRole("region", { name: "Como ler P/L" })).toContainText(
+      "Até 15",
+    );
+    await expect(page.getByRole("button", { name: "Como ler Graham" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sinais técnicos" })).toBeVisible();
     await expect(
       page.getByText("Não é recomendação.", { exact: false }).first(),
     ).toBeVisible();

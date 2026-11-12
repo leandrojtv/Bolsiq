@@ -4,27 +4,28 @@ Formato [MADR](https://adr.github.io/madr/), numerado em sequência, em
 português. Um arquivo por decisão; decisão revista ganha ADR novo que marca a
 anterior como `substituído por`.
 
-| ADR                                          | Título                                           | Status       |
-| -------------------------------------------- | ------------------------------------------------ | ------------ |
-| [0006](0006-jobs-no-proprio-servico.md)      | Jobs no próprio serviço, com pg-boss e `ROLE`    | aceito       |
-| [0007](0007-gateway-e-planos.md)             | Gateway, chaves de API e planos                  | **proposto** |
-| [0008](0008-outbox-e-jetstream.md)           | Outbox no Postgres com NATS JetStream            | aceito       |
-| [0009](0009-analytics-como-modulo.md)        | Analytics como modulo, com critario de extracao  | aceito       |
-| [0010](0010-better-auth.md)                  | Better Auth para autenticacao                    | aceito       |
-| [0011](0011-rls.md)                          | Row Level Security como segunda barreira         | aceito       |
-| [0012](0012-alerts-worker.md)                | Processo e imagem dedicados para o alerts        | aceito       |
-| [0013](0013-cache-read-through.md)           | Read-through, com carga em lote para arquivo     | aceito       |
-| [0014](0014-fluxo-de-branches-e-cicd.md)     | Fluxo de branches e CI/CD                        | aceito       |
-| [0015](0015-design-system.md)                | Design system em packages/ui                     | aceito       |
-| [0018](0018-analytics-worker.md)             | Processo dedicado para o recálculo do analytics  | aceito       |
-| [0020](0020-bff-do-web.md)                   | BFF do apps/web, chave só no servidor            | aceito       |
-| [0021](0021-identidade-provisoria-e-sino.md) | Identidade provisória e sino por SSE             | aceito       |
-| [0022](0022-login-carteira-e-snapshot.md)    | Login, RLS por transação, snapshot e LGPD        | aceito       |
-| [0023](0023-fii-pelo-informe-mensal.md)      | Indicadores de FII pelo informe mensal da CVM    | aceito       |
-| [0024](0024-assistente-byok.md)              | Assistente com a chave do usuário (BYOK)         | aceito       |
-| [0025](0025-posicoes-sem-ticker.md)          | Posições sem ticker e carga por fotografia       | aceito       |
-| [0026](0026-importacao-com-ia.md)            | Importação com IA, em qualquer formato           | aceito       |
-| [0027](0027-sinais-dos-indicadores.md)       | Sinais verde, amarelo e vermelho dos indicadores | aceito       |
+| ADR                                          | Título                                                 | Status       |
+| -------------------------------------------- | ------------------------------------------------------ | ------------ |
+| [0006](0006-jobs-no-proprio-servico.md)      | Jobs no próprio serviço, com pg-boss e `ROLE`          | aceito       |
+| [0007](0007-gateway-e-planos.md)             | Gateway, chaves de API e planos                        | **proposto** |
+| [0008](0008-outbox-e-jetstream.md)           | Outbox no Postgres com NATS JetStream                  | aceito       |
+| [0009](0009-analytics-como-modulo.md)        | Analytics como modulo, com critario de extracao        | aceito       |
+| [0010](0010-better-auth.md)                  | Better Auth para autenticacao                          | aceito       |
+| [0011](0011-rls.md)                          | Row Level Security como segunda barreira               | aceito       |
+| [0012](0012-alerts-worker.md)                | Processo e imagem dedicados para o alerts              | aceito       |
+| [0013](0013-cache-read-through.md)           | Read-through, com carga em lote para arquivo           | aceito       |
+| [0014](0014-fluxo-de-branches-e-cicd.md)     | Fluxo de branches e CI/CD                              | aceito       |
+| [0015](0015-design-system.md)                | Design system em packages/ui                           | aceito       |
+| [0018](0018-analytics-worker.md)             | Processo dedicado para o recálculo do analytics        | aceito       |
+| [0020](0020-bff-do-web.md)                   | BFF do apps/web, chave só no servidor                  | aceito       |
+| [0021](0021-identidade-provisoria-e-sino.md) | Identidade provisória e sino por SSE                   | aceito       |
+| [0022](0022-login-carteira-e-snapshot.md)    | Login, RLS por transação, snapshot e LGPD              | aceito       |
+| [0023](0023-fii-pelo-informe-mensal.md)      | Indicadores de FII pelo informe mensal da CVM          | aceito       |
+| [0024](0024-assistente-byok.md)              | Assistente com a chave do usuário (BYOK)               | aceito       |
+| [0025](0025-posicoes-sem-ticker.md)          | Posições sem ticker e carga por fotografia             | aceito       |
+| [0026](0026-importacao-com-ia.md)            | Importação com IA, em qualquer formato                 | aceito       |
+| [0027](0027-importacao-ia-v2.md)             | Importação com IA v2: segundo plano, OCR, autocorreção | aceito       |
+| [0028](0028-sinais-dos-indicadores.md)       | Sinais verde, amarelo e vermelho dos indicadores       | aceito       |
 
 ## Números reservados
 

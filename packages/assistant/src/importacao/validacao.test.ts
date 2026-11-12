@@ -43,7 +43,7 @@ const VAZIA = Object.fromEntries(
     "saldo_liquido",
     "valorizacao",
     "observacao",
-  ].map((c) => [c, null]),
+  ].map((c) => [c, ""]),
 ) as unknown as PosicaoDaIA;
 
 const acao = (trecho: string, campos: Partial<PosicaoDaIA> = {}): PosicaoDaIA => ({
@@ -70,8 +70,8 @@ const compra = (trecho: string, campos: Partial<TransacaoDaIA> = {}): TransacaoD
   preco: "37.85",
   taxas: "0",
   corretora: "XP",
-  ativo_no_documento: null,
-  nota: null,
+  ativo_no_documento: "",
+  nota: "",
   ...campos,
   origem: { pagina_ou_aba: "texto", trecho_original: trecho },
   confianca: "alta",
@@ -174,7 +174,7 @@ describe("origem: valor sem trecho e invencao", () => {
         documento: {
           tipo: "posicao",
           corretora: "XP",
-          data_referencia: null,
+          data_referencia: "",
           totais_declarados: [
             { descricao: "Total", valor: "3842.00" },
             { descricao: "Total geral", valor: "5000" },
@@ -191,20 +191,46 @@ describe("origem: valor sem trecho e invencao", () => {
 });
 
 describe("validadores do layout e market-data", () => {
-  it("passa pelos validadores do posicao_bolsiq: classe invalida rejeita a linha", async () => {
+  it("classe que nao se reconhece vai para ajuste, com o campo destacado", async () => {
     const r = await validar(
-      doc({ posicoes: [acao("PETR4;100;32,50;3.842,00", { classe: "acoes" })] }),
+      doc({ posicoes: [acao("PETR4;100;32,50;3.842,00", { classe: "xyz" })] }),
     );
-    expect(r.rejeicoes[0]?.motivo).toMatch(/^classe: deve ser uma de/);
+    expect(r.rejeicoes).toEqual([]);
+    expect(r.linhas[0]).toMatchObject({
+      grupo: "ajuste",
+      marcada: false,
+      problemas: ["classe"],
+    });
+    expect(r.linhas[0]?.motivo).toMatch(/^classe: deve ser uma de/);
+    expect(r.para_corrigir).toHaveLength(1);
   });
 
-  it("ticker que nao existe no market-data e rejeitado", async () => {
+  it("sinonimo de classe e normalizado sem IA", async () => {
+    const r = await validar(
+      doc({
+        posicoes: [
+          acao("PETR4;100;32,50;3.842,00", {
+            classe: "Ações",
+            saldo_bruto: "R$ 3.842,00",
+          }),
+        ],
+      }),
+    );
+    expect(r.linhas[0]?.dados).toMatchObject({ classe: "acao", saldo_bruto: "3842.00" });
+    expect(r.linhas[0]?.grupo).not.toBe("ajuste");
+  });
+
+  it("ticker que nao existe no market-data vai para ajuste", async () => {
     const v: Verificador = {
       tickersExistentes: () => Promise.resolve(new Set()),
       faixaDoDia: () => Promise.resolve(null),
     };
     const r = await validar(doc({ posicoes: [acao("PETR4;100;32,50;3.842,00")] }), v);
-    expect(r.rejeicoes[0]?.motivo).toBe("ticker PETR4 não existe no market-data");
+    expect(r.linhas[0]).toMatchObject({
+      grupo: "ajuste",
+      motivo: "codigo: ticker PETR4 não existe no market-data",
+      problemas: ["codigo"],
+    });
   });
 
   it("market-data fora do ar vira aviso, nao rejeicao", async () => {
@@ -219,7 +245,7 @@ describe("validadores do layout e market-data", () => {
     );
   });
 
-  it("preco fora da minima e maxima do dia e rejeitado", async () => {
+  it("preco fora da minima e maxima do dia vai para ajuste", async () => {
     const v: Verificador = {
       tickersExistentes: (t) => Promise.resolve(new Set(t)),
       faixaDoDia: () => Promise.resolve({ minima: "38.00", maxima: "39.00" }),
@@ -228,9 +254,11 @@ describe("validadores do layout e market-data", () => {
       doc({ transacoes: [compra("03/10/2026;Compra;PETR4;100;37,85")] }),
       v,
     );
-    expect(r.rejeicoes[0]?.motivo).toBe(
-      "preço 37.85 fora da faixa do dia (38.00 a 39.00)",
-    );
+    expect(r.linhas[0]).toMatchObject({
+      grupo: "ajuste",
+      motivo: "preco: 37.85 fora da faixa do dia (38.00 a 39.00)",
+      problemas: ["preco"],
+    });
   });
 
   it("sem candle do dia, a linha fica com aviso", async () => {
@@ -247,18 +275,20 @@ describe("validadores do layout e market-data", () => {
     ]);
   });
 
-  it("data no futuro e rejeitada", async () => {
+  it("data no futuro vai para ajuste", async () => {
     const texto = "10/12/2026;Compra;PETR4;100;37,85";
     const r = await validar(
-      doc({ transacoes: [compra(texto, { data: "2026-12-10" })] }),
+      doc({ transacoes: [compra(texto, { data: "10/12/2026" })] }),
       verificadorDasFixtures(),
       [{ origem: "texto", texto }],
     );
-    expect(r.rejeicoes.map((x) => x.motivo)).toContain("data 2026-12-10 no futuro");
-    expect(r.linhas).toEqual([]);
+    expect(r.linhas[0]).toMatchObject({
+      grupo: "ajuste",
+      motivo: "data: 2026-12-10 no futuro",
+    });
   });
 
-  it("transacao invalida no CSV de sempre e rejeitada com o motivo dele", async () => {
+  it("transacao invalida no CSV de sempre vai para ajuste com o motivo dele", async () => {
     const r = await validar(
       doc({
         transacoes: [
@@ -266,7 +296,8 @@ describe("validadores do layout e market-data", () => {
         ],
       }),
     );
-    expect(r.rejeicoes[0]?.motivo).toMatch(/^tipo:/);
+    expect(r.linhas[0]?.grupo).toBe("ajuste");
+    expect(r.linhas[0]?.motivo).toMatch(/^tipo:/);
   });
 
   it("confianca baixa vem desmarcada", async () => {
@@ -316,19 +347,55 @@ describe("conciliacao", () => {
     });
   });
 
-  it("carga nao conciliada vem desmarcada", async () => {
+  it("sem total no documento nao bloqueia: sem total para conferir", async () => {
     const r = await validar(
       doc({
         documento: {
           tipo: "posicao",
           corretora: "XP",
-          data_referencia: null,
+          data_referencia: "",
           totais_declarados: [],
         },
         posicoes: [acao("PETR4;100;32,50;3.842,00")],
       }),
     );
+    expect(r.conciliacao[0]?.situacao).toBe("sem_total");
+    expect(r.conciliada).toBe(true);
+    expect(r.linhas[0]?.marcada).toBe(true);
+  });
+
+  it("divergencia desmarca e aponta a secao que nao bate", async () => {
+    const texto = "PETR4;100;32,50;3.842,00\nAções;5.000,00\nPatrimônio total;9.999,00";
+    const r = await validar(
+      doc({
+        documento: {
+          tipo: "posicao",
+          corretora: "XP",
+          data_referencia: "",
+          totais_declarados: [
+            { descricao: "Patrimônio total", valor: "9999.00" },
+            { descricao: "Ações", valor: "5000.00" },
+          ],
+        },
+        posicoes: [acao("PETR4;100;32,50;3.842,00")],
+      }),
+      verificadorDasFixtures(),
+      [{ origem: "texto", texto }],
+    );
     expect(r.conciliada).toBe(false);
+    expect(r.conciliacao[0]).toMatchObject({
+      situacao: "divergente",
+      secoes: [
+        {
+          secao: "Ações",
+          classe: "acao",
+          declarado: "5000.00",
+          soma: "3842.00",
+          diferenca: "-1158.00",
+          confere: false,
+        },
+      ],
+    });
     expect(r.linhas[0]?.marcada).toBe(false);
   });
 
@@ -392,7 +459,7 @@ describe("nota de corretagem", () => {
     expect(
       ratearNota({ ...NOTA, sentido_liquido: "credito" }, ops(), numeros).motivo,
     ).toMatch(/a débito, a nota diz crédito/);
-    expect(ratearNota({ ...NOTA, valor_liquido: null }, ops(), numeros).motivo).toBe(
+    expect(ratearNota({ ...NOTA, valor_liquido: "" }, ops(), numeros).motivo).toBe(
       "a nota não traz o valor líquido",
     );
     expect(ratearNota(NOTA, ops(), numerosDoTexto("1,00")).motivo).toMatch(
@@ -509,5 +576,104 @@ describe("linhas editadas na revisao", () => {
       "PETR4: preço 50 fora da faixa de 2026-10-03 (37.10 a 38.30)",
       "XXXX3: data 2026-12-01 no futuro",
     ]);
+  });
+});
+
+describe("politica de preenchimento na validacao", () => {
+  it("preenche o que falta, marca o campo e nunca inventa saldo, ticker ou quantidade", async () => {
+    const texto = "CDB BANCO ALFA 110% CDI 11.234,56\nPETR4 sem quantidade 3.842,00";
+    const r = await validar(
+      doc({
+        documento: {
+          tipo: "posicao",
+          corretora: "XP",
+          data_referencia: "31/10/2026",
+          totais_declarados: [],
+        },
+        posicoes: [
+          {
+            ...VAZIA,
+            classe: "CDB",
+            ativo: "CDB BANCO ALFA",
+            pct_indexador: "110%",
+            saldo_bruto: "11.234,56",
+            origem: {
+              pagina_ou_aba: "texto",
+              trecho_original: "CDB BANCO ALFA 110% CDI 11.234,56",
+            },
+            confianca: "alta",
+          },
+          {
+            ...VAZIA,
+            classe: "acao",
+            ativo: "PETR4",
+            codigo: "PETR4",
+            saldo_bruto: "3.842,00",
+            origem: {
+              pagina_ou_aba: "texto",
+              trecho_original: "PETR4 sem quantidade 3.842,00",
+            },
+            confianca: "alta",
+          },
+        ],
+      }),
+      verificadorDasFixtures(),
+      [{ origem: "texto", texto }],
+    );
+    const [cdb, petr] = r.linhas;
+    expect(cdb).toMatchObject({
+      grupo: "preenchida",
+      dados: {
+        corretora: "XP",
+        classe: "renda_fixa",
+        pct_indexador: "1.1",
+        quantidade: "1",
+        data_posicao: "2026-10-31",
+        ir: "0",
+        liquidez_diaria: "N",
+        valorizacao: "curva",
+        preco_unitario: "11234.56",
+        valor_aplicado: "11234.56",
+        saldo_liquido: "11234.56",
+      },
+    });
+    expect(cdb?.preenchidos).toEqual(
+      expect.arrayContaining([
+        "quantidade",
+        "data_posicao",
+        "ir",
+        "iof",
+        "valor_aplicado",
+      ]),
+    );
+    expect(cdb?.avisos).toContain(
+      "Sem valor aplicado no documento: rentabilidade não calculável.",
+    );
+    // Renda variavel sem quantidade: ajuste com o campo destacado, nada inventado.
+    expect(petr).toMatchObject({ grupo: "ajuste", problemas: ["quantidade"] });
+    expect(petr?.dados.quantidade).toBe("");
+    expect(petr?.preenchidos).not.toContain("quantidade");
+  });
+
+  it("linha de total ou subtotal do documento nao vira posicao", async () => {
+    const r = await validar(
+      doc({
+        posicoes: [
+          acao("PETR4;100;32,50;3.842,00"),
+          {
+            ...VAZIA,
+            ativo: "Total geral",
+            saldo_bruto: "3842",
+            origem: {
+              pagina_ou_aba: "texto",
+              trecho_original: "Patrimônio total;3.842,00",
+            },
+            confianca: "alta",
+          },
+        ],
+      }),
+    );
+    expect(r.linhas).toHaveLength(1);
+    expect(r.avisos.join()).toMatch(/total ou subtotal/);
   });
 });

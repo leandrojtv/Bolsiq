@@ -5,7 +5,7 @@ import type { IndicadorFiltravel } from "./screener.js";
  *
  * As faixas sao referencias gerais de mercado (Graham, Bazin e as faixas usuais
  * de analise fundamentalista na B3), nao uma regra por setor: banco, seguradora
- * e utility tem faixas proprias. Ver ADR 0027.
+ * e utility tem faixas proprias. Ver ADR 0028.
  */
 export type NivelDoSinal = "verde" | "amarelo" | "vermelho";
 

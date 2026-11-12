@@ -1,4 +1,4 @@
-# ADR 0027 - Sinais verde, amarelo e vermelho dos indicadores
+# ADR 0028 - Sinais verde, amarelo e vermelho dos indicadores
 
 - **Status:** aceito
 - **Data:** 2026-11-11

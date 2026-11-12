@@ -85,6 +85,8 @@ const TABELAS = [
   "messages",
   "usage",
   "extractions",
+  "import_jobs",
+  "import_job_files",
 ];
 
 describe("RLS do schema assistant", () => {

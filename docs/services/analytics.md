@@ -248,7 +248,7 @@ linha, o que tornaria impossivel a meta de 300 ms.
 `sinais.ts` classifica cada indicador em verde, amarelo ou vermelho, com a leitura da
 faixa e o helper; `tecnicos.ts` tem MM, IFR e `sinaisTecnicos`. Tela do ativo e
 assistente usam as mesmas funções. Faixas e motivo no
-[ADR 0027](../adr/0027-sinais-dos-indicadores.md).
+[ADR 0028](../adr/0028-sinais-dos-indicadores.md).
 
 ## Screener
 

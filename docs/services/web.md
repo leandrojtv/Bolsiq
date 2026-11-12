@@ -80,7 +80,7 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 - **Preço justo**: barra com preço sobre valor justo, veredito do método
   ("Indica compra", "Desconto pequeno", "Acima do justo"), helper e o aviso "Não é
   recomendação".
-- **Sinais dos indicadores** ([ADR 0027](../adr/0027-sinais-dos-indicadores.md)): ponto
+- **Sinais dos indicadores** ([ADR 0028](../adr/0028-sinais-dos-indicadores.md)): ponto
   verde, amarelo ou vermelho em cada indicador e botão "?" com o helper (o que mede e
   as três faixas). Card "Sinais técnicos" com MM 20/50/200 e IFR 14 do último pregão,
   calculado no servidor sobre 14 meses de histórico.

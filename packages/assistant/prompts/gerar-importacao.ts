@@ -2,15 +2,12 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { arquivoGerado, regrasDoMarkdown } from "./fonte-importacao.js";
+import { arquivoGerado } from "./fonte-importacao.js";
 
 const pacote = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const md = readFileSync(
   resolve(pacote, "../../docs/importacao/prompt-normalizacao.md"),
   "utf8",
 );
-writeFileSync(
-  resolve(pacote, "prompts/importacao-regras.ts"),
-  arquivoGerado(regrasDoMarkdown(md)),
-);
+writeFileSync(resolve(pacote, "prompts/importacao-regras.ts"), arquivoGerado(md));
 process.stdout.write("prompts/importacao-regras.ts atualizado\n");

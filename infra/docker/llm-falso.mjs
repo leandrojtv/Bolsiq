@@ -11,105 +11,33 @@ const MODELOS = ["falso-com-ferramentas", "falso-sem-ferramentas", "deepseek-fla
 
 /**
  * Importacao com IA: respostas gravadas, por um trecho do documento
- * (infra/docker/llm-falso-importacao.json, gerado das fixtures do eval).
+ * (infra/docker/llm-falso-importacao.json, gerado das fixtures do eval). O
+ * cabecalho vem em JSON (saida estruturada, ou bloco ```json no fallback) e as
+ * linhas em blocos CSV, como o modelo de verdade responde.
  */
-function respostaDaImportacao(mensagens) {
+function respostaDaImportacao(corpo) {
   let gravadas = {};
   try {
     gravadas = JSON.parse(readFileSync("/llm-falso-importacao.json", "utf8"));
   } catch {
     // Sem o arquivo montado, nao ha importacao a responder.
   }
-  const texto = JSON.stringify(mensagens);
-  const achada = Object.entries(gravadas).find(([marcador]) => texto.includes(marcador));
-  return (
-    achada?.[1] ?? {
-      documento: {
-        tipo: "misto",
-        corretora: null,
-        data_referencia: null,
-        totais_declarados: [],
-      },
-      posicoes: [],
-      transacoes: [],
-      proventos: [],
-      notas: [],
-      avisos: ["Documento desconhecido pelo provedor falso."],
-    }
-  );
+  const texto = JSON.stringify(corpo.messages);
+  const achada = Object.entries(gravadas).find(([marcador]) =>
+    texto.includes(marcador),
+  )?.[1];
+  const cabecalho = achada?.cabecalho ?? {
+    tipo: "misto",
+    corretora: "",
+    data_referencia: "",
+    totais_declarados: [],
+    avisos: ["Documento desconhecido pelo provedor falso."],
+  };
+  if (corpo.response_format) return JSON.stringify(cabecalho);
+  if (texto.includes("leia só o cabeçalho"))
+    return `\`\`\`json\n${JSON.stringify(cabecalho)}\n\`\`\``;
+  return achada?.csv ?? "";
 }
-let ultimaAutorizacao = null;
-
-const ferramentaDa = (texto) => {
-  const t = texto.toLowerCase();
-  if (t.includes("avalie")) return ["avaliar_carteira", {}];
-  if (t.includes("aportar")) return ["sugerir_aporte", { valor: 1000 }];
-  if (t.includes("alerta"))
-    return ["criar_alerta", { ticker: "PETR4", tipo: "preco_acima", valor: 40 }];
-  return null;
-};
-
-function respostaFinal(ferramenta, saida) {
-  if (ferramenta === "avaliar_carteira") {
-    const a = saida.concentracao?.por_ativo ?? [];
-    const d = saida.desvio_da_alocacao ?? [];
-    return [
-      "Concentração:",
-      ...a.map((l) => `- ${l.chave}: ${(l.fracao * 100).toFixed(2)}%`),
-      "Desvio da alocação-alvo:",
-      ...d.map(
-        (l) =>
-          `- ${l.classe}: atual ${(l.atual * 100).toFixed(2)}%, alvo ${(l.alvo * 100).toFixed(2)}%`,
-      ),
-      `Risco: volatilidade ${saida.risco?.volatilidade_anual ?? "sem dado"}.`,
-    ].join("\n");
-  }
-  if (ferramenta === "sugerir_aporte") {
-    if (saida.erro) return `Sem candidatos: ${saida.mensagem}`;
-    const linhas = saida.classes.flatMap((c) =>
-      c.candidatos.map(
-        (x) =>
-          `- ${x.ticker}: score ${x.score}; critérios ${x.metodos.join(", ")}; riscos: ${x.riscos.join("; ") || "nenhum apontado"}`,
-      ),
-    );
-    return [
-      "Candidatos:",
-      ...linhas,
-      ...saida.classes.flatMap((c) => (c.sem_candidatos ? [c.sem_candidatos] : [])),
-    ].join("\n");
-  }
-  if (ferramenta === "criar_alerta")
-    return "Preparei o alerta. Confirme na tela para criá-lo.";
-  return "Consulta feita.";
-}
-
-const sse = (res, corpo, modelo) => {
-  res.writeHead(200, { "content-type": "text/event-stream" });
-  const pedaco = (delta, fim = null, extra = {}) =>
-    res.write(
-      `data: ${JSON.stringify({
-        id: "falso",
-        object: "chat.completion.chunk",
-        created: 1,
-        model: modelo,
-        choices: [{ index: 0, delta, finish_reason: fim }],
-        ...extra,
-      })}\n\n`,
-    );
-  pedaco({ role: "assistant", content: "" });
-  corpo(pedaco);
-  res.write(
-    `data: ${JSON.stringify({
-      id: "falso",
-      object: "chat.completion.chunk",
-      created: 1,
-      model: modelo,
-      choices: [],
-      usage: { prompt_tokens: 1200, completion_tokens: 80, total_tokens: 1280 },
-    })}\n\n`,
-  );
-  res.end("data: [DONE]\n\n");
-};
 
 function ler(req) {
   return new Promise((ok) => {
@@ -152,7 +80,7 @@ createServer(async (req, res) => {
   if (url.endsWith("/chat/completions")) {
     const corpo = JSON.parse(await ler(req));
     const { messages, model } = corpo;
-    // generateObject: sem stream e com formato de resposta. E a importacao com IA.
+    // Sem stream: e a importacao com IA (generateObject e generateText).
     if (corpo.stream !== true)
       return json(200, {
         id: "falso",
@@ -164,7 +92,7 @@ createServer(async (req, res) => {
             index: 0,
             message: {
               role: "assistant",
-              content: JSON.stringify(respostaDaImportacao(messages)),
+              content: respostaDaImportacao(corpo),
             },
             finish_reason: "stop",
           },

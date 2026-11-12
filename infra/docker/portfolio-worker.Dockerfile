@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# Imagem do portfolio-worker: snapshot diario das carteiras e migrations dos
-# schemas `app`, `portfolio` (ADR 0022) e `assistant` (ADR 0024).
+# Imagem do portfolio-worker: snapshot diario das carteiras, importacao com IA
+# em segundo plano (ADR 0027) e migrations dos schemas `app`, `portfolio`
+# (ADR 0022) e `assistant` (ADR 0024).
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -28,12 +29,18 @@ RUN pnpm --filter=@bolsiq/portfolio-worker deploy --prod /app
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=3004
+# Leitura da importacao com IA: pdftotext e pdftoppm (PDF que o pdf.js nao abre,
+# pagina escaneada como imagem), tesseract em portugues (OCR sem modelo de visao)
+# e heif-convert (foto HEIC do celular).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       poppler-utils tesseract-ocr tesseract-ocr-por libheif-examples \
+    && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --create-home --shell /usr/sbin/nologin bolsiq
 WORKDIR /app
 COPY --from=build --chown=bolsiq:bolsiq /app ./
 COPY --from=build --chown=bolsiq:bolsiq /repo/packages/auth/migrations ./migrations/app
 COPY --from=build --chown=bolsiq:bolsiq /repo/packages/portfolio/migrations ./migrations/portfolio
-# Do pruner: o worker nao depende do pacote do assistente, so aplica as migrations.
 COPY --from=pruner --chown=bolsiq:bolsiq /repo/packages/assistant/migrations ./migrations/assistant
 USER bolsiq
 EXPOSE 3004

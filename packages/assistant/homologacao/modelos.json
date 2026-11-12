@@ -13,7 +13,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 200000
     },
     {
       "provedor": "anthropic",
@@ -26,7 +27,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 200000
     },
     {
       "provedor": "anthropic",
@@ -39,7 +41,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 200000
     },
     {
       "provedor": "anthropic",
@@ -52,7 +55,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 200000
     },
     {
       "provedor": "openai",
@@ -65,7 +69,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 128000
     },
     {
       "provedor": "openai",
@@ -78,7 +83,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 128000
     },
     {
       "provedor": "openai",
@@ -91,7 +97,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 128000
     },
     {
       "provedor": "openai",
@@ -104,7 +111,8 @@
         "visao"
       ],
       "max_saida": 16000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 128000
     },
     {
       "provedor": "deepseek",
@@ -116,7 +124,8 @@
         "saida_estruturada"
       ],
       "max_saida": 8000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 64000
     },
     {
       "provedor": "deepseek",
@@ -128,7 +137,8 @@
         "saida_estruturada"
       ],
       "max_saida": 8000,
-      "importacao": "nao_testado"
+      "importacao": "nao_testado",
+      "contexto": 64000
     },
     {
       "provedor": "ollama",
@@ -136,7 +146,9 @@
       "status": "sem_ferramentas",
       "preco_entrada": 0,
       "preco_saida": 0,
-      "capacidades": []
+      "capacidades": [],
+      "contexto": 32000,
+      "max_saida": 4000
     }
   ],
   "capacidades_conferidas_em": "2026-11-08"

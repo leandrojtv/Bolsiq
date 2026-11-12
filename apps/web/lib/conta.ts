@@ -137,6 +137,14 @@ export async function exportarDados(uid: string) {
           confirmado_em: assistente.extractions.confirmado_em,
         })
         .from(assistente.extractions),
+      // Jobs da importacao em segundo plano, sem os arquivos.
+      jobs_de_importacao: await tx
+        .select({
+          id: assistente.importJobs.id,
+          status: assistente.importJobs.status,
+          criado_em: assistente.importJobs.criado_em,
+        })
+        .from(assistente.importJobs),
     };
   });
   return {
@@ -190,6 +198,8 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx
       .delete(assistente.extractions)
       .where(eq(assistente.extractions.user_id, uid));
+    // Jobs da importacao em segundo plano; os arquivos caem junto, pela FK.
+    await tx.delete(assistente.importJobs).where(eq(assistente.importJobs.user_id, uid));
   });
   const { alertRules, notifications, deliveries, userPrefs, pushSubscriptions } = alertas;
   await db.transaction(async (tx) => {

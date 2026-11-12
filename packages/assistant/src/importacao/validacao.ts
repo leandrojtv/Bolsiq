@@ -26,6 +26,20 @@ import type {
   SaidaDaIA,
   TransacaoDaIA,
 } from "./esquema.js";
+import {
+  classe as normalizarClasse,
+  data,
+  normalizarPosicao,
+  normalizarTransacao,
+  numero,
+  PARECE_TOTAL,
+  ticker,
+} from "./normalizar.js";
+import {
+  preencherPosicao,
+  preencherTransacao,
+  type ContextoDoPreenchimento,
+} from "./padroes.js";
 import type { Parte } from "./texto.js";
 
 /** O que o market-data sabe para conferir transacao. Implementado no BFF pelo /v1. */
@@ -42,6 +56,8 @@ export interface Verificador {
 export interface OpcoesDaValidacao {
   /** AAAA-MM-DD em Sao Paulo. */
   hoje: string;
+  /** Corretora escolhida no envio e nome do arquivo, para a politica de preenchimento. */
+  preenchimento?: Partial<ContextoDoPreenchimento>;
   tolerancia?: number;
   /** Origens sem texto (pagina escaneada, imagem): conferidas so pelo trecho. */
   sem_texto?: string[];
@@ -49,16 +65,49 @@ export interface OpcoesDaValidacao {
 
 export type TipoDeLinha = "posicao" | "transacao" | "provento";
 
+/** Pronta, preenchida pela politica de padroes, ou precisa de ajuste do usuario. */
+export type GrupoDaLinha = "pronta" | "preenchida" | "ajuste";
+
 export interface LinhaProposta {
   id: string;
   tipo: TipoDeLinha;
+  grupo: GrupoDaLinha;
   /** Campos no layout de destino, como texto: o que a tela edita e devolve. */
   dados: Record<string, string>;
   origem: Origem;
   confianca: Confianca;
-  /** Vem marcada para importar? Confianca baixa ou carga nao conciliada vem desmarcada. */
+  /** Vem marcada? Ajuste, confianca baixa ou carga divergente vem desmarcada. */
   marcada: boolean;
+  /** Campos que a politica de padroes preencheu ("preenchido automaticamente"). */
+  preenchidos: string[];
+  /** Campos a destacar na revisao: o que impede a linha de ser importada. */
+  problemas: string[];
+  /** Por que precisa de ajuste. */
+  motivo: string | null;
   avisos: string[];
+}
+
+/** Linha que a autocorrecao manda de volta ao modelo, com o motivo. */
+export interface ParaCorrigir {
+  tipo: TipoDeLinha;
+  original: PosicaoDaIA | TransacaoDaIA | ProventoDaIA;
+  motivo: string;
+}
+
+export interface ConciliacaoDaSecao {
+  secao: string;
+  classe: string;
+  declarado: string;
+  soma: string;
+  diferenca: string;
+  confere: boolean;
+}
+
+export interface ConciliacaoComSituacao extends ConciliacaoDaCorretora {
+  /** Sem total no documento nao bloqueia a carga. */
+  situacao: "conciliada" | "divergente" | "sem_total";
+  /** Na divergencia, as secoes do documento que nao batem, para saber onde olhar. */
+  secoes: ConciliacaoDaSecao[];
 }
 
 export interface RejeicaoDaIA {
@@ -93,10 +142,12 @@ export interface ResultadoDaValidacao {
   linhas: LinhaProposta[];
   rejeicoes: RejeicaoDaIA[];
   pendencias: PendenciaDePosicao[];
-  conciliacao: ConciliacaoDaCorretora[];
+  conciliacao: ConciliacaoComSituacao[];
   notas: ConciliacaoDaNota[];
-  /** Tudo conciliado: posicao contra os totais e cada nota contra o liquido. */
+  /** Nenhuma divergencia (posicao contra totais, nota contra liquido). Sem total nao conta. */
   conciliada: boolean;
+  /** Linhas que a autocorrecao manda ao modelo. Nao vai para a tela. */
+  para_corrigir: ParaCorrigir[];
   avisos: string[];
 }
 
@@ -334,7 +385,8 @@ function conferirPosicao(fontes: Fontes, p: PosicaoDaIA): Conferida {
     comTicker
       ? { grafias: [texto(p.codigo)], rotulo: `ticker ${texto(p.codigo)}` }
       : {
-          grafias: [texto(p.codigo), ...palavrasDoNome(texto(p.ativo))],
+          // O nome inteiro tambem vale: "CDB Nu 110% CDI" nao tem palavra de 4 letras.
+          grafias: [texto(p.codigo), texto(p.ativo), ...palavrasDoNome(texto(p.ativo))],
           rotulo: `ativo ${texto(p.ativo)}`,
         },
   );
@@ -349,11 +401,14 @@ const dadosDaPosicao = (p: PosicaoDaIA): Record<string, string> =>
 
 interface Candidata {
   tipo: "transacao" | "provento";
+  original: TransacaoDaIA | ProventoDaIA;
   dados: Record<string, string>;
+  preenchidos: string[];
   origem: Origem;
   confianca: Confianca;
   avisos: string[];
   nota: string | null;
+  motivo: string | null;
 }
 
 function conferirTransacao(fontes: Fontes, t: TransacaoDaIA): Conferida {
@@ -397,10 +452,6 @@ function conferirTransacao(fontes: Fontes, t: TransacaoDaIA): Conferida {
   }
   return r;
 }
-
-/** PETR4F e PETR4: o F do fracionario nao e parte do ticker. */
-const semFracionario = (t: string) =>
-  t.toUpperCase().replace(/^(.{4,11}\d{1,2})F$/, "$1");
 
 const ZERO = new Decimal(0);
 const valorOuZero = (v: string | null) => lerValor(texto(v)) ?? ZERO;
@@ -469,7 +520,7 @@ export function ratearNota(
     irrf: irrf.toFixed(2),
     liquido_calculado: calculado.toFixed(2),
     liquido_declarado: declarado?.toFixed(2) ?? null,
-    sentido_declarado: nota.sentido_liquido,
+    sentido_declarado: nota.sentido_liquido || null,
     conciliada: motivo === null,
     motivo,
   };
@@ -512,9 +563,89 @@ function proventoComoTransacao(p: ProventoDaIA): {
 // Validacao
 // ---------------------------------------------------------------------------
 
+/** Campos de preenchimento menor: marcados, mas nao tiram a linha de "pronta". */
+const PREENCHIMENTO_MENOR = new Set([
+  "ir",
+  "iof",
+  "liquidez_diaria",
+  "valorizacao",
+  "saldo_liquido",
+  "taxas",
+]);
+
+const grupoDe = (preenchidos: string[], ajuste: boolean): GrupoDaLinha =>
+  ajuste
+    ? "ajuste"
+    : preenchidos.some((c) => !PREENCHIMENTO_MENOR.has(c))
+      ? "preenchida"
+      : "pronta";
+
+/** "classe: deve ser..." aponta o campo `classe`. */
+const campoDoMotivo = (motivo: string) =>
+  /^([a-z_]+)(?:\.\d+)?:/.exec(motivo)?.[1] ?? null;
+
+/** O que o modelo pode corrigir: tudo, menos o trecho com cara de instrucao. */
+const corrigivel = (motivo: string) => !/parece instrução/.test(motivo);
+
+/** Secoes do documento ("Renda Fixa", "Ações") pela classe que representam. */
+function classeDaSecao(descricao: string): string | null {
+  const c = normalizarClasse(descricao);
+  return CLASSES_CANONICAS.includes(c) ? c : null;
+}
+const CLASSES_CANONICAS = [
+  "acao",
+  "fii",
+  "bdr",
+  "etf",
+  "renda_fixa",
+  "titulo_publico",
+  "fundo",
+  "previdencia",
+  "coe",
+  "estruturado",
+  "cripto",
+];
+
 /**
- * Passa a proposta do modelo pelos validadores de sempre e pelas conferencias da
- * IA. Nada aqui grava: o resultado vai para a tela de revisao.
+ * Soma por secao contra o total declarado de cada secao, para apontar onde a
+ * carga diverge do documento ("Renda Fixa: faltam R$ 1.234,56").
+ */
+export function conciliarPorSecao(
+  linhas: { classe: string; saldo_bruto: string }[],
+  totais: TotalDeclarado[],
+  tolerancia = TOLERANCIA_PADRAO,
+): ConciliacaoDaSecao[] {
+  return totais.flatMap((t) => {
+    const classe = classeDaSecao(t.descricao);
+    const declarado = lerValor(t.valor);
+    if (!classe || !declarado) return [];
+    const soma = linhas
+      .filter((l) => l.classe === classe)
+      .reduce((s, l) => s.plus(lerValor(l.saldo_bruto) ?? 0), new Decimal(0));
+    const diferenca = soma.minus(declarado);
+    return [
+      {
+        secao: t.descricao,
+        classe,
+        declarado: declarado.toFixed(2),
+        soma: soma.toFixed(2),
+        diferenca: diferenca.toFixed(2),
+        confere: diferenca.abs().lte(declarado.times(tolerancia)),
+      },
+    ];
+  });
+}
+
+/**
+ * Passa a proposta do modelo pela correcao deterministica, pela conferencia de
+ * origem, pela politica de preenchimento e pelos validadores de sempre. Nada
+ * aqui grava: o resultado vai para a revisao, em tres grupos.
+ *
+ * Ordem: normaliza; confere a origem nos valores que vieram do documento (o que
+ * a politica preenche nao esta no trecho, e nao e conferido); preenche; valida o
+ * layout. Falha de origem rejeita (e invencao); falha de layout e "precisa de
+ * ajuste", editavel. Os dois casos voltam em `para_corrigir`, para a
+ * autocorrecao mandar ao modelo.
  */
 export async function validarExtracao(
   saida: SaidaDaIA,
@@ -525,11 +656,23 @@ export async function validarExtracao(
   let sequencia = 0;
   const novoId = (tipo: string) => `${tipo}-${++sequencia}`;
   const tolerancia = o.tolerancia ?? TOLERANCIA_PADRAO;
+  const ctx: ContextoDoPreenchimento = {
+    data_documento: data(texto(saida.documento.data_referencia)),
+    hoje: o.hoje,
+    corretora_escolhida: o.preenchimento?.corretora_escolhida ?? "",
+    nome_do_arquivo: o.preenchimento?.nome_do_arquivo ?? "",
+    ...(o.preenchimento?.data_documento
+      ? { data_documento: o.preenchimento.data_documento }
+      : {}),
+  };
+  if (!ctx.corretora_escolhida && texto(saida.documento.corretora))
+    ctx.corretora_escolhida = texto(saida.documento.corretora);
   const fontes = new Fontes(
     partes,
     new Set((o.sem_texto ?? []).map((s) => s.toLowerCase())),
   );
   const rejeicoes: RejeicaoDaIA[] = [];
+  const para_corrigir: ParaCorrigir[] = [];
   const avisos = [...saida.avisos];
   const rejeitar = (
     tipo: RejeicaoDaIA["tipo"],
@@ -544,6 +687,18 @@ export async function validarExtracao(
       conteudo: JSON.stringify(conteudo),
     });
 
+  for (const m of saida.malformadas)
+    rejeitar(
+      m.tipo === "posicoes"
+        ? "posicao"
+        : m.tipo === "proventos"
+          ? "provento"
+          : "transacao",
+      `linha do bloco ${m.tipo}: ${m.motivo}`,
+      null,
+      m.conteudo,
+    );
+
   // Total declarado que nao esta no documento foi inventado: sai da conciliacao.
   // Documento todo em imagem nao tem texto para conferir: o total fica, com aviso.
   const semTextoNenhum = fontes.numerosDoDocumento.length === 0;
@@ -555,36 +710,72 @@ export async function validarExtracao(
     return false;
   });
 
-  // Posicoes: origem, depois os validadores do layout posicao_bolsiq.
-  const posicoesConferidas: { p: PosicaoDaIA; c: Conferida }[] = [];
-  for (const p of saida.posicoes) {
-    const c = conferirPosicao(fontes, p);
-    if (c.ok) posicoesConferidas.push({ p, c });
-    else rejeitar("posicao", c.motivo ?? "linha inválida", p.origem, dadosDaPosicao(p));
+  // ------------------------------------------------------------------ posicoes
+  interface PosicaoEmAndamento {
+    original: PosicaoDaIA;
+    dados: Record<string, string>;
+    conferida: Conferida;
+    preenchidos: string[];
+    avisos: string[];
+    motivo: string | null;
   }
+  const emAndamento: PosicaoEmAndamento[] = [];
+  let totaisIgnorados = 0;
+  for (const p of saida.posicoes) {
+    if (
+      !texto(p.codigo) &&
+      (PARECE_TOTAL.test(texto(p.ativo)) || PARECE_TOTAL.test(texto(p.classe)))
+    ) {
+      totaisIgnorados++;
+      continue;
+    }
+    const normal = normalizarPosicao(dadosDaPosicao(p));
+    const conferida = conferirPosicao(fontes, { ...p, ...normal });
+    if (!conferida.ok) {
+      const motivo = conferida.motivo ?? "linha inválida";
+      rejeitar("posicao", motivo, p.origem, normal);
+      if (corrigivel(motivo))
+        para_corrigir.push({ tipo: "posicao", original: p, motivo });
+      continue;
+    }
+    const f = preencherPosicao(normal, ctx);
+    emAndamento.push({
+      original: p,
+      dados: f.dados,
+      conferida,
+      preenchidos: f.preenchidos,
+      avisos: f.avisos,
+      motivo: null,
+    });
+  }
+  if (totaisIgnorados > 0)
+    avisos.push(
+      `${totaisIgnorados} linha(s) de total ou subtotal do documento não viraram posição.`,
+    );
+
+  // Os validadores do layout, linha a linha (motivo por linha) e no conjunto
+  // (data por corretora e ativo repetido).
   const relatorio = importarPosicaoBolsiq(
     csvDePosicoes(
       COLUNAS_POSICAO,
-      posicoesConferidas.map(({ p }) => dadosDaPosicao(p)),
+      emAndamento.map((x) => x.dados),
     ),
   );
   for (const r of relatorio.rejeicoes) {
-    const item = posicoesConferidas[r.linha - 2];
-    rejeitar(
-      "posicao",
-      r.motivo,
-      item?.p.origem ?? null,
-      item ? dadosDaPosicao(item.p) : r.conteudo,
-    );
+    const x = emAndamento[r.linha - 2];
+    if (x) x.motivo = r.motivo;
   }
+  const lidas = new Map(relatorio.posicoes.map((p) => [p.linha - 2, p]));
 
   const verificaveis = new Set<string>(
     [
       ...relatorio.posicoes
         .filter((p) => CLASSES_COM_TICKER.includes(p.classe))
         .map((p) => p.codigo ?? ""),
-      ...saida.transacoes.map((t) => semFracionario(texto(t.ticker))),
-      ...saida.proventos.map((p) => texto(p.ticker).toUpperCase()),
+      ...saida.transacoes.map((t) =>
+        ticker(texto(t.ticker)).replace(/^(.{4,11}\d{1,2})F$/, "$1"),
+      ),
+      ...saida.proventos.map((p) => ticker(texto(p.ticker))),
     ].filter(Boolean),
   );
   const existentes = await verificador
@@ -593,102 +784,142 @@ export async function validarExtracao(
   if (existentes === null && verificaveis.size > 0)
     avisos.push("Market-data indisponível: tickers e preços não foram conferidos.");
 
-  const conciliacao = relatorio.totais_por_corretora.map((t) =>
-    conciliar(
-      t.corretora,
-      relatorio.posicoes
-        .filter((p) => p.corretora === t.corretora)
-        .map((p) => p.saldo_bruto),
+  for (const [i, x] of emAndamento.entries()) {
+    const lida = lidas.get(i);
+    if (!lida) continue;
+    if (lida.data_posicao > o.hoje)
+      x.motivo = `data_posicao: ${lida.data_posicao} no futuro`;
+    else if (
+      existentes &&
+      CLASSES_COM_TICKER.includes(lida.classe) &&
+      !existentes.has(lida.codigo ?? "")
+    )
+      x.motivo = `codigo: ticker ${lida.codigo} não existe no market-data`;
+  }
+
+  const validas = emAndamento.flatMap((x, i) => {
+    const lida = lidas.get(i);
+    return x.motivo === null && lida ? [{ x, lida }] : [];
+  });
+  const corretoras = [...new Set(validas.map((v) => v.lida.corretora))].sort();
+  const conciliacao: ConciliacaoComSituacao[] = corretoras.map((corretora) => {
+    const daqui = validas.filter((v) => v.lida.corretora === corretora);
+    const c = conciliar(
+      corretora,
+      daqui.map((v) => v.lida.saldo_bruto),
       totais,
       tolerancia,
-    ),
-  );
-  const conciliadaDe = new Map(conciliacao.map((c) => [c.corretora, c.conciliada]));
+    );
+    return {
+      ...c,
+      situacao:
+        c.declarado === null ? "sem_total" : c.conciliada ? "conciliada" : "divergente",
+      secoes:
+        c.declarado !== null && !c.conciliada
+          ? conciliarPorSecao(
+              daqui.map((v) => v.lida),
+              totais,
+              tolerancia,
+            )
+          : [],
+    };
+  });
+  const situacaoDe = new Map(conciliacao.map((c) => [c.corretora, c.situacao]));
 
   const linhas: LinhaProposta[] = [];
-  for (const p of relatorio.posicoes) {
-    const item = posicoesConferidas[p.linha - 2];
-    if (!item) continue;
-    const dados = dadosDaPosicao(item.p);
-    if (p.data_posicao > o.hoje) {
-      rejeitar(
-        "posicao",
-        `data_posicao ${p.data_posicao} no futuro`,
-        item.p.origem,
-        dados,
-      );
-      continue;
-    }
-    if (
-      existentes &&
-      CLASSES_COM_TICKER.includes(p.classe) &&
-      !existentes.has(p.codigo ?? "")
-    ) {
-      rejeitar(
-        "posicao",
-        `ticker ${p.codigo} não existe no market-data`,
-        item.p.origem,
-        dados,
-      );
-      continue;
-    }
-    const pendencias = relatorio.pendencias
-      .filter((x) => x.linha === p.linha)
-      .map((x) => x.motivo);
+  for (const x of emAndamento) {
+    const ajuste = x.motivo !== null;
+    if (ajuste && x.motivo && corrigivel(x.motivo))
+      para_corrigir.push({ tipo: "posicao", original: x.original, motivo: x.motivo });
+    const lida = relatorio.posicoes.find((p) => p.linha - 2 === emAndamento.indexOf(x));
+    const pendencias = lida
+      ? relatorio.pendencias.filter((p) => p.linha === lida.linha).map((p) => p.motivo)
+      : [];
+    const grupo = grupoDe(x.preenchidos, ajuste);
     linhas.push({
       id: novoId("posicao"),
       tipo: "posicao",
-      dados,
-      origem: recorte(item.p.origem),
-      confianca: item.c.confianca,
-      marcada: item.c.confianca !== "baixa" && conciliadaDe.get(p.corretora) === true,
-      avisos: [...item.c.avisos, ...pendencias],
+      grupo,
+      dados: x.dados,
+      origem: recorte(x.original.origem),
+      confianca: x.conferida.confianca,
+      marcada:
+        grupo !== "ajuste" &&
+        x.conferida.confianca !== "baixa" &&
+        situacaoDe.get(x.dados.corretora ?? "") !== "divergente",
+      preenchidos: x.preenchidos,
+      problemas: x.motivo ? [campoDoMotivo(x.motivo) ?? ""].filter(Boolean) : [],
+      motivo: x.motivo,
+      avisos: [...x.conferida.avisos, ...x.avisos, ...pendencias],
     });
   }
 
-  // Transacoes e proventos: origem primeiro, depois rateio das notas.
+  // ------------------------------------------------- transacoes e proventos
   const candidatas: Candidata[] = [];
   for (const t of saida.transacoes) {
-    const c = conferirTransacao(fontes, t);
-    const dados = Object.fromEntries(COLUNAS_BOLSIQ.map((k) => [k, texto(t[k])]));
-    dados.ticker = semFracionario(dados.ticker ?? "");
+    const normal = normalizarTransacao(
+      Object.fromEntries(COLUNAS_BOLSIQ.map((k) => [k, texto(t[k])])),
+    );
+    const c = conferirTransacao(fontes, { ...t, ...normal });
     if (!c.ok) {
-      rejeitar("transacao", c.motivo ?? "linha inválida", t.origem, dados);
+      const motivo = c.motivo ?? "linha inválida";
+      rejeitar("transacao", motivo, t.origem, normal);
+      if (corrigivel(motivo))
+        para_corrigir.push({ tipo: "transacao", original: t, motivo });
       continue;
     }
+    const f = preencherTransacao(normal, ctx);
     candidatas.push({
       tipo: "transacao",
-      dados,
+      original: t,
+      dados: f.dados,
+      preenchidos: f.preenchidos,
       origem: t.origem,
       confianca: c.confianca,
       avisos: c.avisos,
       nota: texto(t.nota) || null,
+      motivo: null,
     });
   }
   for (const p of saida.proventos) {
-    const { dados, aviso } = proventoComoTransacao(p);
+    const normal: ProventoDaIA = {
+      ...p,
+      data_pagamento: data(texto(p.data_pagamento)),
+      ticker: ticker(texto(p.ticker)),
+      quantidade: numero(texto(p.quantidade)),
+      valor_por_cota: numero(texto(p.valor_por_cota)),
+      valor_total: numero(texto(p.valor_total)),
+    };
+    const { dados, aviso } = proventoComoTransacao(normal);
     const c = conferirOrigem(
       fontes,
       p.origem,
       p.confianca,
       [
-        { campo: "quantidade", valor: p.quantidade },
-        { campo: "valor_por_cota", valor: p.valor_por_cota },
-        { campo: "valor_total", valor: p.valor_total },
+        { campo: "quantidade", valor: normal.quantidade },
+        { campo: "valor_por_cota", valor: normal.valor_por_cota },
+        { campo: "valor_total", valor: normal.valor_total },
       ],
-      { grafias: [texto(p.ticker)], rotulo: `ticker ${texto(p.ticker)}` },
+      { grafias: [texto(normal.ticker)], rotulo: `ticker ${texto(normal.ticker)}` },
     );
     if (!c.ok) {
-      rejeitar("provento", c.motivo ?? "linha inválida", p.origem, dados);
+      const motivo = c.motivo ?? "linha inválida";
+      rejeitar("provento", motivo, p.origem, dados);
+      if (corrigivel(motivo))
+        para_corrigir.push({ tipo: "provento", original: p, motivo });
       continue;
     }
+    const f = preencherTransacao(dados, ctx);
     candidatas.push({
       tipo: "provento",
-      dados,
+      original: p,
+      dados: f.dados,
+      preenchidos: f.preenchidos,
       origem: p.origem,
       confianca: c.confianca,
       avisos: aviso ? [...c.avisos, aviso] : c.avisos,
       nota: null,
+      motivo: null,
     });
   }
 
@@ -698,9 +929,11 @@ export async function validarExtracao(
     );
     const r = ratearNota(n, operacoes, fontes.numerosDoDocumento);
     for (const op of operacoes) {
+      // Taxa da nota foi rateada pelo Bolsiq: nao e preenchimento.
+      op.preenchidos = op.preenchidos.filter((c) => c !== "taxas");
       if (!r.conciliada) op.avisos.push(`Nota ${n.numero} não conciliada: ${r.motivo}.`);
       // Data do pregao vale para todos os negocios da nota.
-      if (!op.dados.data && n.data_pregao) op.dados.data = n.data_pregao;
+      if (!op.dados.data && n.data_pregao) op.dados.data = data(n.data_pregao);
     }
     return r;
   });
@@ -715,46 +948,43 @@ export async function validarExtracao(
       candidatas.map((c) => c.dados),
     ),
   );
-  const rejeitadas = new Set(csv.rejeicoes.map((r) => r.linha));
   for (const r of csv.rejeicoes) {
     const c = candidatas[r.linha - 2];
-    rejeitar(c?.tipo ?? "transacao", r.motivo, c?.origem ?? null, c?.dados ?? r.conteudo);
+    if (c) c.motivo = r.motivo;
   }
-  for (const [i, c] of candidatas.entries()) {
-    if (rejeitadas.has(i + 2)) continue;
-    const ticker = c.dados.ticker ?? "";
-    const data = c.dados.data ?? "";
-    if (data > o.hoje) {
-      rejeitar(c.tipo, `data ${data} no futuro`, c.origem, c.dados);
-      continue;
-    }
-    if (existentes && !existentes.has(ticker)) {
-      rejeitar(c.tipo, `ticker ${ticker} não existe no market-data`, c.origem, c.dados);
-      continue;
-    }
-    if (c.tipo === "transacao" && existentes) {
-      const faixa = await verificador.faixaDoDia(ticker, data).catch(() => null);
+  for (const c of candidatas) {
+    if (c.motivo !== null) continue;
+    const tk = c.dados.ticker ?? "";
+    const dia = c.dados.data ?? "";
+    if (dia > o.hoje) c.motivo = `data: ${dia} no futuro`;
+    else if (existentes && !existentes.has(tk))
+      c.motivo = `ticker: ${tk} não existe no market-data`;
+    else if (c.tipo === "transacao" && existentes) {
+      const faixa = await verificador.faixaDoDia(tk, dia).catch(() => null);
       const preco = lerValor(c.dados.preco ?? "");
       if (faixa === null)
-        c.avisos.push(`Sem cotação de ${ticker} em ${data} para conferir o preço.`);
-      else if (preco && (preco.lt(faixa.minima) || preco.gt(faixa.maxima))) {
-        rejeitar(
-          c.tipo,
-          `preço ${preco.toFixed(2)} fora da faixa do dia (${faixa.minima} a ${faixa.maxima})`,
-          c.origem,
-          c.dados,
-        );
-        continue;
-      }
+        c.avisos.push(`Sem cotação de ${tk} em ${dia} para conferir o preço.`);
+      else if (preco && (preco.lt(faixa.minima) || preco.gt(faixa.maxima)))
+        c.motivo = `preco: ${preco.toFixed(2)} fora da faixa do dia (${faixa.minima} a ${faixa.maxima})`;
     }
+  }
+  for (const c of candidatas) {
+    const ajuste = c.motivo !== null;
+    if (ajuste && c.motivo && corrigivel(c.motivo))
+      para_corrigir.push({ tipo: c.tipo, original: c.original, motivo: c.motivo });
     const notaOk = c.nota === null || notaConciliada.get(compacto(c.nota)) === true;
+    const grupo = grupoDe(c.preenchidos, ajuste);
     linhas.push({
       id: novoId(c.tipo),
       tipo: c.tipo,
+      grupo,
       dados: c.dados,
       origem: recorte(c.origem),
       confianca: c.confianca,
-      marcada: c.confianca !== "baixa" && notaOk,
+      marcada: grupo !== "ajuste" && c.confianca !== "baixa" && notaOk,
+      preenchidos: c.preenchidos,
+      problemas: c.motivo ? [campoDoMotivo(c.motivo) ?? ""].filter(Boolean) : [],
+      motivo: c.motivo,
       avisos: c.avisos,
     });
   }
@@ -762,8 +992,8 @@ export async function validarExtracao(
   return {
     documento: {
       tipo: saida.documento.tipo,
-      corretora: saida.documento.corretora,
-      data_referencia: saida.documento.data_referencia,
+      corretora: saida.documento.corretora || null,
+      data_referencia: saida.documento.data_referencia || null,
       totais_declarados: totais,
     },
     linhas,
@@ -771,8 +1001,11 @@ export async function validarExtracao(
     pendencias: relatorio.pendencias,
     conciliacao,
     notas,
+    // Sem total no documento nao bloqueia: so divergencia pede aceite.
     conciliada:
-      conciliacao.every((c) => c.conciliada) && notas.every((n) => n.conciliada),
+      conciliacao.every((c) => c.situacao !== "divergente") &&
+      notas.every((n) => n.conciliada),
+    para_corrigir,
     avisos,
   };
 }

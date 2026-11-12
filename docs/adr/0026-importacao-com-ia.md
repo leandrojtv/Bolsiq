@@ -22,8 +22,9 @@ dados pessoais, o documento pode tentar mandar no modelo, e cada chamada custa.
 ## Decisão
 
 **A IA só propõe linhas nos layouts que já existem.** O modelo devolve `posicao_bolsiq`,
-transações e proventos com `generateObject` e um schema Zod cujos campos são os mesmos
-de `LinhaDePosicao` e `Transacao`, todos como texto. Cada linha volta ao CSV e passa por
+transações e proventos (em blocos CSV de texto desde a [Revisão](#revisão)) cujos campos são os mesmos
+de `LinhaDePosicao` e `Transacao`, todos como texto, com vazio para "não informado": nada
+anulável, porque a Anthropic recusa schema com mais de 16 uniões de tipo. Cada linha volta ao CSV e passa por
 `importarPosicaoBolsiq` e `importarCsvBolsiq`: um validador só para arquivo e para IA.
 A gravação é a de sempre (`gravarCargaDePosicao` e o insert de transações), e só na
 confirmação do usuário. A chamada não tem ferramentas.
@@ -55,9 +56,9 @@ assistente (schema `assistant`), e a carteira continua só do `portfolio`. O
 arquivo, sem anonimização possível, e só com modelo de capacidade `visao` e aceite a
 cada envio. As linhas lidas de imagem vêm com confiança baixa e desmarcadas.
 
-**Capacidades por modelo em `modelos.json`.** `saida_estruturada` é obrigatória para a
-opção aparecer; `visao` para imagem; `max_saida` divide o documento. Modelo fora da lista
-não importa: não há como saber se respeita o schema. `importacao: homologado` só com o
+**Capacidades por modelo em `modelos.json`.** `visao` para imagem; `max_saida` divide o
+documento. `saida_estruturada` era obrigatória; desde a [Revisão](#revisão) é só
+preferência, para o cabeçalho, e qualquer modelo importa. `importacao: homologado` só com o
 resultado do `make eval-importacao`.
 
 **Cache por hash, versão do prompt e modelo** em `assistant.extractions`. O mesmo
@@ -91,3 +92,31 @@ um teste falha se divergirem.
   (como `criar_alerta`, ADR 0024).
 - **OCR local para PDF escaneado.** Tesseract no container do web pesaria e erraria
   números em tabela pequena. Visão do modelo, com aceite, cobre o caso raro.
+
+## Revisão
+
+**2026-11-08: linhas em CSV de texto; saída estruturada só no cabeçalho.**
+
+O schema único (documento, quatro listas e 26 campos por linha) não passou pela saída
+estruturada estrita dos provedores. A Anthropic recusou primeiro pelas uniões de tipo
+(`string | null`, limite 16) e, sem elas, pelo tamanho da gramática compilada ("The
+compiled grammar is too large"), para qualquer arquivo. Reduzir campo não resolve: o
+limite é do provedor e muda sem aviso.
+
+Decisão:
+
+- O modelo devolve as linhas em blocos ` ```csv <tipo> ` de texto (`generateText`, sem
+  schema), com separador `;` e as colunas dos layouts que já existem mais as de origem.
+  O parser (`saida-csv.ts`) monta a mesma `SaidaDaIA`, agora só interna: validação,
+  conciliação, cache e tela não mudam.
+- O único schema enviado é o do cabeçalho (`CabecalhoDaIA`, sete propriedades), uma vez
+  por documento. Sem saída estruturada, ou com o schema recusado, o cabeçalho vem num
+  bloco ` ```json ` de texto, validado pelo mesmo Zod.
+- `saida_estruturada` deixa de ser obrigatória para importar: basta texto (e `visao` para
+  imagem). Qualquer modelo configurado importa.
+- Resposta cortada pelo limite de saída divide o lote ao meio e refaz.
+- O prompt sobe para `importacao-v2`, e o cache da v1 deixa de valer.
+
+Consequências: duas chamadas por documento em vez de uma (o cabeçalho é pequeno); o
+modelo pode errar o formato do CSV, e isso vira uma tentativa de correção e, depois,
+aviso e rejeição por linha, nunca a falha do arquivo inteiro.

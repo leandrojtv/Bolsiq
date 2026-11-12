@@ -31,7 +31,7 @@ const CEP = /(?<!\d)\d{5}-\d{3}(?!\d)/g;
 
 /** Rotulo seguido do numero: "Agência: 0001", "Conta 12345-6", "C/C 123", "Código do cliente 99". */
 const CONTA =
-  /\b(ag[eê]ncia|ag\.|conta(?:\s+corrente|\s+investimento|\s+n[ºo°.]?)?|c\/c|n[uú]mero\s+da\s+conta|c[oó]d(?:igo|\.)?\s*(?:do\s+)?cliente|cliente\s+n[ºo°.]?)\s*[:nº°#;\t|]*\s*\d[\d.\-/xX]{2,}/gi;
+  /\b(ag[eê]ncia|ag\.|conta(?:\s+corrente|\s+investimento|\s+n[ºo°.]?)?|c\/c|n[uú]mero\s+da\s+conta|c[oó]d(?:igo|\.)?\s*(?:do\s+)?cliente|cliente\s+n[ºo°.]?)[\s:nº°#;|]*\d[\d.\-/xX]{2,}/gi;
 
 /**
  * Linha cujo rotulo e de dado pessoal. O rotulo precisa terminar em `:`, `;` ou

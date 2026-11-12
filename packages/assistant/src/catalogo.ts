@@ -41,6 +41,8 @@ interface Registro {
   capacidades?: Capacidade[];
   /** Teto de tokens de saida por chamada, para dividir o documento na importacao. */
   max_saida?: number;
+  /** Janela de contexto em tokens. */
+  contexto?: number;
   /** Resultado do `make eval-importacao`: "homologado" ou "nao_testado". */
   importacao?: string;
   avaliacao_importacao?: string;
@@ -82,15 +84,18 @@ export function classificarModelo(
 }
 
 export interface CapacidadesDoModelo {
+  /** Preferencia: o cabecalho vai por schema; sem ela, por JSON em texto. */
   saida_estruturada: boolean;
   visao: boolean;
   max_saida: number;
+  /** Janela de contexto em tokens; sem registro, 32 mil. */
+  contexto: number;
   homologado_para_importar: boolean;
 }
 
 /**
- * Capacidades declaradas em `modelos.json`. Fora da lista nao ha como saber, e a
- * importacao com IA exige saida estruturada: modelo desconhecido nao importa.
+ * Capacidades declaradas em `modelos.json`. Para importar basta texto: as linhas
+ * vem em CSV. Fora da lista, o modelo importa sem saida estruturada nem visao.
  */
 export function capacidadesDoModelo(
   provedor: Provedor,
@@ -102,17 +107,16 @@ export function capacidadesDoModelo(
     saida_estruturada: c.includes("saida_estruturada"),
     visao: c.includes("visao"),
     max_saida: r?.max_saida ?? 8_000,
+    contexto: r?.contexto ?? 32_000,
     homologado_para_importar: r?.importacao === "homologado",
   };
 }
 
-/** Modelos do provedor que podem importar: a lista do "reprocessar com outro modelo". */
+/** Modelos do provedor na lista: as opcoes do "reprocessar com outro modelo". */
 export function modelosParaImportar(
   provedor: Provedor,
 ): { modelo: string; visao: boolean; homologado: boolean }[] {
-  return REGISTROS.filter(
-    (r) => r.provedor === provedor && r.capacidades?.includes("saida_estruturada"),
-  ).map((r) => ({
+  return REGISTROS.filter((r) => r.provedor === provedor).map((r) => ({
     modelo: r.modelo,
     visao: r.capacidades?.includes("visao") ?? false,
     homologado: r.importacao === "homologado",

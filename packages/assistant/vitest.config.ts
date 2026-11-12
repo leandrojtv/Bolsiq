@@ -15,6 +15,8 @@ export default defineConfig({
         "src/puro.ts",
         "src/db/**",
         "src/integration/**",
+        // Adaptador do Postgres: coberto em src/integration/importacao.test.ts.
+        "src/importacao/postgres.ts",
       ],
       thresholds: { lines: 90, functions: 90, statements: 90, branches: 75 },
     },

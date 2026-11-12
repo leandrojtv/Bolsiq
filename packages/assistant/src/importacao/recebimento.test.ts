@@ -3,7 +3,7 @@ import {
   conferirTamanho,
   ErroDeImportacao,
   hashDoConteudo,
-  LIMITE_DE_BYTES,
+  LIMITES_PADRAO,
   tipoDoArquivo,
 } from "./recebimento.js";
 
@@ -51,10 +51,21 @@ describe("tipo do arquivo", () => {
 });
 
 describe("tamanho e hash", () => {
-  it("recusa vazio e acima de 10 MB", () => {
+  it("recusa vazio e acima do limite, que e configuravel (50 MB por padrao)", () => {
     expect(() => conferirTamanho(0)).toThrow(/vazio/);
-    expect(() => conferirTamanho(LIMITE_DE_BYTES + 1)).toThrow(/10 MB/);
-    expect(() => conferirTamanho(LIMITE_DE_BYTES)).not.toThrow();
+    expect(() => conferirTamanho(LIMITES_PADRAO.bytes + 1)).toThrow(/50 MB/);
+    expect(() => conferirTamanho(LIMITES_PADRAO.bytes)).not.toThrow();
+    expect(() => conferirTamanho(2 * 1024 * 1024, 1024 * 1024)).toThrow(/1 MB/);
+  });
+
+  it("aceita ODS e HEIC", () => {
+    expect(
+      tipoDoArquivo("x.ods", "application/vnd.oasis.opendocument.spreadsheet", ZIP),
+    ).toBe("ods");
+    const heic = new Uint8Array([
+      0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63,
+    ]);
+    expect(tipoDoArquivo("foto.HEIC", "image/heic", heic)).toBe("imagem");
   });
 
   it("SHA-256 do conteudo", () => {

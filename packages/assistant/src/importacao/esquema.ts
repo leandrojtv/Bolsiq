@@ -117,7 +117,7 @@ type No = JSONSchema7 | boolean;
 /**
  * O schema que vai ao modelo, sem `null`: a Anthropic recusa mais de 16 campos
  * com union ("type" em lista ou `anyOf`), e aqui sao dezenas. O modelo devolve
- * "" no lugar do nulo e `vazioParaNulo` desfaz antes do Zod.
+ * "" no lugar do nulo e `normalizar` desfaz antes do Zod.
  */
 export function semNulo(n: No): No {
   if (typeof n === "boolean") return n;
@@ -142,29 +142,119 @@ export function semNulo(n: No): No {
   return r;
 }
 
-/** "" vira null onde o schema aceita null; o resto passa como veio. */
-export function vazioParaNulo(s: z.ZodTypeAny, v: unknown): unknown {
+const semAcento = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+/**
+ * Sem `strict`, o modelo segue o schema so de perto: omite campo nulo, manda
+ * numero onde e texto, "média" com acento, lista como texto JSON. Isto conserta
+ * o que da para consertar sem adivinhar; "" vira null onde o schema aceita null.
+ */
+export function normalizar(s: z.ZodTypeAny, v: unknown): unknown {
+  if (
+    typeof v === "string" &&
+    (s instanceof z.ZodArray || s instanceof z.ZodObject) &&
+    /^\s*[[{]/.test(v)
+  ) {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
   if (s instanceof z.ZodNullable)
-    return v === "" ? null : vazioParaNulo(s.unwrap() as z.ZodTypeAny, v);
-  if (s instanceof z.ZodArray && Array.isArray(v))
-    return v.map((x) => vazioParaNulo(s.element as z.ZodTypeAny, x));
+    return v === "" || v === null || v === undefined
+      ? null
+      : normalizar(s.unwrap() as z.ZodTypeAny, v);
+  if (s instanceof z.ZodString)
+    return typeof v === "number" || typeof v === "boolean" ? String(v) : v;
+  if (s instanceof z.ZodEnum && typeof v === "string") {
+    const x = semAcento(v);
+    return (s.options as string[]).includes(x) ? x : v;
+  }
+  if (s instanceof z.ZodArray) {
+    if (v === null || v === undefined) return [];
+    return Array.isArray(v) ? v.map((x) => normalizar(s.element as z.ZodTypeAny, x)) : v;
+  }
   if (s instanceof z.ZodObject && v && typeof v === "object" && !Array.isArray(v)) {
-    const forma = s.shape as Record<string, z.ZodTypeAny>;
+    const o = v as Record<string, unknown>;
     return Object.fromEntries(
-      Object.entries(v).map(([k, x]) => [k, forma[k] ? vazioParaNulo(forma[k], x) : x]),
+      Object.entries(s.shape as Record<string, z.ZodTypeAny>).map(([k, f]) => [
+        k,
+        normalizar(f, o[k]),
+      ]),
     );
   }
   return v;
+}
+
+const resumo = (e: z.ZodError) =>
+  e.issues
+    .slice(0, 3)
+    .map((i) => `${i.path.join(".") || "raiz"}: ${i.message}`)
+    .join("; ");
+
+const LISTAS = ["posicoes", "transacoes", "proventos", "notas"] as const;
+
+/**
+ * Le a resposta do modelo. Linha que nem normalizada passa no schema sai com
+ * aviso, em vez de derrubar a resposta inteira; a conciliacao mostra a falta.
+ */
+export function lerSaida(v: unknown): z.SafeParseReturnType<unknown, SaidaDaIA> {
+  let raiz = v;
+  // Ha modelo que embrulha a resposta: { "extrato_bolsiq": { ... } }.
+  if (
+    raiz &&
+    typeof raiz === "object" &&
+    !("documento" in raiz) &&
+    !("posicoes" in raiz)
+  ) {
+    const valores = Object.values(raiz);
+    if (valores.length === 1 && valores[0] && typeof valores[0] === "object")
+      raiz = valores[0];
+  }
+  const n = normalizar(SaidaDaIA, raiz);
+  const avisos: string[] = [];
+  if (n && typeof n === "object") {
+    const o = n as Record<string, unknown>;
+    for (const k of LISTAS) {
+      const lista = o[k];
+      if (!Array.isArray(lista)) continue;
+      const el = SaidaDaIA.shape[k].element as z.ZodTypeAny;
+      o[k] = lista.filter((x, i) => {
+        const r = el.safeParse(x);
+        if (!r.success) avisos.push(`${k}[${i}] descartada: ${resumo(r.error)}`);
+        return r.success;
+      });
+    }
+    const d = o.documento;
+    if (
+      d &&
+      typeof d === "object" &&
+      !TipoDeDocumento.safeParse((d as { tipo?: unknown }).tipo).success
+    )
+      (d as { tipo: string }).tipo = "misto";
+  }
+  const r = SaidaDaIA.safeParse(n);
+  if (r.success) r.data.avisos.push(...avisos);
+  return r;
 }
 
 export const SaidaDaIAParaOModelo: Schema<SaidaDaIA> = jsonSchema<SaidaDaIA>(
   async () => semNulo(await zodSchema(SaidaDaIA).jsonSchema) as JSONSchema7,
   {
     validate: (v) => {
-      const r = SaidaDaIA.safeParse(vazioParaNulo(SaidaDaIA, v));
+      const r = lerSaida(v);
       return r.success
         ? { success: true, value: r.data }
-        : { success: false, error: r.error };
+        : {
+            success: false,
+            error: new Error(`a resposta não segue o schema: ${resumo(r.error)}`),
+          };
     },
   },
 );

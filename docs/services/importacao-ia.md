@@ -70,7 +70,7 @@ passa por `importarPosicaoBolsiq` e `importarCsvBolsiq`. Provento vira transaç�
 
 O schema que vai ao provedor não tem `null` (`SaidaDaIAParaOModelo`): a Anthropic recusa
 mais de 16 campos com union (`type` em lista ou `anyOf`), e a saída tem dezenas de campos
-anuláveis. O modelo devolve `""` onde não há valor, e `vazioParaNulo` converte para `null`
+anuláveis. O modelo devolve `""` onde não há valor, e `normalizar` converte para `null`
 nos campos anuláveis antes de validar com o Zod de `SaidaDaIA`. `null` continua aceito.
 
 Na Anthropic nem esse schema serve à saída estruturada nativa: a gramática compilada passa
@@ -81,6 +81,13 @@ forçada (Opus 5.5, Sonnet 5.5, Fable 5.1) volta à saída nativa e bate no limi
 chamada é refeita com `generateText`, o JSON Schema no fim do prompt de sistema e o objeto
 da resposta (`jsonDoTexto`) na mesma validação. Os demais provedores seguem com
 `generateObject` e a saída nativa.
+
+Sem `strict`, o modelo segue o schema só de perto. `lerSaida` conserta o que dá sem
+adivinhar: campo omitido vira `null`, número vira texto, enum perde acento e caixa, lista
+mandada como texto JSON é lida, resposta embrulhada num objeto de uma chave só é aberta e
+`documento.tipo` fora da lista vira `misto`. Linha que ainda assim não passa sai com aviso
+(`posicoes[3] descartada: origem: Required`), em vez de derrubar a resposta inteira, e a
+conciliação mostra a falta. Quando a resposta toda falha, o erro diz o campo.
 
 ## Validação
 

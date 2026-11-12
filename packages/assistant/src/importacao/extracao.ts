@@ -151,6 +151,13 @@ export const semGramatica = (m: LanguageModel) =>
 
 const GRAMATICA_GRANDE = /grammar is too large|too many parameters with union/i;
 
+/** A causa mais funda, que diz o campo que falhou; a de fora so diz que falhou. */
+function detalhe(erro: unknown, segredos: readonly string[]): string {
+  let c = erro;
+  while (c instanceof Error && c.cause instanceof Error) c = c.cause;
+  return c === erro ? "" : ` (${mensagemSegura(c, segredos)})`;
+}
+
 /** O objeto JSON da resposta, com ou sem cerca de codigo em volta. */
 export function jsonDoTexto(texto: string): unknown {
   const inicio = texto.indexOf("{");
@@ -220,7 +227,7 @@ export async function extrairComIA(p: PedidoDeExtracao): Promise<ResultadoDaExtr
     } catch (erro) {
       throw new ErroDeImportacao(
         "falha_do_modelo",
-        `O modelo não devolveu a extração (parte ${i + 1} de ${pedidos.length}): ${mensagemSegura(erro, p.segredos)}`,
+        `O modelo não devolveu a extração (parte ${i + 1} de ${pedidos.length}): ${mensagemSegura(erro, p.segredos)}${detalhe(erro, p.segredos)}`,
         502,
         uso,
       );

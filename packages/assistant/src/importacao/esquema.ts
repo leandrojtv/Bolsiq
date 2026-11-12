@@ -1,3 +1,4 @@
+import { jsonSchema, zodSchema, type JSONSchema7, type Schema } from "ai";
 import { z } from "zod";
 import { COLUNAS_BOLSIQ, COLUNAS_POSICAO } from "@bolsiq/portfolio";
 
@@ -110,3 +111,60 @@ export const saidaVazia = (): SaidaDaIA => ({
   notas: [],
   avisos: [],
 });
+
+type No = JSONSchema7 | boolean;
+
+/**
+ * O schema que vai ao modelo, sem `null`: a Anthropic recusa mais de 16 campos
+ * com union ("type" em lista ou `anyOf`), e aqui sao dezenas. O modelo devolve
+ * "" no lugar do nulo e `vazioParaNulo` desfaz antes do Zod.
+ */
+export function semNulo(n: No): No {
+  if (typeof n === "boolean") return n;
+  const r: JSONSchema7 = { ...n };
+  if (Array.isArray(r.type)) {
+    const tipos = r.type.filter((t) => t !== "null");
+    r.type = tipos.length === 1 ? tipos[0] : tipos;
+  }
+  if (r.enum) r.enum = [...new Set(r.enum.map((v) => (v === null ? "" : v)))];
+  for (const k of ["anyOf", "oneOf"] as const) {
+    const opcoes = r[k]?.filter((o) => !(typeof o === "object" && o.type === "null"));
+    if (!opcoes) continue;
+    delete r[k];
+    if (opcoes.length === 1) Object.assign(r, semNulo(opcoes[0]!));
+    else r[k] = opcoes.map(semNulo);
+  }
+  if (r.properties)
+    r.properties = Object.fromEntries(
+      Object.entries(r.properties).map(([k, v]) => [k, semNulo(v)]),
+    );
+  if (r.items && !Array.isArray(r.items)) r.items = semNulo(r.items);
+  return r;
+}
+
+/** "" vira null onde o schema aceita null; o resto passa como veio. */
+export function vazioParaNulo(s: z.ZodTypeAny, v: unknown): unknown {
+  if (s instanceof z.ZodNullable)
+    return v === "" ? null : vazioParaNulo(s.unwrap() as z.ZodTypeAny, v);
+  if (s instanceof z.ZodArray && Array.isArray(v))
+    return v.map((x) => vazioParaNulo(s.element as z.ZodTypeAny, x));
+  if (s instanceof z.ZodObject && v && typeof v === "object" && !Array.isArray(v)) {
+    const forma = s.shape as Record<string, z.ZodTypeAny>;
+    return Object.fromEntries(
+      Object.entries(v).map(([k, x]) => [k, forma[k] ? vazioParaNulo(forma[k], x) : x]),
+    );
+  }
+  return v;
+}
+
+export const SaidaDaIAParaOModelo: Schema<SaidaDaIA> = jsonSchema<SaidaDaIA>(
+  async () => semNulo(await zodSchema(SaidaDaIA).jsonSchema) as JSONSchema7,
+  {
+    validate: (v) => {
+      const r = SaidaDaIA.safeParse(vazioParaNulo(SaidaDaIA, v));
+      return r.success
+        ? { success: true, value: r.data }
+        : { success: false, error: r.error };
+    },
+  },
+);

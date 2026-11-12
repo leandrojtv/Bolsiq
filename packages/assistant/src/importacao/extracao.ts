@@ -2,7 +2,12 @@ import { generateObject, type LanguageModel, type UserContent } from "ai";
 import { mensagemSegura } from "../chaves.js";
 import type { Uso } from "../orcamento.js";
 import { SISTEMA_DE_IMPORTACAO } from "../../prompts/importacao-v1.js";
-import { SaidaDaIA, saidaVazia, type Origem } from "./esquema.js";
+import {
+  SaidaDaIAParaOModelo,
+  saidaVazia,
+  type Origem,
+  type SaidaDaIA,
+} from "./esquema.js";
 import { MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO, textoDoLote, type Lote } from "./lotes.js";
 import { ErroDeImportacao } from "./recebimento.js";
 
@@ -145,7 +150,7 @@ export async function extrairComIA(p: PedidoDeExtracao): Promise<ResultadoDaExtr
         model: p.modelo,
         system: SISTEMA_DE_IMPORTACAO,
         messages: [{ role: "user", content }],
-        schema: SaidaDaIA,
+        schema: SaidaDaIAParaOModelo,
         schemaName: "extrato_bolsiq",
         maxOutputTokens: p.maxSaida ?? MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
         temperature: 0,

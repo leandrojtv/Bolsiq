@@ -67,6 +67,11 @@ inteira. O tipo de verdade é o de `LinhaDePosicao` e `Transacao`: cada linha vo
 passa por `importarPosicaoBolsiq` e `importarCsvBolsiq`. Provento vira transação
 `provento` (quantidade e valor por cota; sem quantidade, valor total com quantidade 1).
 
+O schema que vai ao provedor não tem `null` (`SaidaDaIAParaOModelo`): a Anthropic recusa
+mais de 16 campos com union (`type` em lista ou `anyOf`), e a saída tem dezenas de campos
+anuláveis. O modelo devolve `""` onde não há valor, e `vazioParaNulo` converte para `null`
+nos campos anuláveis antes de validar com o Zod de `SaidaDaIA`. `null` continua aceito.
+
 ## Validação
 
 O ponto mais importante. Tudo determinístico, em `validacao.ts`:

@@ -52,11 +52,19 @@ function nomeDaLinha(linha: string): string | null {
   return nome && nome.split(/\s+/).length >= 2 ? nome : null;
 }
 
+/** Saudacao do cabecalho da XP: "Maria da Silva, este é o seu patrimônio". */
+const SAUDACAO =
+  /^\s*([A-Za-zÀ-ÿ'][A-Za-zÀ-ÿ' ]{3,80}?)\s*,\s*este\s+[eé]\s+o\s+seu\s+patrim[oô]nio/gim;
+
 const escapar = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function anonimizar(texto: string): TextoAnonimizado {
   const r = vazio();
   const nomes = new Set<string>();
+  for (const m of texto.matchAll(SAUDACAO)) {
+    const nome = m[1]?.trim();
+    if (nome && nome.split(/\s+/).length >= 2) nomes.add(nome);
+  }
 
   const linhas = texto.split(/\r?\n/).map((linha) => {
     if (!ROTULO_PESSOAL.test(linha)) return linha;

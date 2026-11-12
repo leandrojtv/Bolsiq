@@ -113,6 +113,19 @@ describe("job de importacao em segundo plano", () => {
     );
   });
 
+  it("progresso que grava devagar nao sobrescreve o pronto", async () => {
+    const m = repoEmMemoria(["santander-coe"]);
+    const gravar = m.repo.atualizarArquivo.bind(m.repo);
+    m.repo.atualizarArquivo = (indice, c) =>
+      c.progresso
+        ? new Promise((ok) => setTimeout(() => void gravar(indice, c).then(ok), 30))
+        : gravar(indice, c);
+    await executarJob(dependencias(m.repo));
+    await new Promise((ok) => setTimeout(ok, 100));
+    expect(m.arquivos[0]?.estado).toBe("pronto");
+    expect(m.arquivos[0]?.progresso).toBeNull();
+  });
+
   it("acima do limite de custo, para e espera a confirmacao; confirmado, segue", async () => {
     const m = repoEmMemoria(["santander-coe"]);
     await executarJob(dependencias(m.repo, undefined, { confirmar_acima_usd: 0 }));

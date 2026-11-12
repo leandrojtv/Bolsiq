@@ -253,7 +253,7 @@ class Fontes {
       declarada && declarada.compacta.includes(trecho)
         ? declarada
         : [...this.porOrigem.values()].find((f) => f.compacta.includes(trecho));
-    if (!fonte) return { achado: false, texto: o.trecho_original };
+    if (!fonte) return this.porCampos(o, declarada);
     const linhas = fonte.linhas
       .filter(
         (l) =>
@@ -263,6 +263,35 @@ class Fontes {
       )
       .map((l) => l.texto);
     return { achado: true, texto: [o.trecho_original, ...linhas].join("\n") };
+  }
+
+  /**
+   * O modelo copia a linha pulando uma coluna ("CURY3;R$ 4.590,11;-1,19%" para
+   * "CURY3;R$ 4.590,11;0,9%;-1,19%", #43). Vale a linha do documento que tem
+   * todos os campos do trecho, nessa ordem; os valores sao conferidos nela.
+   */
+  private porCampos(o: Origem, declarada?: Fonte): { achado: boolean; texto: string } {
+    const campos = o.trecho_original
+      .split(/[;|\t]/)
+      .map(compacto)
+      .filter((c) => c.length >= 2);
+    const nao = { achado: false, texto: o.trecho_original };
+    if (campos.length < 3) return nao;
+    const emOrdem = (linha: string) => {
+      let i = 0;
+      for (const c of campos) {
+        const j = linha.indexOf(c, i);
+        if (j < 0) return false;
+        i = j + c.length;
+      }
+      return true;
+    };
+    const fontes = declarada ? [declarada] : [...this.porOrigem.values()];
+    const linhas = fontes.flatMap((f) =>
+      f.linhas.filter((l) => emOrdem(l.compacta)).map((l) => l.texto),
+    );
+    if (linhas.length !== 1) return nao;
+    return { achado: true, texto: linhas.join("\n") };
   }
 }
 

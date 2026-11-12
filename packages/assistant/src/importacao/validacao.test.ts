@@ -190,6 +190,19 @@ describe("origem: valor sem trecho e invencao", () => {
   });
 });
 
+describe("trecho copiado pulando uma coluna (#43)", () => {
+  it("vale a linha do documento com todos os campos do trecho, na ordem", async () => {
+    const r = await validar(doc({ posicoes: [acao("PETR4;100;3.842,00")] }));
+    expect(r.rejeicoes).toEqual([]);
+    expect(r.linhas).toHaveLength(1);
+  });
+
+  it("campo que nao esta na linha continua recusando", async () => {
+    const r = await validar(doc({ posicoes: [acao("PETR4;100;9.999,00")] }));
+    expect(r.rejeicoes[0]?.motivo).toBe("trecho_original não aparece no documento");
+  });
+});
+
 describe("validadores do layout e market-data", () => {
   it("classe que nao se reconhece vai para ajuste, com o campo destacado", async () => {
     const r = await validar(

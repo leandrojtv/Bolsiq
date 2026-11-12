@@ -44,6 +44,16 @@ describe("anonimizacao", () => {
     expect(remocoes.telefone).toBe(2);
   });
 
+  it("saudacao da XP: o nome sai, os totais da linha ficam", () => {
+    const { texto, remocoes } = anonimizar(
+      "Maria Da Silva, este é o seu patrimônio;Total investido\nR$ 1.000,00;R$ 900,00\nmaria da silva",
+    );
+    expect(texto).not.toMatch(/maria/i);
+    expect(texto).toContain("[titular], este é o seu patrimônio;Total investido");
+    expect(texto).toContain("R$ 1.000,00");
+    expect(remocoes.linhas).toBe(2);
+  });
+
   it("cabecalho de tabela com 'Nome do ativo' nao e dado pessoal", () => {
     const entrada = "Nome do ativo;Quantidade;Saldo\nPETR4;100;3842";
     expect(anonimizar(entrada).texto).toBe(entrada);

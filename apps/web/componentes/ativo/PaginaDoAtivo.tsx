@@ -72,8 +72,11 @@ export function PaginaDoAtivo({
     <>
       <TopoMobile ticker={ativo.ticker} />
       <Cabecalho ativo={ativo} cotacao={cotacao} meta={cotacoes?.meta ?? null} />
-      <div className="flex flex-wrap items-start gap-5">
-        <section aria-label="Gráfico de preço" className="min-w-0 flex-[999_1_620px]">
+      {/* Grade: grafico e indicadores lado a lado a partir de xl; preco justo e
+          sinais tecnicos numa linha abaixo, para a lateral nao ficar mais alta
+          que o grafico e abrir um vazio antes de Proventos. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section aria-label="Gráfico de preço" className="min-w-0">
           {celular ? (
             <Grafico ticker={ativo.ticker} inicial={historico} aoVivo={aoVivo} compacto />
           ) : (
@@ -87,14 +90,13 @@ export function PaginaDoAtivo({
             </Card>
           )}
         </section>
-        <aside
-          aria-label="Indicadores"
-          className="hidden min-w-0 flex-[1_1_300px] flex-col gap-4 md:flex"
-        >
+        <aside aria-label="Indicadores" className="@container hidden min-w-0 md:flex">
           <GradeDeIndicadores indicadores={indicadores} />
+        </aside>
+        <div className="hidden min-w-0 grid-cols-2 gap-5 md:grid xl:col-span-2 [&>*:only-child]:col-span-2">
           <PrecoJusto indicadores={indicadores} preco={cotacao?.price ?? null} />
           <SinaisTecnicosCard tecnicos={tecnicos} />
-        </aside>
+        </div>
       </div>
       <LateralMobile
         indicadores={indicadores}

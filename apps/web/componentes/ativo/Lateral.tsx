@@ -100,10 +100,10 @@ export function GradeDeIndicadores({ indicadores }: { indicadores: Indicadores |
   const { aberto, alternar } = useAberto();
   const itens = itensDeIndicadores(indicadores);
   return (
-    <Card title="Indicadores">
+    <Card title="Indicadores" className="w-full">
       {indicadores ? (
         <>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 @lg:grid-cols-4">
             {itens.map((i) => (
               <StatTile
                 key={i.k}
@@ -129,7 +129,7 @@ export function GradeDeIndicadores({ indicadores }: { indicadores: Indicadores |
         </p>
       )}
       {indicadores && (
-        <span className="text-xs text-text-3">
+        <span className="mt-auto text-xs text-text-3">
           Data-base {indicadores.reference_date.split("-").reverse().join("/")}
         </span>
       )}

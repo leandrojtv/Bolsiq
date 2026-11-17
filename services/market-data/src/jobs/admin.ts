@@ -79,3 +79,11 @@ export function adminDoPgBoss(boss: PgBoss, db: Db): AdminDeJobs {
     },
   };
 }
+
+/** Quando cada cron foi registrado. O pg-boss preserva `created_on` ao reagendar. */
+export async function agendadosDesde(db: Db): Promise<Map<string, Date>> {
+  const r = await db.execute<{ name: string; created_on: string | Date }>(
+    sql`SELECT name, created_on FROM pgboss.schedule`,
+  );
+  return new Map(r.rows.map((l) => [l.name, new Date(l.created_on)]));
+}

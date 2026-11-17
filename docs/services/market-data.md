@@ -60,6 +60,7 @@ services/market-data/
     jobs/registry.ts     definição dos jobs, cron, retry e expiração
     jobs/handlers.ts     o que cada job faz (worker e backfill usam o mesmo)
     jobs/admin.ts        /admin/jobs sobre as tabelas do pg-boss
+    jobs/recuperacao.ts  reenfileira ao subir os jobs que perderam horário
     routes/specs.ts      rotas em Zod — fonte única do app e do OpenAPI
     routes/registrar.ts  registra as rotas a partir das specs
 ```
@@ -147,6 +148,13 @@ nomeado continua correto.
 | `cvm-itr`             | `0 6 * * 1`     |
 | `b3-cotahist-anual`   | sob demanda     |
 | `ajuste-proventos`    | sob demanda     |
+
+O cron do pg-boss não executa horário perdido. Ao subir, o worker confere
+cada job agendado e enfileira o que perdeu o último horário enquanto estava
+fora do ar (`jobs/recuperacao.ts`, [ADR 0029](../adr/0029-recuperar-jobs-perdidos-ao-subir.md)).
+O diário recuperado carrega o pregão perdido; se o lacunas também estiver
+atrasado, ele cobre esse dia. Banco novo não dispara nada: a primeira carga é
+o `make backfill`. O log mostra `job atrasado reenfileirado` para cada um.
 
 Cada job tem manipulador em `jobs/handlers.ts`. O `backfill.ts` chama os
 mesmos manipuladores, em ordem: COTAHIST anual, cadastro, DFP e ITR, informe

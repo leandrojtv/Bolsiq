@@ -20,6 +20,13 @@ const AJUDA: Record<Aba, string> = {
   ia: "Qualquer formato, de qualquer banco ou corretora: a IA do assistente converte, o Bolsiq confere cada linha contra o documento e você revisa antes de gravar.",
 };
 
+/** Modelo para baixar em cada formato; os arquivos ficam em public/modelos. */
+const MODELO: Record<FormatoDeImportacao, { arquivo: string; rotulo: string }> = {
+  bolsiq: { arquivo: "transacoes-bolsiq.csv", rotulo: "Baixar modelo de transações" },
+  b3: { arquivo: "extrato-b3.csv", rotulo: "Baixar exemplo do extrato da B3" },
+  posicao_bolsiq: { arquivo: "posicoes-bolsiq.csv", rotulo: "Baixar modelo de posições" },
+};
+
 /**
  * CSV do Bolsiq, extrato da B3 ou posicoes. Transacoes gravam direto, com relatorio
  * de rejeitadas; posicao passa antes pela revisao contra a carga vigente.
@@ -129,7 +136,16 @@ export function Importar({
     <div className="flex flex-col gap-4">
       <form onSubmit={enviar} className="flex flex-col gap-3">
         {seletor}
-        <p className="m-0 text-[13px] text-text-2">{AJUDA[formato]}</p>
+        <p className="m-0 text-[13px] text-text-2">
+          {AJUDA[formato]}{" "}
+          <a
+            href={`/modelos/${MODELO[formato].arquivo}`}
+            download
+            className="text-link underline"
+          >
+            {MODELO[formato].rotulo}
+          </a>
+        </p>
         <label className="flex flex-col gap-1.5 text-xs text-text-3">
           Arquivo CSV
           <input

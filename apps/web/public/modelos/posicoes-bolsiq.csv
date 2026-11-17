@@ -1,0 +1,7 @@
+data_posicao,corretora,classe,subclasse,ativo,codigo,cnpj,emissor,indexador,pct_indexador,taxa_aa,data_aplicacao,vencimento,liquidez_diaria,quantidade,preco_unitario,preco_medio,valor_aplicado,saldo_bruto,ir,iof,saldo_liquido,valorizacao,observacao
+2026-10-31,XP,acao,Renda Variável Brasil,ITUB4,ITUB4,,,,,,,,,85,38.49,41.16,3498.60,3271.65,,,3271.65,cotacao_b3,
+2026-10-31,XP,fii,Fundos Imobiliários,HGLG11,HGLG11,,,,,,,,,10,158.20,160.50,1605.00,1582.00,,,1582.00,cotacao_b3,
+2026-10-31,XP,titulo_publico,Inflação,NTN-B - AGO/2030,NTNB_2030-08-15,,,IPCA,,0.0795,2026-06-23,2030-08-15,N,5,4522.26,,22008.67,22773.31,135.59,0.00,22475.70,tesouro,
+2026-10-31,Nubank,renda_fixa,Pós-Fixado,CDB NUBANK,,,NUBANK,CDI,1.20,,2026-08-11,2027-02-11,N,1,10356.20,,10000.00,10356.20,80.14,0.00,10276.06,curva,
+2026-10-31,XP,fundo,Multimercado,FUNDO EXEMPLO FIM,,12.345.678/0001-95,,,,,2025-03-10,,S,1500,8.5897,,12000.00,12884.64,42.32,0.00,12842.32,cota_cvm,
+2026-10-31,Santander,coe,Ouro,COE SANTANDER OURO,ST0524GC0QK,,SANTANDER,,,,2025-07-01,2027-07-01,N,,,,10000.00,13227.79,0.00,0.00,13227.79,manual,

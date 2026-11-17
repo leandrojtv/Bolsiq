@@ -1,0 +1,4 @@
+Data do Negócio;Tipo de Movimentação;Mercado;Prazo/Vencimento;Instituição;Código de Negociação;Quantidade;Preço;Valor
+15/01/2026;Compra;Mercado à Vista;-;XP INVESTIMENTOS CCTVM S/A;PETR4;100;35,00;3500,00
+20/02/2026;Compra;Mercado Fracionário;-;XP INVESTIMENTOS CCTVM S/A;ITUB4F;15;33,10;496,50
+12/05/2026;Venda;Mercado à Vista;-;XP INVESTIMENTOS CCTVM S/A;PETR4;50;38,20;1910,00

@@ -17,6 +17,7 @@ como reproduzir o CI na sua máquina.
 | [codeql.yml](../.github/workflows/codeql.yml)                     | PR para `main`; segunda 04:00 UTC                  | `analisar` (matriz)                                                                                                                                    | 3–6 min                         | Não                    |
 | [labeler.yml](../.github/workflows/labeler.yml)                   | PR aberto ou atualizado                            | `labeler`                                                                                                                                              | < 30 s                          | Não                    |
 | [deploy.yml](../.github/workflows/deploy.yml)                     | `workflow_call`                                    | `deploy`                                                                                                                                               | 2–4 min                         | —                      |
+| [vm-start.yml](../.github/workflows/vm-start.yml)                 | 12:00 UTC (09:00 BRT) todo dia; manual             | `ligar`                                                                                                                                                | 2–5 min                         | Não                    |
 
 Os tempos são estimativas de projeto, não medições: nenhum serviço existe ainda.
 Atualize esta coluna quando houver histórico real.
@@ -88,15 +89,26 @@ Meta: menos de 10 minutos para um PR típico com cache quente.
 
 Configure em Settings → Secrets and variables → Actions.
 
-| Secret                 | Escopo      | Para que serve                                                                                                                                        | Sem ele                                                   |
-| ---------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`    | repositório | Revisão automática do Claude e respostas a `@claude`                                                                                                  | Os dois workflows do Claude falham; o resto do CI segue   |
-| `SSH_HOST`             | environment | Host de deploy                                                                                                                                        | Deploy falha                                              |
-| `SSH_USER`             | environment | Usuário SSH                                                                                                                                           | Deploy falha                                              |
-| `SSH_KEY`              | environment | Chave privada de deploy, sem passphrase                                                                                                               | Deploy falha                                              |
-| `SSH_PORT`             | environment | Porta SSH (opcional; padrão 22)                                                                                                                       | Usa 22                                                    |
-| `ENV_FILE`             | environment | Conteúdo completo do `.env` daquele ambiente                                                                                                          | Deploy falha                                              |
-| `RELEASE_PLEASE_TOKEN` | repositório | PAT para o release-please. Opcional, mas **recomendado**: com o `GITHUB_TOKEN` padrão, o PR de release não dispara o CI, e o `ci-ok` nunca fica verde | O PR de release precisa de um push manual para rodar o CI |
+| Secret                  | Escopo      | Para que serve                                                                                                                                        | Sem ele                                                   |
+| ----------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`     | repositório | Revisão automática do Claude e respostas a `@claude`                                                                                                  | Os dois workflows do Claude falham; o resto do CI segue   |
+| `SSH_HOST`              | environment | Host de deploy                                                                                                                                        | Deploy falha                                              |
+| `SSH_USER`              | environment | Usuário SSH                                                                                                                                           | Deploy falha                                              |
+| `SSH_KEY`               | environment | Chave privada de deploy, sem passphrase                                                                                                               | Deploy falha                                              |
+| `SSH_PORT`              | environment | Porta SSH (opcional; padrão 22)                                                                                                                       | Usa 22                                                    |
+| `ENV_FILE`              | environment | Conteúdo completo do `.env` daquele ambiente                                                                                                          | Deploy falha                                              |
+| `AZURE_CLIENT_ID`       | repositório | App registration `gh-bolsiq-vm-start` (OIDC) usada pelo `vm-start.yml`                                                                                | A VM não liga sozinha                                     |
+| `AZURE_TENANT_ID`       | repositório | Tenant do Azure                                                                                                                                       | A VM não liga sozinha                                     |
+| `AZURE_SUBSCRIPTION_ID` | repositório | Assinatura onde está o `rg-bolsiq`                                                                                                                    | A VM não liga sozinha                                     |
+| `RELEASE_PLEASE_TOKEN`  | repositório | PAT para o release-please. Opcional, mas **recomendado**: com o `GITHUB_TOKEN` padrão, o PR de release não dispara o CI, e o `ci-ok` nunca fica verde | O PR de release precisa de um push manual para rodar o CI |
+
+Os três `AZURE_*` não são senhas: a autenticação é por OIDC. A app registration
+tem uma federated credential só para `repo:leandrojtv/Bolsiq:environment:production-rollback`
+e o papel "Virtual Machine Contributor" só na `vm-bolsiq` (ADR 0030).
+
+Variável de repositório (Settings → Variables): `STAGING_ENABLED`. Só com
+`true` o `cd-develop.yml` faz o deploy de staging; sem ela, publica as imagens e
+para. Hoje não há host de staging.
 
 Os secrets de deploy são **por environment**, não do repositório: é isso que
 permite `staging` e `production` apontarem para hosts diferentes. Por isso o
@@ -109,11 +121,11 @@ que publicar: o push para o GHCR usa o `GITHUB_TOKEN` automático.
 
 ## Environments
 
-| Environment           | Quem usa            | Proteção                                                                          |
-| --------------------- | ------------------- | --------------------------------------------------------------------------------- |
-| `staging`             | `cd-develop.yml`    | Nenhuma. Merge em `develop` publica direto.                                       |
-| `production`          | `cd-production.yml` | **Required reviewers.** É aqui que vive a aprovação manual do deploy de produção. |
-| `production-rollback` | job `rollback`      | Mesmos secrets de produção, **sem** required reviewers.                           |
+| Environment           | Quem usa                       | Proteção                                                                          |
+| --------------------- | ------------------------------ | --------------------------------------------------------------------------------- |
+| `staging`             | `cd-develop.yml`               | Nenhuma. Merge em `develop` publica direto, se `STAGING_ENABLED=true`.            |
+| `production`          | `cd-production.yml`            | **Required reviewers.** É aqui que vive a aprovação manual do deploy de produção. |
+| `production-rollback` | job `rollback`, `vm-start.yml` | Mesmos secrets de produção, **sem** required reviewers.                           |
 
 O `production-rollback` existe por um motivo específico: se o rollback usasse o
 environment `production`, ele esperaria aprovação humana — com a produção

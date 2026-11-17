@@ -59,6 +59,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # O repositório é leandrojtv/Bolsiq; referência de imagem só aceita minúsculas.
+      - name: Nome da imagem
+        id: nome
+        run: echo "imagem=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.deployable.name }}" >> "$GITHUB_OUTPUT"
+
       - name: Build
         id: build
         uses: docker/build-push-action@v6
@@ -67,14 +72,14 @@ jobs:
           file: ${{ matrix.deployable.dockerfile }}
           push: false
           load: true
-          tags: ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}
+          tags: ${{ steps.nome.outputs.imagem }}:sha-${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.deployable.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.deployable.name }}
 
       - name: Trivy na imagem antes de publicar
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}
+          image-ref: ${{ steps.nome.outputs.imagem }}:sha-${{ github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
@@ -83,15 +88,23 @@ jobs:
       - name: Push sha-<commit> e develop
         run: |
           set -euo pipefail
-          origem="ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:sha-${{ github.sha }}"
+          origem="${{ steps.nome.outputs.imagem }}:sha-${{ github.sha }}"
           docker push "$origem"
-          docker tag "$origem" "ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:develop"
-          docker push "ghcr.io/${{ github.repository }}-${{ matrix.deployable.name }}:develop"
+          docker tag "$origem" "${{ steps.nome.outputs.imagem }}:develop"
+          docker push "${{ steps.nome.outputs.imagem }}:develop"
 
   deploy-staging:
     name: deploy staging
     needs: [matriz, build-push]
-    if: needs.matriz.outputs.tem_imagens == 'true'
+    # Sem host de staging (ADR 0030), as imagens são publicadas e o deploy é
+    # pulado. Para ligar: variável de repositório STAGING_ENABLED=true e os
+    # secrets do environment staging.
+    if: needs.matriz.outputs.tem_imagens == 'true' && vars.STAGING_ENABLED == 'true'
+    # O deploy.yml pede packages: read; o reutilizável não pode receber mais
+    # permissão que o job chamador, senão o run nem começa (startup_failure).
+    permissions:
+      contents: read
+      packages: read
     uses: ./.github/workflows/deploy.yml
     with:
       environment: staging

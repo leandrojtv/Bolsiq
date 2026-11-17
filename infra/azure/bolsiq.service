@@ -1,0 +1,21 @@
+# Sobe o compose de produção no boot e para os containers com calma antes do
+# desligamento, para o Postgres fechar limpo quando a VM é desalocada.
+# Instalado em /etc/systemd/system pelo setup-vm.sh.
+[Unit]
+Description=bolsiq (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=bolsiq
+WorkingDirectory=/home/bolsiq/bolsiq
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose stop -t 60
+TimeoutStartSec=600
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

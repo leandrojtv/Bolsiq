@@ -1,0 +1,101 @@
+name: liga a VM de produção
+
+# A VM desliga sozinha às 23:00 BRT (auto-shutdown nativo do Azure, 02:00 UTC)
+# e este workflow a religa às 09:00 BRT. Depois de ligar, espera o
+# bolsiq.service subir o compose e roda o smoke pelo SSH (ADR 0030).
+#
+# Autenticação no Azure por OIDC: sem senha nem segredo de longa duração.
+# A app registration só tem "Virtual Machine Contributor" na própria VM.
+on:
+  schedule:
+    # 12:00 UTC = 09:00 em Brasília (sem horário de verão desde 2019).
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: vm-producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  RESOURCE_GROUP: rg-bolsiq
+  VM_NAME: vm-bolsiq
+
+jobs:
+  ligar:
+    name: liga e verifica
+    runs-on: ubuntu-latest
+    # Mesmos secrets de produção, sem required reviewers: ligar a VM às 09:00
+    # não pode esperar alguém aprovar (docs/ci-cd.md).
+    environment:
+      name: production-rollback
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Liga a VM
+        run: |
+          set -euo pipefail
+          estado=$(az vm get-instance-view -g "$RESOURCE_GROUP" -n "$VM_NAME" \
+            --query "instanceView.statuses[?starts_with(code,'PowerState/')].code | [0]" -o tsv)
+          echo "Estado atual: $estado"
+          if [[ "$estado" != "PowerState/running" ]]; then
+            az vm start -g "$RESOURCE_GROUP" -n "$VM_NAME"
+          fi
+
+      - name: Configura a chave SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # O sshd leva alguns segundos depois do "running".
+          for _ in $(seq 1 30); do
+            ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 5
+          done
+          {
+            printf 'Host alvo\n'
+            printf '  HostName %s\n' "$SSH_HOST"
+            printf '  User %s\n' "$SSH_USER"
+            printf '  IdentityFile ~/.ssh/id_deploy\n'
+            printf '  StrictHostKeyChecking yes\n'
+            printf '  BatchMode yes\n'
+            printf '  ConnectTimeout 10\n'
+          } >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Espera o compose ficar saudável
+        run: |
+          set -euo pipefail
+          # O bolsiq.service sobe o compose no boot; espera ele terminar.
+          for _ in $(seq 1 60); do
+            [[ "$(ssh alvo systemctl is-active bolsiq.service || true)" == "active" ]] && break
+            sleep 5
+          done
+          ssh alvo "cd ~/bolsiq && docker compose up -d --wait --wait-timeout 300"
+          ssh alvo "cd ~/bolsiq && docker compose ps"
+
+      - name: Smoke
+        run: ssh alvo "cd ~/bolsiq && SMOKE_EXTRA_ENDPOINTS=/api/health bash smoke.sh http://localhost:8000"
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: ssh alvo "cd ~/bolsiq && docker compose logs --tail 200" || true
+
+      - name: Limpa a chave
+        if: always()
+        run: rm -f ~/.ssh/id_deploy ~/.ssh/config

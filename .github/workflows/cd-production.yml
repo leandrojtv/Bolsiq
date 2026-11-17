@@ -121,6 +121,10 @@ jobs:
     name: deploy produção
     needs: [resolver, promover]
     if: needs.resolver.outputs.tem_imagens == 'true'
+    # O deploy.yml pede packages: read (ver cd-develop.yml).
+    permissions:
+      contents: read
+      packages: read
     # A aprovação manual vem da regra de proteção do environment `production`
     # (required reviewers), configurada no repositório — não existe no YAML.
     uses: ./.github/workflows/deploy.yml
@@ -136,6 +140,9 @@ jobs:
     name: rollback automático
     needs: [resolver, deploy-producao]
     if: failure() && needs.resolver.outputs.tag_anterior != ''
+    permissions:
+      contents: read
+      packages: read
     # Usa o environment `production-rollback`: mesmos secrets de produção, mas
     # SEM required reviewers. Se o rollback esperasse aprovação, a produção
     # ficaria quebrada enquanto alguém acorda para clicar em aprovar.

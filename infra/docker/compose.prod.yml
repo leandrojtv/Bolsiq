@@ -1,20 +1,27 @@
-# ESQUELETO. Vale para staging e produção; o que muda entre os dois é o .env,
-# injetado pelo workflow deploy.yml a partir do secret ENV_FILE do environment.
+# Vale para staging e produção; o que muda entre os dois é o .env, injetado
+# pelo workflow deploy.yml a partir do secret ENV_FILE do environment.
 #
-# Está comentado de propósito: nenhum dos serviços existe ainda. À medida que
-# cada um nascer, descomente o bloco correspondente e acrescente a entrada em
-# infra/docker/deployables.json — é essa lista que liga o build e o deploy.
+# No host, este arquivo vira ~/bolsiq/compose.yml e os caminhos relativos
+# (./infra/...) apontam para os arquivos que o deploy.yml envia junto.
 #
 # Todas as imagens vêm do GHCR pela tag ${IMAGE_TAG}, nunca construídas no host:
 # produção roda exatamente o bit que passou por staging.
+#
+# As migrations ficam no profile `migrate`: o `docker compose up` (deploy e
+# bolsiq.service no boot) não as executa. O deploy.yml roda cada uma com
+# `docker compose run --rm`, em ordem, antes de subir os serviços.
+#
+# Só o Caddy publica porta para fora (80 e 443). O Kong publica 8000 apenas em
+# 127.0.0.1, para o smoke.sh rodar no próprio host. Postgres, NATS e o admin do
+# Kong não são publicados (ADR 0030).
 
 name: bolsiq
 
 services:
-  # Único serviço já utilizável: o Postgres com TimescaleDB.
   postgres:
     image: timescale/timescaledb-ha:pg17
     restart: unless-stopped
+    stop_grace_period: 60s
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?defina no .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
@@ -22,7 +29,7 @@ services:
     volumes:
       - postgres-data:/home/postgres/pgdata/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -42,67 +49,253 @@ services:
       retries: 10
     networks: [interna]
 
-  # migrate:
-  #   image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
-  #   command: ["pnpm", "db:migrate"]
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL:?}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   restart: "no"
-  #   networks: [interna]
+  # --- Migrations (profile migrate) -----------------------------------------
+  migrate:
+    image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
+    profiles: [migrate]
+    command: ["node", "node_modules/@bolsiq/db-core/dist/migrate.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?defina no .env}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    networks: [interna]
 
-  # market-data:
-  #   image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL:?}
-  #     NATS_URL: nats://nats:4222
-  #     OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-  #   depends_on:
-  #     postgres: { condition: service_healthy }
-  #     nats: { condition: service_healthy }
-  #   healthcheck:
-  #     test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #   networks: [interna]
+  alerts-migrate:
+    image: ghcr.io/leandrojtv/bolsiq-alerts-worker:${IMAGE_TAG:?}
+    profiles: [migrate]
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    networks: [interna]
 
-  # web:
-  #   image: ghcr.io/leandrojtv/bolsiq-web:${IMAGE_TAG:?}
-  #   restart: unless-stopped
-  #   environment:
-  #     MARKET_DATA_URL: http://market-data:3001
-  #   depends_on:
-  #     market-data: { condition: service_healthy }
-  #   networks: [interna]
+  analytics-migrate:
+    image: ghcr.io/leandrojtv/bolsiq-analytics-worker:${IMAGE_TAG:?}
+    profiles: [migrate]
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    networks: [interna]
 
-  # kong:
-  #   image: kong:3-ubuntu
-  #   restart: unless-stopped
-  #   environment:
-  #     KONG_DATABASE: "off"
-  #     KONG_DECLARATIVE_CONFIG: /kong/kong.yml
-  #     KONG_PROXY_LISTEN: 0.0.0.0:8000
-  #     KONG_ADMIN_LISTEN: 127.0.0.1:8001
-  #   volumes:
-  #     - ./infra/kong:/kong:ro
-  #   ports:
-  #     - "8000:8000"
-  #   depends_on:
-  #     market-data: { condition: service_healthy }
-  #   healthcheck:
-  #     test: ["CMD", "kong", "health"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #   networks: [interna]
+  portfolio-migrate:
+    image: ghcr.io/leandrojtv/bolsiq-portfolio-worker:${IMAGE_TAG:?}
+    profiles: [migrate]
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+    networks: [interna]
+
+  # --- market-data ------------------------------------------------------------
+  market-data:
+    image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      ROLE: api
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL:?}
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${IMAGE_TAG:?}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      BRAPI_DELAY_MINUTES: ${BRAPI_DELAY_MINUTES:-15}
+      QUOTE_TTL_SECONDS: ${QUOTE_TTL_SECONDS:-60}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?defina no .env}
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    networks: [interna]
+
+  # Mesmo binário, papel worker: pg-boss, crons e recuperação de jobs (ADR 0006, 0029).
+  market-data-worker:
+    image: ghcr.io/leandrojtv/bolsiq-market-data:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      ROLE: worker
+      DATABASE_URL: ${DATABASE_URL:?}
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      SERVICE_VERSION: ${IMAGE_TAG:?}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      BRAPI_DELAY_MINUTES: ${BRAPI_DELAY_MINUTES:-15}
+      QUOTE_TTL_SECONDS: ${QUOTE_TTL_SECONDS:-60}
+      FUNDOS_MESES: ${FUNDOS_MESES:-13}
+    # O worker não serve HTTP: o HEALTHCHECK da imagem bate em /v1/health.
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    networks: [interna]
+
+  # --- Workers ------------------------------------------------------------------
+  alerts-worker:
+    image: ghcr.io/leandrojtv/bolsiq-alerts-worker:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+      NATS_URL: nats://nats:4222
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_URL: ${APP_URL:?defina no .env}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:?}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:?}
+      FEATURE_TELEGRAM: ${FEATURE_TELEGRAM:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    networks: [interna]
+
+  analytics-worker:
+    image: ghcr.io/leandrojtv/bolsiq-analytics-worker:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+      NATS_URL: nats://nats:4222
+      MARKET_DATA_URL: http://market-data:3001
+      RECALC_CONCURRENCY: ${RECALC_CONCURRENCY:-2}
+    depends_on:
+      nats: { condition: service_healthy }
+      market-data: { condition: service_healthy }
+    networks: [interna]
+
+  portfolio-worker:
+    image: ghcr.io/leandrojtv/bolsiq-portfolio-worker:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?}
+      MARKET_DATA_URL: http://market-data:3001
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:?}
+      SNAPSHOT_CRON: ${SNAPSHOT_CRON:-0 19 * * 1-5}
+      RECALCULO_MS: ${RECALCULO_MS:-2000}
+      ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:?}
+      ASSISTANT_OLLAMA_URL: ${ASSISTANT_OLLAMA_URL:-http://host.docker.internal:11434}
+      ASSISTANT_OLLAMA_HOSTS: ${ASSISTANT_OLLAMA_HOSTS:-host.docker.internal,ollama}
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
+      ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
+      ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
+      ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
+      ASSISTANT_IMPORT_MAX_PAGES: ${ASSISTANT_IMPORT_MAX_PAGES:-500}
+      ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
+      ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
+    depends_on:
+      market-data: { condition: service_healthy }
+    networks: [interna]
+
+  # --- web (Next.js + BFF) --------------------------------------------------------
+  web:
+    image: ghcr.io/leandrojtv/bolsiq-web:${IMAGE_TAG:?}
+    restart: unless-stopped
+    environment:
+      # Rede interna: o BFF fala direto com o market-data; o Kong é a borda pública.
+      MARKET_DATA_URL: http://market-data:3001
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:?}
+      DATABASE_URL: ${DATABASE_URL:?}
+      NATS_URL: nats://nats:4222
+      APP_URL: ${APP_URL:?}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina no .env}
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-10}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:?}
+      FEATURE_TELEGRAM: ${FEATURE_TELEGRAM:-false}
+      ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:?}
+      ASSISTANT_RECOMMENDATIONS: ${ASSISTANT_RECOMMENDATIONS:-personal}
+      ASSISTANT_DAILY_MESSAGES: ${ASSISTANT_DAILY_MESSAGES:-100}
+      ASSISTANT_OLLAMA_URL: ${ASSISTANT_OLLAMA_URL:-http://host.docker.internal:11434}
+      ASSISTANT_OLLAMA_HOSTS: ${ASSISTANT_OLLAMA_HOSTS:-host.docker.internal,ollama}
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
+      ASSISTANT_PLATFORM_KEY: ${ASSISTANT_PLATFORM_KEY:-}
+      ASSISTANT_PLATFORM_PROVIDER: ${ASSISTANT_PLATFORM_PROVIDER:-deepseek}
+      ASSISTANT_PLATFORM_MODEL: ${ASSISTANT_PLATFORM_MODEL:-deepseek-flash}
+      ASSISTANT_PLATFORM_LIMITS: ${ASSISTANT_PLATFORM_LIMITS:-gratis:20}
+      ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
+      ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
+      ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
+      ASSISTANT_IMPORT_MAX_PAGES: ${ASSISTANT_IMPORT_MAX_PAGES:-500}
+      ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
+      ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
+    depends_on:
+      market-data: { condition: service_healthy }
+      nats: { condition: service_healthy }
+    networks: [interna]
+
+  # --- Borda ----------------------------------------------------------------------
+  # Kong DB-less como proxy (ADR 0007, opção C): /v1 -> market-data, / -> web.
+  kong:
+    image: kong:3.9
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 127.0.0.1:8001
+      KONG_STATUS_LISTEN: 127.0.0.1:8100
+      # Só o Caddy (rede interna) e o próprio host chegam aqui: confia no
+      # X-Forwarded-* que o Caddy envia, senão o app veria http e o IP do Caddy.
+      KONG_TRUSTED_IPS: 0.0.0.0/0,::/0
+      KONG_REAL_IP_HEADER: X-Forwarded-For
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_NGINX_WORKER_PROCESSES: "1"
+    volumes:
+      - ./infra/kong:/kong:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      market-data: { condition: service_healthy }
+      web: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
+  # HTTPS automático (Let's Encrypt) para ${APP_DOMAIN}. Único serviço exposto.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?defina no .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      kong: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks: [interna]
 
 volumes:
   postgres-data:
   nats-data:
+  caddy-data:
+  caddy-config:
 
 networks:
   interna:

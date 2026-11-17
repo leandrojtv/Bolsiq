@@ -1,0 +1,9 @@
+# Borda HTTPS. O certificado é emitido e renovado sozinho (Let's Encrypt) para
+# o domínio em APP_DOMAIN; tudo vai para o Kong na rede interna do compose.
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy kong:8000 {
+		# Streaming (SSE do sino, respostas do assistente) sem buffer.
+		flush_interval -1
+	}
+}

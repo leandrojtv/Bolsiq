@@ -227,6 +227,7 @@ export const ROTULO_DO_GRUPO: Record<GrupoDaLinha, string> = {
   pronta: "Prontas",
   preenchida: "Preenchidas automaticamente",
   ajuste: "Precisam de ajuste",
+  a_receber: "Proventos a receber",
 };
 
 /** Custo em dolares para a tela: "US$ 0,0021", ou "sem preço". */

@@ -130,6 +130,8 @@ export interface OpcoesDoRoteiro {
   falharOrigem?: string;
   /** O que a autocorrecao devolve. */
   correcao?: SaidaDasLinhas;
+  /** Mexe no texto das respostas de linhas (coluna a mais, por exemplo). */
+  estragar?: (texto: string) => string;
 }
 
 /** Modelo de mentira que devolve a resposta gravada. Confere o harness, nao homologa. */
@@ -164,7 +166,8 @@ export function modeloDeRoteiro(
         );
       const cortar = forma === "linhas" && truncadas < (o.truncar ?? 0);
       if (cortar) truncadas++;
-      const texto = respostaGravada(resposta, pedido, forma, o.correcao);
+      const gravada = respostaGravada(resposta, pedido, forma, o.correcao);
+      const texto = forma === "linhas" && o.estragar ? o.estragar(gravada) : gravada;
       return Promise.resolve({
         content: [
           {

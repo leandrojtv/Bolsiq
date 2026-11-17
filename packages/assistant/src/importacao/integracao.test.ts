@@ -629,6 +629,32 @@ describe("lotes grandes, retry e autocorrecao (v2)", () => {
     expect(r.validacao.linhas.map((l) => l.dados.codigo)).toEqual(["COE-SAN-0057"]);
   });
 
+  it("linha com colunas a mais vai para a autocorrecao e volta inteira (#43)", async () => {
+    const f = porId("santander-coe");
+    const [certa] = f.resposta.posicoes;
+    const modelo = modeloDeRoteiro(f.resposta, {
+      // Dois campos vazios a mais logo depois da data: nao da para consertar na leitura.
+      estragar: (t) =>
+        t.replace(
+          new RegExp(`^(\\d{4}-\\d{2}-\\d{2};)(.*${certa!.codigo})`, "m"),
+          "$1;;$2",
+        ),
+      correcao: {
+        posicoes: [certa!],
+        transacoes: [],
+        proventos: [],
+        notas: [],
+        malformadas: [],
+      },
+    });
+    const r = await executarFixture(f, modelo);
+    expect(r.correcao).toEqual({ rodadas: 1, recuperadas: 1 });
+    expect(r.validacao.rejeicoes).toEqual([]);
+    expect(r.validacao.linhas).toHaveLength(2);
+    const pedido = JSON.stringify(modelo.doGenerateCalls.at(-1)?.prompt);
+    expect(pedido).toContain("esperava 27 colunas, veio 29");
+  });
+
   it("abas no layout do Bolsiq entram sem IA, na mesma revisao", async () => {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();

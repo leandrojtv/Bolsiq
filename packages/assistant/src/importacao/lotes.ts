@@ -14,10 +14,11 @@ export interface LimitesDoModelo {
 }
 
 /**
- * Entrada de cada lote pelo orcamento do modelo: a saida em CSV tem cerca de 1,6
- * token por token lido (cada linha leva origem e trecho), entao o lote fica em
- * 60% da saida maxima; e entrada, prompt e saida cabem no contexto e abaixo de
- * LIMITE_DE_TOKENS (100 mil por chamada).
+ * Entrada de cada lote pelo orcamento do modelo: a saida em CSV tem cerca de 4
+ * tokens por token lido (cada linha leva as 27 colunas, a origem e o trecho; a
+ * posicao da XP deu 8,9 mil de saida para 2,4 mil de texto, #43), entao o lote
+ * fica em 25% da saida maxima; e entrada, prompt e saida cabem no contexto e
+ * abaixo de LIMITE_DE_TOKENS (100 mil por chamada).
  */
 export function tokensPorLote(
   maxSaida = MAX_TOKENS_DE_SAIDA_NA_IMPORTACAO,
@@ -25,7 +26,7 @@ export function tokensPorLote(
 ): number {
   const prompt = estimarTokens(SISTEMA_DE_IMPORTACAO);
   const cabe = Math.min(contexto, LIMITE_DE_TOKENS) - maxSaida - prompt - 1_000;
-  return Math.max(1_000, Math.min(Math.floor(maxSaida * 0.6), cabe, 20_000));
+  return Math.max(1_000, Math.min(Math.floor(maxSaida * 0.25), cabe, 20_000));
 }
 /** O que uma pagina ou imagem custa na entrada, em media, nos provedores com visao. */
 export const TOKENS_POR_PAGINA_DE_IMAGEM = 1_600;

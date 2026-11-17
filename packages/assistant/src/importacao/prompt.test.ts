@@ -30,10 +30,14 @@ describe("prompt de importacao", () => {
   });
 
   it("o exemplo do formato tem os cabecalhos do parser e se le sem erro", () => {
-    for (const tipo of TIPOS_DE_BLOCO)
+    // Posicao: o cabecalho completo aparece como referencia; os exemplos vao curtos.
+    for (const tipo of TIPOS_DE_BLOCO.filter((t) => t !== "posicoes"))
       expect(FORMATO_DE_SAIDA).toContain(
         `\`\`\`csv ${tipo}\n${(COLUNAS_DO_BLOCO[tipo] as readonly string[]).join(";")}\n`,
       );
+    expect(FORMATO_DE_SAIDA).toContain(
+      `Cabeçalho completo de posicoes:\n${COLUNAS_DO_BLOCO.posicoes.join(";")}\n`,
+    );
     const r = lerResposta(FORMATO_DE_SAIDA);
     expect(r.cabecalhos_invalidos).toEqual([]);
     expect(r.saida.malformadas).toEqual([]);

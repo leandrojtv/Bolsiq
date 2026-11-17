@@ -246,9 +246,26 @@ function corresponde(
   return ativo(o) !== "" && ativo(o) === ativo(c);
 }
 
+type Corrigida = {
+  origem: { pagina_ou_aba: string; trecho_original: string };
+} & Record<string, unknown>;
+
+/** A corrigida refaz a malformada: mesma pagina e o ativo escrito nela. */
+function refazMalformada(m: SaidaDaIA["malformadas"][number], c: Corrigida): boolean {
+  const bruta = compactar(m.conteudo);
+  const v = [c.codigo, c.ticker, c.ativo].find((y) => typeof y === "string" && y !== "");
+  const ativo = compactar(typeof v === "string" ? v : "");
+  return (
+    ativo !== "" &&
+    bruta.includes(ativo) &&
+    bruta.includes(compactar(c.origem.pagina_ou_aba))
+  );
+}
+
 /**
- * Poe as corrigidas no lugar das recusadas. Recusada que nao voltou fica como
- * estava (e continua recusada ou em ajuste): o modelo nao tira linha da revisao.
+ * Poe as corrigidas no lugar das recusadas e das malformadas (linha com colunas
+ * a mais ou a menos). Recusada que nao voltou fica como estava (e continua
+ * recusada ou em ajuste): o modelo nao tira linha da revisao.
  */
 function substituir(
   saida: SaidaDaIA,
@@ -272,11 +289,15 @@ function substituir(
     transacoes: "transacao",
     proventos: "provento",
   };
+  const malformadas = saida.malformadas.filter(
+    (m) => !todas.some((c) => refazMalformada(m, c)),
+  );
   const valida = (chave: string) => (c: unknown) =>
     recusadas.some(
       (r) =>
         r.tipo === tipo[chave] && corresponde(r, c as Parameters<typeof corresponde>[1]),
-    );
+    ) ||
+    saida.malformadas.some((m) => m.tipo === chave && refazMalformada(m, c as Corrigida));
   return {
     ...saida,
     posicoes: [
@@ -291,7 +312,8 @@ function substituir(
       ...saida.proventos.filter((x) => !fora.has(x)),
       ...corrigidas.proventos.filter(valida("proventos")),
     ],
-    malformadas: [...saida.malformadas, ...corrigidas.malformadas],
+    // A malformada da correcao repete uma que ja esta aqui.
+    malformadas,
   };
 }
 
@@ -341,6 +363,8 @@ export async function importarComIA(
   const uso: Uso = { tokens_entrada: 0, tokens_saida: 0 };
   const pedido = {
     modelo: p.modelo,
+    provedor: p.provedor,
+    nome_do_modelo: p.nome_do_modelo,
     lotes: a.lotes,
     partes: a.partes,
     imagens: a.imagens,
@@ -446,14 +470,20 @@ export async function importarComIA(
   p.aoAvancar?.({ etapa: "validando" });
   let validacao = await validar(saida);
   let rodadas = 0;
-  const antes = validacao.para_corrigir.length;
+  const pendentes = () => validacao.para_corrigir.length + saida.malformadas.length;
+  const antes = pendentes();
   if (!doCache && chamouProvedor)
-    while (rodadas < RODADAS_DE_CORRECAO && validacao.para_corrigir.length > 0) {
+    while (rodadas < RODADAS_DE_CORRECAO && pendentes() > 0) {
       if (p.abortar?.aborted) break;
       rodadas++;
       p.aoAvancar?.({ etapa: "corrigindo", feitos: rodadas, total: RODADAS_DE_CORRECAO });
       try {
-        const corrigidas = await corrigirLinhas(pedido, validacao.para_corrigir, uso);
+        const corrigidas = await corrigirLinhas(
+          pedido,
+          validacao.para_corrigir,
+          uso,
+          saida.malformadas,
+        );
         saida = substituir(saida, validacao.para_corrigir, corrigidas);
       } catch (erro) {
         // Autocorrecao e melhoria: se o provedor falhar, segue com o que ha.
@@ -462,7 +492,7 @@ export async function importarComIA(
       }
       validacao = await validar(saida);
     }
-  const recuperadas = Math.max(0, antes - validacao.para_corrigir.length);
+  const recuperadas = Math.max(0, antes - pendentes());
 
   const custo = chamouProvedor ? custoEstimado(uso, p.preco) : "0.000000";
   if (chamouProvedor) await p.armazem.registrarUso(uso, custo);

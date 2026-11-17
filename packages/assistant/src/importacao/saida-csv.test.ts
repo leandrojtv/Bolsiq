@@ -129,3 +129,62 @@ describe("blocos da resposta", () => {
     expect(lerResposta(escreverBlocos(lida)).saida).toEqual(lida);
   });
 });
+
+describe("posicao com coluna a mais antes da observacao (#43)", () => {
+  const bloco = (linha: string) => `\`\`\`csv posicoes\n${CAB_P}\n${linha}\n\`\`\``;
+
+  it("campo vazio antes da observacao: conserta e guarda a observacao", () => {
+    const r = lerResposta(
+      bloco(
+        '2026-11-12;XP;bdr;;AAPL34;AAPL34;;;;;;;;;54;100.09;;;5404.86;;;;cotacao_b3;;preço médio indefinido;aba Sua carteira;"AAPL34;R$ 5.404,86;-;Indefinido;R$ 100,09;54";alta',
+      ),
+    );
+    expect(r.saida.malformadas).toEqual([]);
+    expect(r.saida.posicoes[0]).toMatchObject({
+      codigo: "AAPL34",
+      saldo_bruto: "5404.86",
+      valorizacao: "cotacao_b3",
+      observacao: "preço médio indefinido",
+      origem: { pagina_ou_aba: "aba Sua carteira" },
+      confianca: "alta",
+    });
+  });
+
+  it("desalinhamento que o resto da linha nao confirma continua recusado", () => {
+    const r = lerResposta(
+      bloco(
+        "2026-11-12;XP;previdencia;Pós-Fixado;Fundo Prev;;;;;;;;;;;;;;;13000.00;13869.26;;;13869.26;cota_cvm;sem CNPJ;aba Sua carteira;Fundo Prev 13.869,26;media",
+      ),
+    );
+    expect(r.saida.posicoes).toEqual([]);
+    expect(r.saida.malformadas[0]?.motivo).toBe("esperava 27 colunas, veio 29");
+  });
+});
+
+describe("posicao com cabecalho curto (#43)", () => {
+  it("le so as colunas da secao; as que faltam ficam vazias", () => {
+    const r = lerResposta(
+      [
+        "```csv posicoes",
+        "data_posicao;corretora;classe;subclasse;ativo;valor_aplicado;saldo_bruto;saldo_liquido;valorizacao;pagina_ou_aba;trecho_original;confianca",
+        '2026-11-12;XP;fundo;Pós-Fixado;Jive BossaNova 90 FIDC;12554.79;12928.73;12879.80;cota_cvm;aba Sua carteira;"Jive BossaNova 90 FIDC;;;R$ 12.928,73";alta',
+        "```",
+      ].join("\n"),
+    );
+    expect(r.cabecalhos_invalidos).toEqual([]);
+    expect(r.saida.posicoes[0]).toMatchObject({
+      classe: "fundo",
+      ativo: "Jive BossaNova 90 FIDC",
+      saldo_bruto: "12928.73",
+      cnpj: "",
+      quantidade: "",
+    });
+  });
+
+  it("sem saldo_bruto o bloco e invalido", () => {
+    const r = lerResposta(
+      "```csv posicoes\ndata_posicao;classe;ativo;pagina_ou_aba;trecho_original;confianca\n2026-11-12;acao;PETR4;texto;PETR4;alta\n```",
+    );
+    expect(r.cabecalhos_invalidos[0]?.motivo).toMatch(/saldo_bruto/);
+  });
+});

@@ -189,7 +189,7 @@ export function estimarImportacao(
   const cabecalho = { entrada: 1_000 + Math.min(6_000, ...porLote) + visao, saida: 500 };
   const lotes = porLote.reduce((s, t) => s + t, 0);
   const saidaDosLotes = porLote.reduce(
-    (s, t) => s + Math.min(maxSaida, Math.ceil(t * 1.2)),
+    (s, t) => s + Math.min(maxSaida, Math.ceil(t * 4)),
     0,
   );
   const correcao = {

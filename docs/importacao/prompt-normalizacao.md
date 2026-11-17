@@ -107,7 +107,15 @@ Proventos (dividendos, JCP, rendimentos):
 
 - data_pagamento AAAA-MM-DD, ticker, tipo (dividendo, jcp, rendimento ou outro),
   quantidade de cotas ou ações, valor_por_cota e valor_total, como no documento.
-- Valor líquido de IR quando o documento trouxer os dois.
+- tipo pelo texto do documento: DIVIDENDO é dividendo; JUROS SOBRE CAPITAL PROPRIO
+  ou JCP é jcp; RENDIMENTO (FII) é rendimento.
+- Valor líquido de IR quando o documento trouxer os dois (JCP traz bruto e
+  líquido: valor_total é o líquido).
+- Proventos provisionados, a receber ou com pagamento futuro, mesmo dentro de um
+  extrato de posição (uma tabela com ticker, quantidade, valor e data de pagamento
+  na aba ou página da carteira), são proventos: viram linha em proventos, com a data
+  de pagamento prevista. Nunca viram posição nem transação. Não deixe de fora por a
+  data ser futura: o Bolsiq separa os que ainda não foram pagos.
 
 Documento:
 
@@ -147,12 +155,26 @@ o bloco. Nada fora dos blocos.
 Cada bloco abre com ```csv <tipo> e fecha com ```. A primeira linha é exatamente o
 cabeçalho abaixo. Separador ponto e vírgula. Campo com ponto e vírgula ou aspas vai
 entre aspas duplas, com as aspas internas duplicadas. Uma linha por registro, sem
-quebra de linha dentro do campo. Campo sem valor fica vazio.
+quebra de linha dentro do campo. Campo sem valor fica vazio. Toda linha tem
+exatamente as colunas do cabeçalho, nem uma a mais: conte os separadores.
+
+Em posicoes, escreva um bloco por seção do documento (ações, renda fixa, fundos...),
+com o cabeçalho só das colunas que a seção preenche, na ordem do cabeçalho completo
+abaixo. Sempre presentes: data_posicao, classe, ativo, saldo_bruto, pagina_ou_aba,
+trecho_original e confianca. Coluna que nenhuma linha da seção usa fica fora do
+cabeçalho, em vez de vazia em todas as linhas.
+
+Cabeçalho completo de posicoes:
+data_posicao;corretora;classe;subclasse;ativo;codigo;cnpj;emissor;indexador;pct_indexador;taxa_aa;data_aplicacao;vencimento;liquidez_diaria;quantidade;preco_unitario;preco_medio;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;observacao;pagina_ou_aba;trecho_original;confianca
 
 ```csv posicoes
-data_posicao;corretora;classe;subclasse;ativo;codigo;cnpj;emissor;indexador;pct_indexador;taxa_aa;data_aplicacao;vencimento;liquidez_diaria;quantidade;preco_unitario;preco_medio;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;observacao;pagina_ou_aba;trecho_original;confianca
-2026-10-31;XP;acao;;PETR4;PETR4;;;;;;;;;100;38.42;32.50;;3842.00;;;;cotacao_b3;;aba Ações;"PETR4;100;32.5;38.42;3842";alta
-2026-10-31;XP;renda_fixa;Pós-Fixado;"CDB BANCO ALFA; SET/2028";;;BANCO ALFA S.A.;CDI;1.10;;2025-09-15;2028-09-15;;;;;10000;11234.56;210.12;0;11024.44;curva;;aba Renda Fixa;"CDB BANCO ALFA; SET/2028 110% CDI 11234.56";alta
+data_posicao;corretora;classe;ativo;codigo;quantidade;preco_unitario;preco_medio;saldo_bruto;valorizacao;pagina_ou_aba;trecho_original;confianca
+2026-10-31;XP;acao;PETR4;PETR4;100;38.42;32.50;3842.00;cotacao_b3;aba Ações;"PETR4;100;32.5;38.42;3842";alta
+```
+
+```csv posicoes
+data_posicao;corretora;classe;subclasse;ativo;emissor;indexador;pct_indexador;data_aplicacao;vencimento;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;pagina_ou_aba;trecho_original;confianca
+2026-10-31;XP;renda_fixa;Pós-Fixado;"CDB BANCO ALFA; SET/2028";BANCO ALFA S.A.;CDI;1.10;2025-09-15;2028-09-15;10000;11234.56;210.12;0;11024.44;curva;aba Renda Fixa;"CDB BANCO ALFA; SET/2028 110% CDI 11234.56";alta
 ```
 
 ```csv transacoes

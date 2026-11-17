@@ -147,3 +147,19 @@ describe("juntar as partes", () => {
     expect(juntarSaidas([s, s]).documento.tipo).toBe("posicao");
   });
 });
+
+describe("raciocinio na importacao (#43)", () => {
+  it("desliga onde a API aceita e baixa o esforco onde nao desliga", async () => {
+    const { semRaciocinio } = await import("./extracao.js");
+    expect(semRaciocinio("anthropic", "claude-haiku-5-5")).toEqual({
+      anthropic: { thinking: { type: "disabled" } },
+    });
+    expect(semRaciocinio("anthropic", "claude-sonnet-5-5")).toEqual({
+      anthropic: { thinking: { type: "between_tools" } },
+    });
+    expect(semRaciocinio("anthropic", "claude-opus-5-5")).toEqual({
+      anthropic: { effort: "low" },
+    });
+    expect(semRaciocinio("deepseek", "deepseek-flash")).toBeUndefined();
+  });
+});

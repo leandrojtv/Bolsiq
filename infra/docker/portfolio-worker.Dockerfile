@@ -25,8 +25,21 @@ FROM deps AS build
 COPY --from=pruner /repo/out/full/ ./
 RUN pnpm turbo run build --filter=@bolsiq/portfolio-worker...
 RUN pnpm --filter=@bolsiq/portfolio-worker deploy --prod /app
+# O better-auth (via @bolsiq/auth) declara vitest e drizzle-kit como peers
+# opcionais, e o pnpm os resolve a partir das devDependencies do workspace.
+# Nada disso roda em produção; o esbuild que vem junto reprova o Trivy (#54).
+RUN cd /app/node_modules/.pnpm \
+    && rm -rf vitest@* @vitest+* vite@* tsx@* drizzle-kit@* esbuild@* @esbuild+* @esbuild-kit+* \
+    && find /app/node_modules -xtype l -delete
 
 FROM node:22-bookworm-slim AS runtime
+# Correções de segurança do Debian que a imagem base ainda não trouxe, e sem o
+# npm, o corepack e o yarn, que não rodam em runtime e reprovam o Trivy (#54).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+       /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
+       /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
 ENV NODE_ENV=production
 ENV PORT=3004
 # Leitura da importacao com IA: pdftotext e pdftoppm (PDF que o pdf.js nao abre,

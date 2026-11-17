@@ -16,7 +16,8 @@ import { BcbAdapter } from "./fontes/bcb.js";
 import { BrapiAdapter } from "./fontes/brapi.js";
 import { CvmAdapter } from "./fontes/cvm.js";
 import { publicarPendentes } from "@bolsiq/messaging";
-import { adminDoPgBoss } from "./jobs/admin.js";
+import { adminDoPgBoss, agendadosDesde } from "./jobs/admin.js";
+import { recuperarJobsAtrasados } from "./jobs/recuperacao.js";
 import { consumir, iniciarFila, type Fila } from "./worker.js";
 
 const env = carregarEnv();
@@ -90,6 +91,7 @@ async function conectarAoNats(): Promise<Messaging | undefined> {
 }
 
 const fila: Fila = await iniciarFila(env, { agendar: consumirFila(env.ROLE) });
+const admin = adminDoPgBoss(fila.boss, db);
 
 const app = await criarApp({
   env,
@@ -106,7 +108,7 @@ const app = await criarApp({
       brapiComToken: env.BRAPI_TOKEN !== undefined,
     },
   }),
-  admin: adminDoPgBoss(fila.boss, db),
+  admin,
 });
 
 if (consumirFila(env.ROLE)) {
@@ -123,6 +125,12 @@ if (consumirFila(env.ROLE)) {
       "outbox-publish": async () =>
         messaging ? publicarPendentes({ db, publicador: messaging }) : { sem_nats: true },
     },
+  );
+  // Horário que passou com o worker fora do ar não volta pelo cron (#48).
+  // Falhar aqui não derruba o worker: o cron continua valendo.
+  await recuperarJobsAtrasados(admin, () => agendadosDesde(db), log).catch(
+    (erro: unknown) =>
+      log("error", "falha ao recuperar jobs atrasados", { erro: String(erro) }),
   );
 }
 

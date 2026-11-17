@@ -86,11 +86,14 @@ jobs:
           set -euo pipefail
           ssh alvo "mkdir -p ~/bolsiq"
           scp "${{ inputs.compose_file }}" alvo:~/bolsiq/compose.yml
-          scp infra/docker/smoke.sh alvo:~/bolsiq/smoke.sh
-          if [[ -d infra/kong ]]; then
-            ssh alvo "mkdir -p ~/bolsiq/infra/kong"
-            scp -r infra/kong/. alvo:~/bolsiq/infra/kong/
-          fi
+          scp infra/docker/smoke.sh infra/docker/health-endpoints.txt alvo:~/bolsiq/
+          scp infra/azure/backup-postgres.sh alvo:~/bolsiq/backup-postgres.sh
+          # Configs montadas pelo compose (caminhos relativos a ~/bolsiq).
+          for dir in kong caddy nats; do
+            # shellcheck disable=SC2029 # expansão local de propósito
+            ssh alvo "mkdir -p ~/bolsiq/infra/$dir"
+            scp -r "infra/$dir/." "alvo:~/bolsiq/infra/$dir/"
+          done
 
       - name: Injeta o .env do ambiente
         env:
@@ -119,7 +122,11 @@ jobs:
         run: |
           set -euo pipefail
           # Passo único e isolado: nenhum serviço sobe antes do schema estar pronto.
-          ssh alvo "cd ~/bolsiq && docker compose run --rm migrate"
+          # O core (db-core) primeiro; os módulos dependem dos schemas dele.
+          for m in migrate alerts-migrate analytics-migrate portfolio-migrate; do
+            # shellcheck disable=SC2029 # expansão local de propósito
+            ssh alvo "cd ~/bolsiq && docker compose run --rm $m"
+          done
 
       - name: Sobe os serviços
         run: |
@@ -129,7 +136,7 @@ jobs:
 
       - name: Smoke pós-deploy
         if: inputs.smoke
-        run: ssh alvo "cd ~/bolsiq && bash smoke.sh http://localhost:8000"
+        run: ssh alvo "cd ~/bolsiq && SMOKE_EXTRA_ENDPOINTS=/api/health bash smoke.sh http://localhost:8000"
 
       - name: Logs em caso de falha
         if: failure()

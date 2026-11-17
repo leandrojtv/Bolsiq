@@ -6,6 +6,7 @@
 #
 # Uso: bash smoke.sh [base_url]
 #   base_url padrão: http://localhost:8000 (porta do proxy do Kong)
+#   SMOKE_EXTRA_ENDPOINTS="/api/health" acrescenta endpoints à lista.
 #
 # A lista de endpoints vive em infra/docker/health-endpoints.txt (um por linha,
 # comentários com #). Se o arquivo não existir, usa só o status do Kong.
@@ -27,6 +28,12 @@ if [[ -f "$lista" ]]; then
     [[ -n "$linha" ]] && endpoints+=("$linha")
   done < "$lista"
 fi
+
+# Endpoints extras, separados por espaço. O deploy usa para checar o web pela
+# rota / do Kong, que não existe no compose do CI.
+for extra in ${SMOKE_EXTRA_ENDPOINTS:-}; do
+  endpoints+=("$extra")
+done
 
 if [[ ${#endpoints[@]} -eq 0 ]]; then
   echo "Nenhum endpoint em health-endpoints.txt; verificando apenas o Kong."

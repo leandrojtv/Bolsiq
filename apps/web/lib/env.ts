@@ -45,6 +45,9 @@ const Env = z.object({
   SMTP_HOST: z.string().default("localhost"),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_FROM: z.string().default("Bolsiq <nao-responda@bolsiq.local>"),
+  /** Login no provedor SMTP. Vazio: sem autenticacao (Mailpit). */
+  SMTP_USER: vazioEhAusente,
+  SMTP_PASSWORD: vazioEhAusente,
   /** Tentativas de login, cadastro e recuperacao por IP por minuto. */
   AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
   /** 32 bytes em base64: cifra a chave de provedor de cada usuario (ADR 0024). */

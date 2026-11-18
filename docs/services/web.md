@@ -51,6 +51,7 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 
 | Rota                                              | O que é                                                   |
 | ------------------------------------------------- | --------------------------------------------------------- |
+| `/ativo`                                          | aba Ativos: busca no topo e atalhos da watchlist          |
 | `/ativo/[ticker]`                                 | página do ativo; 404 próprio para ticker fora do universo |
 | `/api/v1/...`                                     | BFF do `/v1`, só leitura, com a chave interna             |
 | `/api/indicadores/[ticker]`                       | últimos indicadores do analytics                          |

@@ -23,6 +23,8 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # Sem isto a action usa a branch padrão do repositório (develop).
+          target-branch: main
           # PAT necessário para que o PR criado dispare o CI. Com o
           # GITHUB_TOKEN padrão, o PR não aciona workflows.
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}

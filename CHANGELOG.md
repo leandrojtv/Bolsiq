@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/leandrojtv/Bolsiq/compare/v0.1.0...v0.1.1) (2026-11-18)
+
+
+### Correções
+
+* **ci:** release-please com PR separado para gerar a tag ([804076b](https://github.com/leandrojtv/Bolsiq/commit/804076b33f2512c3ff97e9704f3824b19b45e092))
+* **ci:** release-please com PR separado para gerar a tag ([#64](https://github.com/leandrojtv/Bolsiq/issues/64)) ([871daed](https://github.com/leandrojtv/Bolsiq/commit/871daede58992d18243592601a5dbbc8830c65d8))
+
 ## 0.1.0 (2026-11-18)
 
 

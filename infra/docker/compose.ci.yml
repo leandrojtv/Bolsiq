@@ -1,0 +1,254 @@
+# Compose usado pelos jobs `smoke` e `e2e` do CI.
+#
+# Sobe as imagens recém-construídas no job `build`, aplica as migrations como
+# passo único e espera todos os containers ficarem healthy.
+#
+# O market-data é publicado na porta 8000, que será a do Kong quando o gateway
+# existir (prompt do gateway / ADR 0007). Assim o smoke.sh não muda de endereço
+# quando o Kong entrar na frente.
+
+name: bolsiq-ci
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_USER: bolsiq
+      POSTGRES_PASSWORD: bolsiq
+      POSTGRES_DB: bolsiq
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bolsiq -d bolsiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  nats:
+    image: nats:2-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    volumes:
+      - ../nats/nats.conf:/etc/nats/nats.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  alerts-migrate:
+    image: bolsiq-alerts-worker:${IMAGE_TAG:-local}
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  alerts-worker:
+    image: bolsiq-alerts-worker:${IMAGE_TAG:-local}
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      NATS_URL: nats://nats:4222
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    depends_on:
+      nats:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      alerts-migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    image: bolsiq-market-data:${IMAGE_TAG:-local}
+    command: ["node", "node_modules/@bolsiq/db-core/dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  market-data:
+    image: bolsiq-market-data:${IMAGE_TAG:-local}
+    environment:
+      ROLE: api
+      PORT: "3001"
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: warn
+      SERVICE_VERSION: ${IMAGE_TAG:-local}
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+      # Token de desenvolvimento, so para este compose. Em deploy vem do
+      # ENV_FILE do environment (docs/ci-cd.md).
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token-troque-em-producao}
+    ports:
+      - "8000:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  market-data-worker:
+    image: bolsiq-market-data:${IMAGE_TAG:-local}
+    environment:
+      ROLE: worker
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      NATS_URL: nats://nats:4222
+      LOG_LEVEL: warn
+      BRAPI_TOKEN: ${BRAPI_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  analytics-migrate:
+    image: bolsiq-analytics-worker:${IMAGE_TAG:-local}
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  analytics-worker:
+    image: bolsiq-analytics-worker:${IMAGE_TAG:-local}
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      NATS_URL: nats://nats:4222
+      MARKET_DATA_URL: http://market-data:3001
+    depends_on:
+      nats:
+        condition: service_healthy
+      market-data:
+        condition: service_healthy
+      analytics-migrate:
+        condition: service_completed_successfully
+
+  # Provedor de IA falso: so neste compose, para o e2e do assistente.
+  llm-falso:
+    image: node:22-bookworm-slim
+    command: ["node", "/llm-falso.mjs"]
+    volumes:
+      - ./llm-falso.mjs:/llm-falso.mjs:ro
+      - ./llm-falso-importacao.json:/llm-falso-importacao.json:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:11434/saude').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    image: bolsiq-web:${IMAGE_TAG:-local}
+    environment:
+      # Sem o Kong ainda, o BFF fala direto com o market-data. Com o gateway,
+      # muda so esta URL (ADR 0007). A chave fica so no servidor.
+      MARKET_DATA_URL: http://market-data:3001
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-mdk_test_chave_interna_de_desenvolvimento}
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      # Sino: o BFF assina alerts.inapp.<user_id> e repassa por SSE.
+      NATS_URL: nats://nats:4222
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      FEATURE_TELEGRAM: ${FEATURE_TELEGRAM:-false}
+      # Login (ADR 0010 e 0022). Segredo de desenvolvimento; em producao vem do ambiente.
+      APP_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-segredo-de-desenvolvimento-nao-usar-em-producao}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      # O e2e cria varios usuarios do mesmo IP em segundos.
+      AUTH_RATE_LIMIT: ${AUTH_RATE_LIMIT:-100}
+      # Assistente (ADR 0024). Chave-mestra de desenvolvimento, 32 bytes em base64.
+      ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:-ZGVzZW52b2x2aW1lbnRvLW5hby11c2FyLWVtLXByb2Q=}
+      ASSISTANT_RECOMMENDATIONS: ${ASSISTANT_RECOMMENDATIONS:-personal}
+      ASSISTANT_DAILY_MESSAGES: ${ASSISTANT_DAILY_MESSAGES:-100}
+      ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
+      ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
+      ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
+      ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
+      ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
+      ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
+      # Vazio usa a DeepSeek de verdade, como no `make dev-up`. So o job e2e aponta
+      # para o provedor falso (ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434).
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      market-data:
+        condition: service_healthy
+      analytics-migrate:
+        condition: service_completed_successfully
+      alerts-migrate:
+        condition: service_completed_successfully
+      nats:
+        condition: service_healthy
+      portfolio-migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+      llm-falso:
+        condition: service_healthy
+
+  portfolio-migrate:
+    image: bolsiq-portfolio-worker:${IMAGE_TAG:-local}
+    command: ["node", "dist/migrate.js"]
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  portfolio-worker:
+    image: bolsiq-portfolio-worker:${IMAGE_TAG:-local}
+    environment:
+      DATABASE_URL: postgres://bolsiq:bolsiq@postgres:5432/bolsiq
+      MARKET_DATA_URL: http://market-data:3001
+      MARKET_DATA_API_KEY: ${MARKET_DATA_API_KEY:-mdk_test_chave_interna_de_desenvolvimento}
+      # Importacao com IA em segundo plano (ADR 0027): mesma chave-mestra do web.
+      ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:-ZGVzZW52b2x2aW1lbnRvLW5hby11c2FyLWVtLXByb2Q=}
+      ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
+      ASSISTANT_DEEPSEEK_URL: ${ASSISTANT_DEEPSEEK_URL:-}
+      ASSISTANT_IMPORT_DAILY: ${ASSISTANT_IMPORT_DAILY:-20}
+      ASSISTANT_IMPORT_TOLERANCE: ${ASSISTANT_IMPORT_TOLERANCE:-0.005}
+      ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
+      ASSISTANT_IMPORT_MAX_PAGES: ${ASSISTANT_IMPORT_MAX_PAGES:-500}
+      ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
+      ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
+    depends_on:
+      market-data:
+        condition: service_healthy
+      portfolio-migrate:
+        condition: service_completed_successfully

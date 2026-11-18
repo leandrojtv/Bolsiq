@@ -1,0 +1,29 @@
+# Configuração declarativa do Kong (modo DB-less).
+#
+# Pelo ADR 0007 (opção C), o Kong é só proxy: a chave de API, o limite por
+# plano e a medição ficam no market-data. Aqui só há o roteamento.
+#   /v1  -> market-data (API pública, OpenAPI em /v1/openapi.json)
+#   /    -> web (Next.js + BFF)
+# As rotas /admin do market-data não são expostas: use pela rede interna.
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: market-data
+    url: http://market-data:3001
+    routes:
+      - name: market-data-v1
+        paths: ["/v1"]
+        strip_path: false
+        preserve_host: true
+
+  - name: web
+    url: http://web:3000
+    # SSE do sino e streaming do assistente: conexões longas.
+    read_timeout: 300000
+    write_timeout: 300000
+    routes:
+      - name: web
+        paths: ["/"]
+        strip_path: false
+        preserve_host: true

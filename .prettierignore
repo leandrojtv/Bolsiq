@@ -1,0 +1,21 @@
+pnpm-lock.yaml
+**/dist/**
+**/coverage/**
+**/.turbo/**
+**/migrations/**
+**/openapi.json
+
+# Gerado por scripts/gerar-docs-eventos.ts; o formato é do gerador
+docs/events.md
+
+# Design de referencia exportado do canvas: arquivo de origem, nao codigo.
+docs/design/
+
+# Hex escrito como na tabela de docs/design/README.md; o Prettier o poria em minusculas.
+packages/ui/tokens.css
+**/storybook-static/**
+**/test-results/**
+**/playwright-report/**
+
+# Gerado pelo make eval-assistente.
+packages/assistant/homologacao/

@@ -1,0 +1,20 @@
+{
+  "extends": "@bolsiq/config/tsconfig.lib.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": [
+    "src/**/*",
+    "stories/**/*",
+    ".storybook/**/*",
+    "tests/**/*",
+    "*.config.ts",
+    "eslint-tokens.d.ts"
+  ]
+}

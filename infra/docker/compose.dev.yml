@@ -1,0 +1,71 @@
+# Ambiente de desenvolvimento. `make up` sobe isto.
+#
+# Regra 1 do CLAUDE.md: nada aqui depende de instalação local além de Docker.
+
+name: bolsiq-dev
+
+services:
+  postgres:
+    image: timescale/timescaledb-ha:pg17
+    environment:
+      POSTGRES_USER: bolsiq
+      POSTGRES_PASSWORD: bolsiq
+      POSTGRES_DB: bolsiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-dev:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bolsiq -d bolsiq"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  nats:
+    image: nats:2-alpine
+    # Configuração versionada em infra/nats/nats.conf. O stream em si é criado
+    # pelo market-data na subida, a partir de packages/messaging/src/stream.ts.
+    command: ["-c", "/etc/nats/nats.conf"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-dev:/data
+      - ../nats/nats.conf:/etc/nats/nats.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Servidor de e-mail de desenvolvimento. Verificacao de e-mail, recuperacao
+  # de senha e 2FA mandam mensagem; sem isto o fluxo nao da para testar, e
+  # mandar e-mail de verdade a partir de maquina de desenvolvimento e pior.
+  mailpit:
+    image: axllent/mailpit:v1.21
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Perfil tools: nao sobe no `make up`, so quando pedido.
+  #   docker compose -f infra/docker/compose.dev.yml --profile tools up -d storybook
+  storybook:
+    profiles: ["tools"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/storybook.Dockerfile
+    image: bolsiq-storybook:local
+    ports:
+      - "6006:80"
+
+volumes:
+  postgres-dev:
+  nats-dev:

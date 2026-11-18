@@ -1,0 +1,96 @@
+name: back-merge de hotfix
+
+# Hotfix mergeado em main precisa voltar para develop, senão a correção se
+# perde na próxima release. Este workflow abre o PR de back-merge sozinho.
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  back-merge:
+    name: abre PR para develop
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.merged == true &&
+      (startsWith(github.event.pull_request.head.ref, 'hotfix/') ||
+       startsWith(github.event.pull_request.head.ref, 'release/'))
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cria a branch de back-merge
+        id: branch
+        env:
+          ORIGEM: ${{ github.event.pull_request.head.ref }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          slug=$(echo "$ORIGEM" | tr '/' '-' | tr -cd '[:alnum:]-' | cut -c1-40)
+          branch="chore/${PR_NUM}-back-merge-${slug}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+          git fetch origin main develop
+          git switch -c "$branch" origin/develop
+
+          if git merge --no-ff origin/main -m "chore: back-merge de main para develop apos #${PR_NUM}"; then
+            echo "conflito=false" >> "$GITHUB_OUTPUT"
+          else
+            # Mantém os conflitos no commit para que o humano resolva no PR,
+            # em vez de escolher um lado automaticamente.
+            git add -A
+            git commit -m "chore: back-merge de main para develop apos #${PR_NUM} (COM CONFLITOS)"
+            echo "conflito=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          if git diff --quiet origin/develop.."$branch"; then
+            echo "vazio=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "vazio=false" >> "$GITHUB_OUTPUT"
+            git push origin "$branch"
+          fi
+
+      - name: Abre o PR
+        if: steps.branch.outputs.vazio == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          CONFLITO: ${{ steps.branch.outputs.conflito }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          ORIGEM: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          aviso=""
+          if [[ "$CONFLITO" == "true" ]]; then
+            aviso="> **Houve conflito.** Os marcadores de conflito foram commitados de propósito, para que a resolução seja humana e revisável. Resolva na própria branch antes de mergear."
+          fi
+          gh pr create \
+            --base develop \
+            --head "$BRANCH" \
+            --title "chore: back-merge de \`$ORIGEM\` para develop" \
+            --label "back-merge" \
+            --body "$(printf '%s\n' \
+              "## Contexto" "" \
+              "Back-merge automático de \`main\` para \`develop\` após o merge do #${PR_NUM} (\`$ORIGEM\`)." "" \
+              "$aviso" "" \
+              "## Mudanças" "" \
+              "- Traz para \`develop\` o que entrou em \`main\` pela \`$ORIGEM\`." "" \
+              "## Como testar" "" \
+              '```bash' "make up" "make test" '```' "" \
+              "## Checklist" "" \
+              "- [x] Gerado automaticamente por \`.github/workflows/hotfix-backmerge.yml\`" \
+              "- [ ] Conflitos resolvidos, se houver" \
+              "- [ ] \`ci-ok\` verde")"
+
+      - name: Nada a propagar
+        if: steps.branch.outputs.vazio == 'true'
+        run: echo "develop já contém tudo que está em main; nenhum PR necessário." >> "$GITHUB_STEP_SUMMARY"

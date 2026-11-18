@@ -1,0 +1,47 @@
+name: Débito técnico
+description: Registrar débito técnico ou refatoração necessária
+title: "refactor: "
+labels: ["tipo:debito-tecnico"]
+body:
+  - type: textarea
+    id: situacao
+    attributes:
+      label: Situação atual
+      description: O que existe hoje e por que incomoda.
+    validations:
+      required: true
+  - type: textarea
+    id: motivo
+    attributes:
+      label: Por que foi feito assim
+      description: Contexto histórico. Se houver ADR relacionado, linke.
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+    validations:
+      required: true
+  - type: dropdown
+    id: risco
+    attributes:
+      label: Risco de não resolver
+      options:
+        - alto (bloqueia evolução ou ameaça dado em produção)
+        - médio (aumenta custo de cada mudança)
+        - baixo (incômodo localizado)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - market-data
+        - web
+        - analytics
+        - portfolio
+        - alerts
+        - infra
+        - docs
+    validations:
+      required: true

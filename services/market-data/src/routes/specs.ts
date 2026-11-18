@@ -1,0 +1,163 @@
+import {
+  AssetDetailResponse,
+  AssetSearchQuery,
+  AssetSearchResponse,
+  CnpjParam,
+  DividendsResponse,
+  FiiMonthlyResponse,
+  FundamentalsQuery,
+  FundamentalsResponse,
+  FundDetailResponse,
+  FundHistoryResponse,
+  FundSearchQuery,
+  FundSearchResponse,
+  HealthResponse,
+  HistoryQuery,
+  HistoryResponse,
+  JobNameParam,
+  JobsResponse,
+  MacroParams,
+  MacroResponse,
+  QuotesParams,
+  QuotesResponse,
+  RangeQuery,
+  TickerParam,
+  TriggerJobBody,
+  TriggerJobResponse,
+  type RouteSpec,
+} from "@bolsiq/contracts";
+
+/**
+ * Especificação das rotas, em Zod.
+ *
+ * Regra 3 do CLAUDE.md: todo endpoint tem schema Zod, aparece no OpenAPI e tem
+ * teste. Esta lista é a única fonte: o `app.ts` registra a partir dela e o
+ * `openapi-generate.ts` gera o documento a partir dela, então os dois não
+ * conseguem divergir.
+ *
+ * `/v1/health` é a única rota anônima de dados (ver
+ * docs/api/guia-do-cliente.md). `/admin` usa o token de administração.
+ */
+export const rotas: RouteSpec[] = [
+  {
+    method: "get",
+    path: "/v1/health",
+    summary: "Estado do serviço",
+    tags: ["ops"],
+    anonymous: true,
+    response: HealthResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/assets",
+    summary: "Busca de ativos por ticker e nome (autocomplete, até 20)",
+    tags: ["assets"],
+    query: AssetSearchQuery,
+    response: AssetSearchResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/assets/{ticker}",
+    summary: "Cadastro de um ativo",
+    tags: ["assets"],
+    params: TickerParam,
+    response: AssetDetailResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/quotes/{tickers}",
+    summary: "Cotação corrente, com atraso, de até 20 tickers",
+    tags: ["quotes"],
+    params: QuotesParams,
+    response: QuotesResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/history/{ticker}",
+    summary: "Série OHLCV diária, semanal ou mensal, ajustada por proventos",
+    tags: ["quotes"],
+    params: TickerParam,
+    query: HistoryQuery,
+    response: HistoryResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/dividends/{ticker}",
+    summary: "Proventos e eventos societários",
+    tags: ["dividends"],
+    params: TickerParam,
+    query: RangeQuery,
+    response: DividendsResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/fundamentals/{ticker}",
+    summary: "Contas do DFP (anual) ou ITR (trimestral) usadas nos indicadores",
+    tags: ["fundamentals"],
+    params: TickerParam,
+    query: FundamentalsQuery,
+    response: FundamentalsResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/funds",
+    summary: "Busca de fundos por nome ou CNPJ (até 20)",
+    tags: ["funds"],
+    query: FundSearchQuery,
+    response: FundSearchResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/funds/{cnpj}",
+    summary: "Cadastro de uma classe de fundo (CVM)",
+    tags: ["funds"],
+    params: CnpjParam,
+    response: FundDetailResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/funds/{cnpj}/history",
+    summary: "Cota, patrimônio e cotistas por dia (informe diário da CVM)",
+    tags: ["funds"],
+    params: CnpjParam,
+    query: RangeQuery,
+    response: FundHistoryResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/fiis/{ticker}/monthly",
+    summary:
+      "Informe mensal de um FII (CVM): patrimônio, cota patrimonial, cotistas e rendimento",
+    tags: ["fiis"],
+    params: TickerParam,
+    query: RangeQuery,
+    response: FiiMonthlyResponse,
+  },
+  {
+    method: "get",
+    path: "/v1/macro/{serie}",
+    summary: "Séries de benchmark: CDI, Selic, IPCA, IGP-M e IBOV",
+    tags: ["macro"],
+    params: MacroParams,
+    query: RangeQuery,
+    response: MacroResponse,
+  },
+  {
+    method: "get",
+    path: "/admin/jobs",
+    summary: "Jobs de carga, fila e última execução",
+    tags: ["admin"],
+    auth: "admin",
+    response: JobsResponse,
+  },
+  {
+    method: "post",
+    path: "/admin/jobs/{name}",
+    summary: "Dispara um job de carga",
+    tags: ["admin"],
+    auth: "admin",
+    params: JobNameParam,
+    body: TriggerJobBody,
+    response: TriggerJobResponse,
+  },
+];

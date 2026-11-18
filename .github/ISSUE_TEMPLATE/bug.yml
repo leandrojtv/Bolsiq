@@ -1,0 +1,51 @@
+name: Bug
+description: Relatar um comportamento incorreto
+title: "fix: "
+labels: ["tipo:bug"]
+body:
+  - type: dropdown
+    id: severidade
+    attributes:
+      label: Severidade
+      description: "`crítica` em produção vira hotfix, sai de main."
+      options:
+        - crítica (produção parada ou dado incorreto exposto na API)
+        - alta (funcionalidade principal quebrada)
+        - média (funcionalidade secundária)
+        - baixa (cosmético)
+    validations:
+      required: true
+  - type: input
+    id: ambiente
+    attributes:
+      label: Ambiente
+      placeholder: produção / staging / local
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Comportamento esperado
+    validations:
+      required: true
+  - type: textarea
+    id: obtido
+    attributes:
+      label: Comportamento obtido
+    validations:
+      required: true
+  - type: textarea
+    id: reproducao
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. curl -s http://localhost:8000/v1/...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: evidencia
+    attributes:
+      label: Evidência
+      description: Logs, trace_id do OpenTelemetry, resposta da API. Remova segredos.
+      render: text

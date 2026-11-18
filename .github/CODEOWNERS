@@ -1,0 +1,27 @@
+# Donos por pasta. Toda alteração nos caminhos abaixo exige revisão do dono.
+# Referência: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Padrão para tudo que não casar com as regras abaixo
+*                           @leandrojtv
+
+# Serviços
+/services/market-data/      @leandrojtv
+
+# Front-end e BFF
+/apps/web/                  @leandrojtv
+
+# Pacotes compartilhados
+/packages/contracts/        @leandrojtv
+/packages/db-core/          @leandrojtv
+/packages/domain/           @leandrojtv
+/packages/ui/               @leandrojtv
+/packages/config/           @leandrojtv
+
+# Infraestrutura, CI/CD e proteção do repositório
+/infra/                     @leandrojtv
+/.github/                   @leandrojtv
+/Makefile                   @leandrojtv
+
+# Documentação e decisões de arquitetura
+/docs/                      @leandrojtv
+/CLAUDE.md                  @leandrojtv

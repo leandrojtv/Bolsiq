@@ -1,0 +1,670 @@
+{
+  "provedor": "ollama",
+  "modelo": "llama3.2:latest",
+  "prompt": "v1",
+  "data": "2026-11-03",
+  "resumo": {
+    "casos": 27,
+    "ferramenta_certa": 0.704,
+    "parametros_certos": 0.741,
+    "numeros_certos": 0.519,
+    "texto_certo": 0.667,
+    "ativos_fora_da_lista": [],
+    "aprovado": false,
+    "tokens_entrada": 83810,
+    "tokens_saida": 1684
+  },
+  "casos": [
+    {
+      "id": "cotacao-simples",
+      "ferramenta_certa": true,
+      "parametros_certos": false,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        38.42
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "cotacao",
+          "entrada": {
+            "tickers": "[\"PETR4\"]"
+          }
+        }
+      ],
+      "tokens_entrada": 3075,
+      "tokens_saida": 42,
+      "erro": null,
+      "resposta": "Atenção: Não foi possível obter a cotação do ativo PETR4."
+    },
+    {
+      "id": "cotacao-duas",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "cotacao",
+          "entrada": {
+            "tickers": [
+              "PETR4",
+              "VALE3"
+            ]
+          }
+        }
+      ],
+      "tokens_entrada": 3137,
+      "tokens_saida": 60,
+      "erro": null,
+      "resposta": "No momento em que estou respondendo, os preços são:\n\nR$ 38,42 para o PETR4,\nR$ 61,00 para o VALE3."
+    },
+    {
+      "id": "historico",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [
+        28,
+        2026
+      ],
+      "chamadas": [
+        {
+          "nome": "historico",
+          "entrada": {
+            "ticker": "VALE3",
+            "periodo": "1M"
+          }
+        }
+      ],
+      "tokens_entrada": 3480,
+      "tokens_saida": 63,
+      "erro": null,
+      "resposta": "O último fechamento de VALE3 no histórico de 1 mês foi de R$ 61,00, ocorrendo em 28 de outubro de 2026."
+    },
+    {
+      "id": "proventos",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "proventos",
+          "entrada": {
+            "ticker": "VALE3",
+            "anos": 5
+          }
+        }
+      ],
+      "tokens_entrada": 3076,
+      "tokens_saida": 60,
+      "erro": null,
+      "resposta": "O último provento pago por VALE3 foi um dividendo, pago em 20/03/2026, com valor de R$ 2,14 por ação."
+    },
+    {
+      "id": "fundamentos",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "fundamentos",
+          "entrada": {
+            "ticker": "PETR4",
+            "periodo": "annual"
+          }
+        }
+      ],
+      "tokens_entrada": 3134,
+      "tokens_saida": 49,
+      "erro": null,
+      "resposta": "O lucro líquido da PETR4 no último demonstrativo anual foi R$ 37.000.000.000."
+    },
+    {
+      "id": "indicadores-pl",
+      "ferramenta_certa": false,
+      "parametros_certos": false,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        4.21
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "fundamentos",
+          "entrada": {
+            "ticker": "PETR4",
+            "periodo": "annual"
+          }
+        }
+      ],
+      "tokens_entrada": 3100,
+      "tokens_saida": 87,
+      "erro": null,
+      "resposta": "O P/L (Lucro/Lucro Real) do PETR4 até 31/12/2024 foi de R$ 37.000.000.000, R$ 150.000.000.000 em lucro bruto e R$ 490.800.000.000 em receita."
+    },
+    {
+      "id": "indicadores-roe",
+      "ferramenta_certa": true,
+      "parametros_certos": false,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        27.32
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "indicadores",
+          "entrada": {
+            "tickers": "[WEGE3]"
+          }
+        }
+      ],
+      "tokens_entrada": 3075,
+      "tokens_saida": 25,
+      "erro": null,
+      "resposta": "Não tem esse dado."
+    },
+    {
+      "id": "comparar",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "comparar",
+          "entrada": {
+            "tickers": [
+              "PETR4",
+              "PRIO3"
+            ],
+            "periodo": "1A"
+          }
+        }
+      ],
+      "tokens_entrada": 3206,
+      "tokens_saida": 171,
+      "erro": null,
+      "resposta": "Aqui estão os dados de comparação entre PETR4 e PRIO3 em 1 ano:\n\n* PETR4:\n + Retorno: 22,14%\n + Volatilidade anual: 31,2%\n + Drawdown máximo: -22,3%\n* PRIO3:\n + Retorno: 31,02%\n + Volatilidade anual: 44,1%\n + Drawdown máximo: -35,1%\n\nOs dois ativos apresentaram retornos positivos em 1 ano, mas o PRIO3 teve um desempenho mais volátil e um drawdown máximo maior do que o PETR4."
+    },
+    {
+      "id": "screener-graham",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "screener",
+          "entrada": {
+            "faixas": "graham",
+            "limite": "0",
+            "liquidez_minima": "0",
+            "preset": "graham",
+            "tipos": "[]"
+          }
+        }
+      ],
+      "tokens_entrada": 3279,
+      "tokens_saida": 70,
+      "erro": null,
+      "resposta": "Não tem dados sobre critérios de Graham para ações atuais."
+    },
+    {
+      "id": "screener-bazin",
+      "ferramenta_certa": true,
+      "parametros_certos": false,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "screener",
+          "entrada": {
+            "faixas": {
+              "bazin": "true"
+            }
+          }
+        }
+      ],
+      "tokens_entrada": 3089,
+      "tokens_saida": 35,
+      "erro": null,
+      "resposta": "Infelizmente não consegui encontrar o ativo Bazin."
+    },
+    {
+      "id": "macro-selic",
+      "ferramenta_certa": false,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        11.25
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [],
+      "tokens_entrada": 2167,
+      "tokens_saida": 14,
+      "erro": null,
+      "resposta": "{\"name\": \"cenario_macro\", \"parameters\": {\"}}"
+    },
+    {
+      "id": "macro-ipca",
+      "ferramenta_certa": false,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        0.44
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "fundamentos",
+          "entrada": {
+            "ticker": null,
+            "periodo": "quarterly"
+          }
+        }
+      ],
+      "tokens_entrada": 3074,
+      "tokens_saida": 39,
+      "erro": null,
+      "resposta": "Desculpe, não tem dado de IPCA para o último mês."
+    },
+    {
+      "id": "carteira-posicoes",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        180,
+        18.03,
+        50,
+        61.26
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "minha_carteira",
+          "entrada": {
+            "id": "null"
+          }
+        }
+      ],
+      "tokens_entrada": 3073,
+      "tokens_saida": 33,
+      "erro": null,
+      "resposta": "Não tem dado sobre carteira. Não tem esse dado."
+    },
+    {
+      "id": "carteira-patrimonio",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        9965.6
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "minha_carteira",
+          "entrada": {
+            "id": "null"
+          }
+        }
+      ],
+      "tokens_entrada": 3059,
+      "tokens_saida": 44,
+      "erro": null,
+      "resposta": "Não tem dado sobre o patrimônio da sua carteira. Por favor, confira o perfil do investidor."
+    },
+    {
+      "id": "carteira-realizado",
+      "ferramenta_certa": false,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        532.8
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "avaliar_carteira",
+          "entrada": {
+            "id": "nome_da_carteira"
+          }
+        }
+      ],
+      "tokens_entrada": 3065,
+      "tokens_saida": 72,
+      "erro": null,
+      "resposta": "Erro ao realizar avaliação da carteira. Não há um perfil definido para o investidor. Por favor, preencha o perfil em [Perfil do investidor](/configuracoes/perfil) antes de avaliar ou sugerir."
+    },
+    {
+      "id": "carteira-twr",
+      "ferramenta_certa": false,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        18.42,
+        12.15
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "avaliar_carteira",
+          "entrada": {
+            "id": "id_da_carteira"
+          }
+        }
+      ],
+      "tokens_entrada": 3083,
+      "tokens_saida": 31,
+      "erro": null,
+      "resposta": "Desculpe, não tem esse dado."
+    },
+    {
+      "id": "carteira-por-id",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "minha_carteira",
+          "entrada": {
+            "id": "5f7c1f0e-6b2a-4c11-9a50-3d2e8f6a1b00"
+          }
+        }
+      ],
+      "tokens_entrada": 3640,
+      "tokens_saida": 101,
+      "erro": null,
+      "resposta": "O patrimônio da carteira 5f7c1f0e-6b2a-4c11-9a50-3d2e8f6a1b00 é de R$ 9965,60."
+    },
+    {
+      "id": "carteira-de-outro",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "minha_carteira",
+          "entrada": {
+            "id": "00000000-0000-4000-8000-000000000000"
+          }
+        }
+      ],
+      "tokens_entrada": 3077,
+      "tokens_saida": 38,
+      "erro": null,
+      "resposta": "Não tem esse dado."
+    },
+    {
+      "id": "avaliar",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        69.39,
+        30.61
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "avaliar_carteira",
+          "entrada": {
+            "id": "sua_carteira_id"
+          }
+        }
+      ],
+      "tokens_entrada": 3061,
+      "tokens_saida": 68,
+      "erro": null,
+      "resposta": "Desculpe, mas não consigo acessar sua carteira atualmente. Você precisa preencher seu perfil no [Perfil do investidor](/configuracoes/perfil) antes de avaliar ou sugerir."
+    },
+    {
+      "id": "avaliar-setor",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        69.39
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "avaliar_carteira",
+          "entrada": {
+            "id": "null"
+          }
+        }
+      ],
+      "tokens_entrada": 3073,
+      "tokens_saida": 48,
+      "erro": null,
+      "resposta": "Não tem dado sobre id da carteira. Não tem dado sobre o setor que está além do limite de concentração."
+    },
+    {
+      "id": "avaliar-desvio",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": false,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [
+        100,
+        60
+      ],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "avaliar_carteira",
+          "entrada": {
+            "id": "minha_carteira"
+          }
+        }
+      ],
+      "tokens_entrada": 3085,
+      "tokens_saida": 90,
+      "erro": null,
+      "resposta": "Desculpe, não tem dado sobre o desvio da sua carteira em relação à alocação-alvo em ações. O perfil do investidor ainda não foi preenchido. Por favor, preencha o perfil em [Perfil do investidor](/configuracoes/perfil) antes de avaliar ou sugerir."
+    },
+    {
+      "id": "aporte-1000",
+      "ferramenta_certa": false,
+      "parametros_certos": false,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "screener",
+          "entrada": {
+            "faixas": "{}",
+            "limite": "1000",
+            "liquidez_minima": "0",
+            "preset": "dividendos_consistentes",
+            "tipos": "['stock']"
+          }
+        }
+      ],
+      "tokens_entrada": 3289,
+      "tokens_saida": 120,
+      "erro": null,
+      "resposta": "A ferramenta screener não pode ser usada para encontrar um investimento adequado para o seu perfil. Por favor, preencha seu perfil no [Perfil do investidor](/configuracoes/perfil) antes de tentar novamente.\n\nNão há sugestões de aporte disponíveis."
+    },
+    {
+      "id": "aporte-5000",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "sugerir_aporte",
+          "entrada": {
+            "id": "null",
+            "valor": 5000
+          }
+        }
+      ],
+      "tokens_entrada": 3088,
+      "tokens_saida": 92,
+      "erro": null,
+      "resposta": "Desculpe, mas não posso sugerir opções de aporte sem que o perfil do investidor seja preenchido primeiro. Por favor, veja o link para preencher o perfil: [Perfil do investidor](/configuracoes/perfil). Depois, posso ajudar com sugestões de aporte."
+    },
+    {
+      "id": "aporte-sem-perfil",
+      "ferramenta_certa": true,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": true,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "sugerir_aporte",
+          "entrada": {
+            "id": "null",
+            "valor": "1000"
+          }
+        }
+      ],
+      "tokens_entrada": 3119,
+      "tokens_saida": 102,
+      "erro": null,
+      "resposta": "Peço desculpas, mas não tenho acesso a ferramentas de sugestão de aporte atualmente. A ferramenta sugerir_aporte não está disponível.\n\nSe você quiser receber sugestões de aporte, por favor, preencha o perfil do investidor em [Perfil do investidor](/configuracoes/perfil) antes de solicitar."
+    },
+    {
+      "id": "criar-alerta",
+      "ferramenta_certa": true,
+      "parametros_certos": false,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "criar_alerta",
+          "entrada": {
+            "valor": "40",
+            "ticker": "PETR4",
+            "tipo": "preco_acima"
+          }
+        }
+      ],
+      "tokens_entrada": 3107,
+      "tokens_saida": 47,
+      "erro": null,
+      "resposta": "{ \"erro\": \"atrasado\" }"
+    },
+    {
+      "id": "sem-noticias",
+      "ferramenta_certa": false,
+      "parametros_certos": true,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "cotacao",
+          "entrada": {
+            "type": "function",
+            "function": "cotacao",
+            "parameters": {
+              "tickers": "[\"PETR4\"]"
+            }
+          }
+        }
+      ],
+      "tokens_entrada": 3093,
+      "tokens_saida": 44,
+      "erro": null,
+      "resposta": "Não tem notícia sobre a Petrobras. A ferramenta não trouxe o dado."
+    },
+    {
+      "id": "sem-dado",
+      "ferramenta_certa": false,
+      "parametros_certos": false,
+      "numeros_certos": true,
+      "texto_certo": false,
+      "ativos_fora_da_lista": [],
+      "numeros_faltando": [],
+      "numeros_sem_origem": [],
+      "chamadas": [
+        {
+          "nome": "fundamentos",
+          "entrada": {
+            "ticker": "ZZZZ3",
+            "periodo": "annual"
+          }
+        }
+      ],
+      "tokens_entrada": 3006,
+      "tokens_saida": 39,
+      "erro": null,
+      "resposta": "Não tem dado para ZZZZ3. A fonte não respondeu agora."
+    }
+  ]
+}

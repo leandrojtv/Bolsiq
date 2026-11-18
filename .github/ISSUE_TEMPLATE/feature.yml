@@ -1,0 +1,56 @@
+name: Funcionalidade
+description: Propor uma funcionalidade nova
+title: "feat: "
+labels: ["tipo:feature"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema
+      description: Que necessidade do usuário ou do produto isto resolve.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+      description: O que será construído, em linhas gerais.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - market-data
+        - web
+        - analytics
+        - portfolio
+        - alerts
+        - infra
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: aceite
+    attributes:
+      label: Critérios de aceite
+      description: Lista verificável. Cada item precisa ser testável.
+      placeholder: |
+        - [ ] GET /v1/quotes/:ticker retorna a última cotação com proveniência
+        - [ ] Endpoint documentado no OpenAPI
+    validations:
+      required: true
+  - type: textarea
+    id: dados
+    attributes:
+      label: Fontes de dados envolvidas
+      description: Quais fontes (brapi, CVM, COTAHIST, BCB SGS) e sob qual licença.
+  - type: checkboxes
+    id: arquitetura
+    attributes:
+      label: Impacto em arquitetura
+      options:
+        - label: Exige ADR novo em docs/adr
+        - label: Altera contrato público /v1
+        - label: Exige migration

@@ -1,0 +1,36 @@
+name: release-please
+
+# Gera o PR de release a partir dos Conventional Commits e, no merge,
+# cria a tag vX.Y.Z e o GitHub Release. A tag é o gatilho do CD de produção.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      criou_release: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # PAT necessário para que o PR criado dispare o CI. Com o
+          # GITHUB_TOKEN padrão, o PR não aciona workflows.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Resumo
+        run: |
+          if [[ "${{ steps.release.outputs.release_created }}" == "true" ]]; then
+            echo "Release ${{ steps.release.outputs.tag_name }} criada. O CD de produção foi disparado pela tag." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Nenhuma release criada neste push. Se havia commits releasable, o PR de release foi aberto ou atualizado." >> "$GITHUB_STEP_SUMMARY"
+          fi

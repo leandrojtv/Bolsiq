@@ -1,0 +1,26 @@
+{
+  "name": "@bolsiq/alerts-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@bolsiq/alerts": "workspace:*",
+    "@bolsiq/db-core": "workspace:*",
+    "@bolsiq/messaging": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "web-push": "^3.6.7",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@bolsiq/config": "workspace:*",
+    "@types/web-push": "^3.6.4",
+    "typescript": "^5.7.2"
+  }
+}

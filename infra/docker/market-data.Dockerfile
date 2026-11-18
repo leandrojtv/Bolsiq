@@ -55,6 +55,13 @@ RUN pnpm --filter=@bolsiq/market-data deploy --prod /app
 # Runtime
 # ---------------------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
+# Correções de segurança do Debian que a imagem base ainda não trouxe, e sem o
+# npm, o corepack e o yarn, que não rodam em runtime e reprovam o Trivy (#54).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+       /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
+       /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
 ENV NODE_ENV=production
 ENV ROLE=api
 ENV PORT=3001

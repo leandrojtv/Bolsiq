@@ -21,7 +21,7 @@ export function TopoMobile({ ticker }: { ticker: string }) {
   return (
     <header className="-mx-4 -mt-5 flex items-center justify-between px-3 pt-3 pb-2 md:hidden">
       <Link
-        href="/"
+        href="/ativo"
         aria-label="Voltar"
         className="flex size-touch items-center justify-center text-text"
       >

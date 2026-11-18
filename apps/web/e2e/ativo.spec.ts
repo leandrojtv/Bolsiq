@@ -86,6 +86,15 @@ test.describe("pagina do ativo", () => {
     await expect(page.getByRole("link", { name: "Voltar" })).toBeVisible();
     await expect(page.getByRole("button", { name: /watchlist/i }).first()).toBeVisible();
   });
+
+  test("celular: voltar do ativo leva a busca", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/ativo/VALE3");
+    await page.getByRole("link", { name: "Voltar" }).click();
+    await expect(page).toHaveURL(/\/ativo$/);
+    await expect(page.locator("#busca-global")).toBeVisible();
+    await expect(page.getByRole("link", { name: "PETR4" })).toBeVisible();
+  });
 });
 
 test.describe("BFF e PWA", () => {

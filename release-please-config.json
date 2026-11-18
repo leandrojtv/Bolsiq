@@ -3,7 +3,7 @@
   "bootstrap-sha": "16675e8",
   "release-type": "node",
   "initial-version": "0.1.0",
-  "separate-pull-requests": false,
+  "separate-pull-requests": true,
   "include-component-in-tag": false,
   "group-pull-request-title-pattern": "chore(release): ${version}",
   "pull-request-title-pattern": "chore(release): ${version}",

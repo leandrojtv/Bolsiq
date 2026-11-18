@@ -79,6 +79,52 @@ cd ~/bolsiq && SMOKE_EXTRA_ENDPOINTS=/api/health bash smoke.sh http://localhost:
 Os crons do market-data que caem entre 23:00 e 09:00 são reenfileirados quando
 o worker sobe (ADR 0029). Procure `recuperacao` no log do `market-data-worker`.
 
+## Variáveis de produção
+
+O `.env` da VM vem do secret `ENV_FILE`, gravado igual nos environments
+`production` e `production-rollback`. O GitHub não mostra o valor, então a
+cópia completa é o `.env` da VM. Para mudar uma variável:
+
+```bash
+scp -i ~/.ssh/bolsiq_deploy bolsiq@bolsiq.eastus2.cloudapp.azure.com:bolsiq/.env ~/bolsiq-prod.env
+```
+
+Edite `~/bolsiq-prod.env`, grave nos dois environments e aplique na VM:
+
+```bash
+gh secret set ENV_FILE --env production < ~/bolsiq-prod.env
+```
+
+```bash
+gh secret set ENV_FILE --env production-rollback < ~/bolsiq-prod.env
+```
+
+```bash
+scp -i ~/.ssh/bolsiq_deploy ~/bolsiq-prod.env bolsiq@bolsiq.eastus2.cloudapp.azure.com:bolsiq/.env
+```
+
+```bash
+ssh -i ~/.ssh/bolsiq_deploy bolsiq@bolsiq.eastus2.cloudapp.azure.com 'cd ~/bolsiq && docker compose up -d'
+```
+
+```bash
+rm ~/bolsiq-prod.env
+```
+
+E-mail (Brevo): `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`, `SMTP_USER`
+e `SMTP_PASSWORD` com o login e a chave SMTP do painel do Brevo, e `SMTP_FROM`
+com um remetente verificado no Brevo. Sem e-mail, ninguém confirma o cadastro.
+
+## Carga histórica
+
+Um banco novo não tem ativos: os crons só trazem o dia. Depois do primeiro
+deploy, rode a carga uma vez. Na `B2als_v2` ela passa de meia hora; o log
+fica no home e termina com `backfill concluído`:
+
+```bash
+ssh -i ~/.ssh/bolsiq_deploy bolsiq@bolsiq.eastus2.cloudapp.azure.com 'cd ~/bolsiq && nohup docker compose run --rm --no-deps -T market-data-worker node dist/backfill.js 2024 > ~/backfill.log 2>&1 < /dev/null &'
+```
+
 ## Backup
 
 O cron chama `~/bolsiq/backup-postgres.sh`, que o deploy envia a cada release

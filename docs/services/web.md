@@ -108,6 +108,7 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 | `BETTER_AUTH_SECRET`                       | assina sessão; obrigatório em produção   |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some           |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)        |
+| `SMTP_USER`, `SMTP_PASSWORD`               | login SMTP; vazio envia sem autenticação |
 | `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto    |
 | `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)   |
 

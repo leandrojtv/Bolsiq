@@ -7,6 +7,8 @@ export const Env = z.object({
   SMTP_HOST: z.string().default("localhost"),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
   SMTP_FROM: z.string().default("nao-responda@bolsiq.local"),
+  SMTP_USER: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  SMTP_PASSWORD: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
   APP_URL: z.string().default("http://localhost:3000"),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { opcoesSmtp } from "./email.js";
 import { canalInApp, subjectInApp } from "./inapp.js";
 import { canalPush } from "./push.js";
 import { canalTelegram, telegramHabilitado } from "./telegram.js";
@@ -60,6 +61,33 @@ describe("e-mail de conta", () => {
     expect(e.assunto).toBe("Confirme seu e-mail");
     expect(e.html).toContain('href="http://app/verificar?token=abc"');
     expect(e.texto).toContain("Se não foi você");
+  });
+});
+
+describe("smtp", () => {
+  it("sem usuario envia sem autenticacao, como no Mailpit", () => {
+    expect(opcoesSmtp({ host: "mailpit", port: 1025 })).toEqual({
+      host: "mailpit",
+      port: 1025,
+      secure: false,
+    });
+  });
+
+  it("com usuario autentica e usa STARTTLS na 587", () => {
+    expect(
+      opcoesSmtp({ host: "smtp-relay.brevo.com", port: 587, user: "u", password: "p" }),
+    ).toEqual({
+      host: "smtp-relay.brevo.com",
+      port: 587,
+      secure: false,
+      auth: { user: "u", pass: "p" },
+    });
+  });
+
+  it("na 465 usa TLS implicito", () => {
+    expect(opcoesSmtp({ host: "smtp", port: 465, user: "u", password: "p" }).secure).toBe(
+      true,
+    );
   });
 });
 

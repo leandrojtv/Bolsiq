@@ -19,3 +19,6 @@ packages/ui/tokens.css
 
 # Gerado pelo make eval-assistente.
 packages/assistant/homologacao/
+
+# Gerado pelo release-please; o formato e do gerador.
+CHANGELOG.md

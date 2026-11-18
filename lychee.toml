@@ -26,6 +26,9 @@ exclude_path = ["node_modules", ".git"]
 exclude = [
   # Links do próprio repositório que só existem depois de criados.
   '^https://github\.com/leandrojtv/Bolsiq/(discussions|pull|issues)',
+  # O CHANGELOG do release-please aponta para compare/ e releases/ da tag que
+  # o proprio PR de release vai criar; antes do merge o link da 404.
+  '^https://github\.com/leandrojtv/Bolsiq/(compare|releases)/',
   # Domínio do produto, ainda não registrado. Aparece nos exemplos do
   # guia do cliente.
   '^https://api\.bolsiq\.com',

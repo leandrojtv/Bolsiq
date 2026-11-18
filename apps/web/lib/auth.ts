@@ -2,15 +2,18 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { headers } from "next/headers";
 import { nextCookies } from "better-auth/next-js";
-import { emailDeConta } from "@bolsiq/alerts";
+import { emailDeConta, opcoesSmtp } from "@bolsiq/alerts";
 import { criarAuth, criarPoolDeAuth } from "@bolsiq/auth";
 import { env } from "./env";
 
-const transporte = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: env.SMTP_PORT,
-  secure: false,
-});
+const transporte = nodemailer.createTransport(
+  opcoesSmtp({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    user: env.SMTP_USER,
+    password: env.SMTP_PASSWORD,
+  }),
+);
 
 async function enviar(
   para: string,

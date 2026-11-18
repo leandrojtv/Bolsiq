@@ -221,7 +221,8 @@ não para dar o CI por aprovado.
   Alvo: `develop`. Node preso em `<23` e Postgres na linha 17, conforme o
   CLAUDE.md. **Requer o app do Renovate instalado no repositório.**
 - **release-please** ([config](../release-please-config.json)): versão e
-  CHANGELOG a partir dos Conventional Commits.
+  CHANGELOG a partir dos Conventional Commits. O PR de release aponta para
+  `main` (`target-branch`); a primeira versão é 0.1.0 (`initial-version`).
 - **Labeler** ([config](../.github/labeler.yml)): labels `area:*` por caminho.
 - **Revisão do Claude**: comenta risco de segurança, regressão, falta de teste e
   de documentação em todo PR. **Comenta; não aprova.** A aprovação continua

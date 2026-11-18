@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/leandrojtv/Bolsiq/compare/v0.1.1...v0.2.0) (2026-11-18)
+
+
+### Funcionalidades
+
+* **alerts:** SMTP com autenticacao para enviar e-mail em producao ([634f5ce](https://github.com/leandrojtv/Bolsiq/commit/634f5ced6114bc2e0105901b70ea42f90c9b8060))
+* **alerts:** SMTP com autenticacao para enviar e-mail em producao ([#69](https://github.com/leandrojtv/Bolsiq/issues/69)) ([0f9de80](https://github.com/leandrojtv/Bolsiq/commit/0f9de80bf66f3a3458d1c16104cca2e2e46b4b4b))
+
 ## [0.1.1](https://github.com/leandrojtv/Bolsiq/compare/v0.1.0...v0.1.1) (2026-11-18)
 
 

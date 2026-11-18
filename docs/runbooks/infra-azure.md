@@ -92,11 +92,11 @@ scp -i ~/.ssh/bolsiq_deploy bolsiq@bolsiq.eastus2.cloudapp.azure.com:bolsiq/.env
 Edite `~/bolsiq-prod.env`, grave nos dois environments e aplique na VM:
 
 ```bash
-gh secret set ENV_FILE --env production < ~/bolsiq-prod.env
+gh secret set ENV_FILE --repo leandrojtv/Bolsiq --env production < ~/bolsiq-prod.env
 ```
 
 ```bash
-gh secret set ENV_FILE --env production-rollback < ~/bolsiq-prod.env
+gh secret set ENV_FILE --repo leandrojtv/Bolsiq --env production-rollback < ~/bolsiq-prod.env
 ```
 
 ```bash

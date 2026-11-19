@@ -1,6 +1,31 @@
 import "server-only";
 import { headers } from "next/headers";
 import {
+  analisarArquivos,
+  apagarCartao,
+  apagarRegra,
+  cancelarImportacao,
+  confirmarImportacao,
+  criarCartao,
+  criarImportacao,
+  criarRegra,
+  desfazerImportacao,
+  editarCartao,
+  editarLinha,
+  editarRegra,
+  listarCartoes,
+  listarFaturas,
+  listarImportacoes,
+  listarRegras,
+  obterImportacao,
+  type ArquivoRecebido,
+  type EdicaoDeCartao,
+  type EdicaoDeLinha,
+  type EdicaoDeRegra,
+  type LimitesDeImportacao,
+  type NovaImportacao,
+  type NovaRegra,
+  type NovoCartao,
   apagarCategoria,
   apagarConta,
   apagarLancamento,
@@ -27,6 +52,7 @@ import {
   type Tx,
 } from "@bolsiq/finance";
 import { banco } from "./analytics";
+import { env } from "./env";
 import { hojeEmSp } from "./indicadores-tecnicos";
 
 /**
@@ -111,4 +137,98 @@ export function resumo(uid: string, mes?: string) {
   const hoje = hojeEmSp();
   const competencia = `${mes ?? hoje.slice(0, 7)}-01`;
   return como(uid, (tx) => resumoDoMes(tx, uid, competencia, hoje));
+}
+
+// Cartoes
+
+export const cartoes = (uid: string) =>
+  como(uid, (tx) => listarCartoes(tx, uid, hojeEmSp()));
+
+export async function novoCartao(uid: string, c: NovoCartao) {
+  const o = await origem();
+  return como(uid, (tx) => criarCartao(tx, uid, c, hojeEmSp(), o));
+}
+
+export async function mudarCartao(uid: string, id: string, e: EdicaoDeCartao) {
+  const o = await origem();
+  return como(uid, (tx) => editarCartao(tx, uid, id, e, hojeEmSp(), o));
+}
+
+export async function removerCartao(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarCartao(tx, uid, id, o));
+}
+
+export const faturas = (uid: string, id: string) =>
+  como(uid, (tx) => listarFaturas(tx, uid, id, hojeEmSp()));
+
+// Importacao
+
+export const limitesDeImportacao = (): LimitesDeImportacao => ({
+  bytes: env.FINANCE_IMPORT_MAX_MB * 1024 * 1024,
+  linhas: env.FINANCE_IMPORT_MAX_ROWS,
+  arquivos: env.FINANCE_IMPORT_MAX_FILES,
+});
+
+export const analisar = (uid: string, arquivos: ArquivoRecebido[]) =>
+  como(uid, (tx) => analisarArquivos(tx, uid, arquivos, limitesDeImportacao()));
+
+export async function novaImportacao(
+  uid: string,
+  pedido: NovaImportacao,
+  arquivos: ArquivoRecebido[],
+) {
+  const o = await origem();
+  return como(uid, (tx) =>
+    criarImportacao(tx, uid, pedido, arquivos, limitesDeImportacao(), o),
+  );
+}
+
+export const importacoes = (uid: string) => como(uid, (tx) => listarImportacoes(tx, uid));
+
+export const importacao = (uid: string, id: string) =>
+  como(uid, (tx) => obterImportacao(tx, uid, id));
+
+export async function mudarLinha(
+  uid: string,
+  id: string,
+  linha: string,
+  e: EdicaoDeLinha,
+) {
+  const o = await origem();
+  return como(uid, (tx) => editarLinha(tx, uid, id, linha, e, o));
+}
+
+export async function confirmar(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => confirmarImportacao(tx, uid, id, o));
+}
+
+export async function cancelar(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => cancelarImportacao(tx, uid, id, o));
+}
+
+export async function desfazer(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => desfazerImportacao(tx, uid, id, o));
+}
+
+// Regras
+
+export const regras = (uid: string) => como(uid, (tx) => listarRegras(tx, uid));
+
+export async function novaRegra(uid: string, r: NovaRegra) {
+  const o = await origem();
+  return como(uid, (tx) => criarRegra(tx, uid, r, o));
+}
+
+export async function mudarRegra(uid: string, id: string, e: EdicaoDeRegra) {
+  const o = await origem();
+  return como(uid, (tx) => editarRegra(tx, uid, id, e, o));
+}
+
+export async function removerRegra(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarRegra(tx, uid, id, o));
 }

@@ -17,7 +17,7 @@ import {
   type LinkComponent,
 } from "@bolsiq/ui";
 import { buscarCotacoes } from "@/lib/api";
-import { lembrarModulo } from "@/lib/modulo";
+import { lembrarModulo, moduloParaLembrar } from "@/lib/modulo";
 import { useSino } from "./alertas/useSino";
 import { useConta } from "./conta/Conta";
 import { BuscaGlobal, ID_DA_BUSCA } from "./BuscaGlobal";
@@ -59,7 +59,10 @@ export function Casca({ children }: { children: ReactNode }) {
   const [assistenteUsado, setAssistenteUsado] = useState(false);
   const modulo = moduloDaRota(caminho);
   // Ultimo modulo usado: define a entrada depois do login (ADR 0031).
-  useEffect(() => lembrarModulo(modulo), [modulo]);
+  useEffect(() => {
+    const m = moduloParaLembrar(caminho);
+    if (m) lembrarModulo(m);
+  }, [caminho]);
   const nav =
     modulo === "financas"
       ? navegacaoFinancas(caminho)

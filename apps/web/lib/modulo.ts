@@ -1,4 +1,4 @@
-import { MODULOS, type Modulo } from "@bolsiq/ui";
+import { MODULOS, moduloDaRota, type Modulo } from "@bolsiq/ui";
 
 /**
  * Ultimo modulo usado (ADR 0031): preferencia do aparelho, num cookie legivel
@@ -16,6 +16,18 @@ export function moduloDoCookie(cookies: string): Modulo {
 
 export function entradaDoModulo(m: Modulo): string {
   return MODULOS.find((x) => x.id === m)?.href ?? "/carteiras";
+}
+
+/** Rotas de Investimentos; conta, login e configuracoes nao mudam o modulo salvo. */
+const INVESTIMENTOS = ["/ativo", "/comparar", "/screener", "/carteiras", "/alertas"];
+
+/** Modulo a lembrar ao visitar `caminho`, ou null se a rota nao e de modulo. */
+export function moduloParaLembrar(caminho: string): Modulo | null {
+  const m = moduloDaRota(caminho);
+  if (m !== "investimentos") return m;
+  return INVESTIMENTOS.some((p) => caminho === p || caminho.startsWith(`${p}/`))
+    ? m
+    : null;
 }
 
 export function lembrarModulo(m: Modulo): void {

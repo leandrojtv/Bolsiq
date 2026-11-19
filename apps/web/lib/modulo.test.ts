@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { entradaDoModulo, lembrarModulo, moduloDoCookie } from "./modulo";
+import {
+  entradaDoModulo,
+  lembrarModulo,
+  moduloDoCookie,
+  moduloParaLembrar,
+} from "./modulo";
 
 describe("modulo do cookie", () => {
   it("le o modulo salvo e cai em investimentos sem ele", () => {
@@ -15,5 +20,17 @@ describe("modulo do cookie", () => {
   it("lembrar grava o cookie", () => {
     lembrarModulo("painel");
     expect(moduloDoCookie(document.cookie)).toBe("painel");
+  });
+});
+
+describe("moduloParaLembrar", () => {
+  it("so rota de modulo muda o modulo salvo", () => {
+    expect(moduloParaLembrar("/financas/contas")).toBe("financas");
+    expect(moduloParaLembrar("/painel")).toBe("painel");
+    expect(moduloParaLembrar("/carteiras/abc")).toBe("investimentos");
+    expect(moduloParaLembrar("/ativo")).toBe("investimentos");
+    expect(moduloParaLembrar("/entrar")).toBeNull();
+    expect(moduloParaLembrar("/configuracoes/conta")).toBeNull();
+    expect(moduloParaLembrar("/")).toBeNull();
   });
 });

@@ -95,12 +95,75 @@ export const categories = finance.table(
   ],
 );
 
+/** Cartao de credito. A fatura sai do ciclo (dia de fechamento e de vencimento). */
+export const cards = finance.table(
+  "cards",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    nome: text("nome").notNull(),
+    instituicao: text("instituicao"),
+    /** Ultimos 4 digitos: sugerem o cartao a partir do ACCTID do OFX. */
+    final: text("final"),
+    limite: dinheiro("limite"),
+    dia_fechamento: integer("dia_fechamento").notNull(),
+    dia_vencimento: integer("dia_vencimento").notNull(),
+    /** Conta que costuma pagar a fatura. */
+    account_id: text("account_id"),
+    arquivado: boolean("arquivado").notNull().default(false),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("cards_user_idx").on(t.user_id),
+    unique("cards_user_id_uq").on(t.user_id, t.id),
+    uniqueIndex("cards_user_nome_uq").on(t.user_id, t.nome),
+    foreignKey({
+      name: "cards_account_fk",
+      columns: [t.user_id, t.account_id],
+      foreignColumns: [accounts.user_id, accounts.id],
+    }),
+    check("cards_dia_fechamento_ck", sql`${t.dia_fechamento} between 1 and 31`),
+    check("cards_dia_vencimento_ck", sql`${t.dia_vencimento} between 1 and 31`),
+    check("cards_final_ck", sql`${t.final} is null or ${t.final} ~ '^[0-9]{4}$'`),
+  ],
+);
+
+/** Fatura do cartao, identificada pelo vencimento. Criada sob demanda. */
+export const statements = finance.table(
+  "statements",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    card_id: text("card_id").notNull(),
+    vencimento: dia("vencimento").notNull(),
+    fechamento: dia("fechamento").notNull(),
+    criada_em: utc("criada_em").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("statements_user_id_uq").on(t.user_id, t.id),
+    // Inclui o card_id: a FK composta do lancamento garante que a fatura e do
+    // mesmo cartao.
+    unique("statements_user_card_id_uq").on(t.user_id, t.card_id, t.id),
+    uniqueIndex("statements_card_vencimento_uq").on(t.user_id, t.card_id, t.vencimento),
+    foreignKey({
+      name: "statements_card_fk",
+      columns: [t.user_id, t.card_id],
+      foreignColumns: [cards.user_id, cards.id],
+    }),
+    check("statements_ciclo_ck", sql`${t.fechamento} <= ${t.vencimento}`),
+  ],
+);
+
 export const transactions = finance.table(
   "transactions",
   {
     id: text("id").primaryKey(),
     user_id: text("user_id").notNull(),
-    account_id: text("account_id").notNull(),
+    /** Conta ou cartao: exatamente um dos dois. */
+    account_id: text("account_id"),
+    card_id: text("card_id"),
+    /** Fatura do cartao; obrigatoria quando ha card_id. */
+    statement_id: text("statement_id"),
     /** receita | despesa | transferencia */
     tipo: text("tipo").notNull(),
     /** Sempre positivo: o sinal sai do tipo e, na transferencia, do sentido. */
@@ -123,6 +186,8 @@ export const transactions = finance.table(
     transferencia_sentido: text("transferencia_sentido"),
     observacao: text("observacao"),
     importacao_id: text("importacao_id"),
+    /** FITID do OFX: deduplicacao principal, por conta ou cartao. */
+    fitid: text("fitid"),
     hash_dedupe: text("hash_dedupe"),
     criada_em: utc("criada_em").notNull().defaultNow(),
     atualizada_em: utc("atualizada_em").notNull().defaultNow(),
@@ -139,7 +204,30 @@ export const transactions = finance.table(
       columns: [t.user_id, t.category_id],
       foreignColumns: [categories.user_id, categories.id],
     }),
+    foreignKey({
+      name: "transactions_card_fk",
+      columns: [t.user_id, t.card_id],
+      foreignColumns: [cards.user_id, cards.id],
+    }),
+    foreignKey({
+      name: "transactions_statement_fk",
+      columns: [t.user_id, t.card_id, t.statement_id],
+      foreignColumns: [statements.user_id, statements.card_id, statements.id],
+    }),
     index("transactions_account_data_idx").on(t.account_id, t.data),
+    index("transactions_card_data_idx").on(t.card_id, t.data),
+    index("transactions_statement_idx").on(t.statement_id),
+    index("transactions_importacao_idx").on(t.importacao_id),
+    uniqueIndex("transactions_account_fitid_uq")
+      .on(t.user_id, t.account_id, t.fitid)
+      .where(sql`${t.fitid} is not null and ${t.account_id} is not null`),
+    uniqueIndex("transactions_card_fitid_uq")
+      .on(t.user_id, t.card_id, t.fitid)
+      .where(sql`${t.fitid} is not null and ${t.card_id} is not null`),
+    check(
+      "transactions_destino_ck",
+      sql`(${t.account_id} is null) <> (${t.card_id} is null) and (${t.card_id} is null) = (${t.statement_id} is null)`,
+    ),
     index("transactions_category_idx").on(t.category_id),
     index("transactions_user_competencia_idx").on(t.user_id, t.competencia),
     uniqueIndex("transactions_user_hash_uq")
@@ -162,6 +250,162 @@ export const transactions = finance.table(
       "transactions_transferencia_ck",
       sql`(${t.tipo} = 'transferencia') = (${t.transferencia_sentido} is not null and ${t.transferencia_par_id} is not null) and (${t.transferencia_sentido} is null or ${t.transferencia_sentido} in ('saida', 'entrada'))`,
     ),
+  ],
+);
+
+/** Importacao de extrato ou fatura. As linhas ficam em `import_rows`. */
+export const imports = finance.table(
+  "imports",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    /** ofx por enquanto; texto livre para os proximos formatos. */
+    origem: text("origem").notNull(),
+    /** conta | cartao */
+    alvo: text("alvo").notNull(),
+    account_id: text("account_id"),
+    card_id: text("card_id"),
+    statement_id: text("statement_id"),
+    arquivo_nome: text("arquivo_nome").notNull(),
+    /** revisao | confirmada | cancelada | desfeita */
+    status: text("status").notNull().default("revisao"),
+    /** BANKID/ORG e ACCTID: sugerem o destino na proxima importacao. */
+    banco: text("banco"),
+    conta_externa: text("conta_externa"),
+    inicio: dia("inicio"),
+    fim: dia("fim"),
+    saldo_informado: dinheiro("saldo_informado"),
+    saldo_data: dia("saldo_data"),
+    /** linhas, selecionadas, total, duplicadas, sem_categoria, gravadas. */
+    totais: jsonb("totais").notNull().default({}),
+    criada_em: utc("criada_em").notNull().defaultNow(),
+    confirmada_em: utc("confirmada_em"),
+  },
+  (t) => [
+    index("imports_user_idx").on(t.user_id, t.criada_em),
+    unique("imports_user_id_uq").on(t.user_id, t.id),
+    foreignKey({
+      name: "imports_account_fk",
+      columns: [t.user_id, t.account_id],
+      foreignColumns: [accounts.user_id, accounts.id],
+    }),
+    foreignKey({
+      name: "imports_card_fk",
+      columns: [t.user_id, t.card_id],
+      foreignColumns: [cards.user_id, cards.id],
+    }),
+    foreignKey({
+      name: "imports_statement_fk",
+      columns: [t.user_id, t.card_id, t.statement_id],
+      foreignColumns: [statements.user_id, statements.card_id, statements.id],
+    }),
+    check("imports_alvo_ck", sql`${t.alvo} in ('conta', 'cartao')`),
+    check(
+      "imports_status_ck",
+      sql`${t.status} in ('revisao', 'confirmada', 'cancelada', 'desfeita')`,
+    ),
+    check(
+      "imports_destino_ck",
+      sql`(${t.alvo} = 'conta' and ${t.account_id} is not null and ${t.card_id} is null and ${t.statement_id} is null) or (${t.alvo} = 'cartao' and ${t.account_id} is null and ${t.card_id} is not null and ${t.statement_id} is not null)`,
+    ),
+  ],
+);
+
+/** Linha proposta: o que o arquivo trouxe, o que foi detectado e o que o usuario mudou. */
+export const import_rows = finance.table(
+  "import_rows",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    import_id: text("import_id").notNull(),
+    ordem: integer("ordem").notNull(),
+    arquivo: integer("arquivo").notNull().default(0),
+    // Detectado
+    fitid: text("fitid"),
+    trntype: text("trntype"),
+    data: dia("data").notNull(),
+    valor: dinheiro("valor").notNull(),
+    /** receita | despesa, do sinal do valor no arquivo. */
+    tipo: text("tipo").notNull(),
+    descricao_original: text("descricao_original").notNull(),
+    descricao_normalizada: text("descricao_normalizada").notNull(),
+    parcela_atual: integer("parcela_atual"),
+    parcela_total: integer("parcela_total"),
+    hash_dedupe: text("hash_dedupe").notNull(),
+    /** nova | ja_importada | possivel_duplicata */
+    situacao: text("situacao").notNull(),
+    /** Lancamento ja gravado que esta linha repete ou parece repetir. */
+    duplicata_de: text("duplicata_de"),
+    categoria_detectada: text("categoria_detectada"),
+    /** regra | historico | nenhuma */
+    origem_categoria: text("origem_categoria").notNull().default("nenhuma"),
+    regra_id: text("regra_id"),
+    // Escolhas do usuario
+    selecionada: boolean("selecionada").notNull(),
+    /** importar | ignorar | conciliar (liga ao `duplicata_de` sem gravar de novo). */
+    acao: text("acao").notNull(),
+    category_id: text("category_id"),
+    categoria_editada: boolean("categoria_editada").notNull().default(false),
+    /** Contrapartida quando marcada como transferencia: conta ou cartao. */
+    transferencia_conta_id: text("transferencia_conta_id"),
+    transferencia_cartao_id: text("transferencia_cartao_id"),
+    /** Divisao em duas categorias: [{category_id, valor}], somando o valor. */
+    divisoes: jsonb("divisoes"),
+    /** Lancamento(s) gravados na confirmacao. */
+    transaction_id: text("transaction_id"),
+  },
+  (t) => [
+    index("import_rows_import_idx").on(t.import_id, t.ordem),
+    foreignKey({
+      name: "import_rows_import_fk",
+      columns: [t.user_id, t.import_id],
+      foreignColumns: [imports.user_id, imports.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "import_rows_category_fk",
+      columns: [t.user_id, t.category_id],
+      foreignColumns: [categories.user_id, categories.id],
+    }),
+    check("import_rows_tipo_ck", sql`${t.tipo} in ('receita', 'despesa')`),
+    check(
+      "import_rows_situacao_ck",
+      sql`${t.situacao} in ('nova', 'ja_importada', 'possivel_duplicata')`,
+    ),
+    check("import_rows_acao_ck", sql`${t.acao} in ('importar', 'ignorar', 'conciliar')`),
+    check("import_rows_valor_ck", sql`${t.valor} > 0`),
+  ],
+);
+
+/** Regra de categorizacao. A do usuario vence a aprendida. */
+export const categorization_rules = finance.table(
+  "categorization_rules",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    padrao: text("padrao").notNull(),
+    /** contem | comeca_com | regex */
+    modo: text("modo").notNull(),
+    category_id: text("category_id").notNull(),
+    /** Menor numero primeiro. */
+    prioridade: integer("prioridade").notNull().default(100),
+    /** usuario | aprendida */
+    origem: text("origem").notNull().default("usuario"),
+    vezes_aplicada: integer("vezes_aplicada").notNull().default(0),
+    criada_em: utc("criada_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("categorization_rules_user_idx").on(t.user_id, t.prioridade),
+    uniqueIndex("categorization_rules_user_padrao_uq").on(t.user_id, t.modo, t.padrao),
+    foreignKey({
+      name: "categorization_rules_category_fk",
+      columns: [t.user_id, t.category_id],
+      foreignColumns: [categories.user_id, categories.id],
+    }).onDelete("cascade"),
+    check(
+      "categorization_rules_modo_ck",
+      sql`${t.modo} in ('contem', 'comeca_com', 'regex')`,
+    ),
+    check("categorization_rules_origem_ck", sql`${t.origem} in ('usuario', 'aprendida')`),
   ],
 );
 

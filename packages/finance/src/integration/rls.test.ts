@@ -153,8 +153,13 @@ describe("RLS do finance", () => {
     expect(r.rows.map((t) => t.relname)).toEqual([
       "accounts",
       "audit_log",
+      "cards",
       "categories",
+      "categorization_rules",
+      "import_rows",
+      "imports",
       "outbox",
+      "statements",
       "transactions",
     ]);
     for (const t of r.rows) {

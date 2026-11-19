@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?OFX OFXHEADER="200" VERSION="211" SECURITY="NONE" OLDFILEUID="NONE" NEWFILEUID="NONE"?>
+<OFX>
+  <SIGNONMSGSRSV1>
+    <SONRS>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <DTSERVER>20231201083000[-03:BRT]</DTSERVER>
+      <LANGUAGE>POR</LANGUAGE>
+      <FI>
+        <ORG>Banco Inter</ORG>
+        <FID>077</FID>
+      </FI>
+    </SONRS>
+  </SIGNONMSGSRSV1>
+  <BANKMSGSRSV1>
+    <STMTTRNRS>
+      <TRNUID>1</TRNUID>
+      <STATUS>
+        <CODE>0</CODE>
+        <SEVERITY>INFO</SEVERITY>
+      </STATUS>
+      <STMTRS>
+        <CURDEF>BRL</CURDEF>
+        <BANKACCTFROM>
+          <BANKID>077</BANKID>
+          <BRANCHID>0001</BRANCHID>
+          <ACCTID>22222222</ACCTID>
+          <ACCTTYPE>CHECKING</ACCTTYPE>
+        </BANKACCTFROM>
+        <BANKTRANLIST>
+          <DTSTART>20231101000000[-03:BRT]</DTSTART>
+          <DTEND>20231130235959[-03:BRT]</DTEND>
+          <STMTTRN>
+            <TRNTYPE>CREDIT</TRNTYPE>
+            <DTPOSTED>20231102120000[-03:BRT]</DTPOSTED>
+            <TRNAMT>350.00</TRNAMT>
+            <FITID>inter-0001</FITID>
+            <NAME>Pix recebido</NAME>
+            <MEMO>Ciclano da Silva</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20231104093000[-03:BRT]</DTPOSTED>
+            <TRNAMT>-42.75</TRNAMT>
+            <FITID>inter-0002</FITID>
+            <NAME>Compra no debito</NAME>
+            <MEMO>Farmácia Saúde &amp; Vida</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20231109180000[-03:BRT]</DTPOSTED>
+            <TRNAMT>-150.00</TRNAMT>
+            <FITID>inter-0003</FITID>
+            <NAME>Pix enviado</NAME>
+            <MEMO>Conta Propria Exemplo</MEMO>
+          </STMTTRN>
+          <STMTTRN>
+            <TRNTYPE>DEBIT</TRNTYPE>
+            <DTPOSTED>20231120230000[-03:BRT]</DTPOSTED>
+            <TRNAMT>-99.99</TRNAMT>
+            <FITID>inter-0004</FITID>
+            <NAME>Pagamento de boleto</NAME>
+            <MEMO>Operadora de Internet Exemplo</MEMO>
+          </STMTTRN>
+        </BANKTRANLIST>
+        <LEDGERBAL>
+          <BALAMT>57.26</BALAMT>
+          <DTASOF>20231130235959[-03:BRT]</DTASOF>
+        </LEDGERBAL>
+      </STMTRS>
+    </STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>

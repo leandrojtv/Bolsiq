@@ -99,16 +99,31 @@ export const NovoLancamento = z
     valor: ValorPositivo,
     data: Data,
     descricao: z.string().trim().min(1, "informe a descrição").max(200),
-    account_id: Id,
-    /** So na transferencia: a conta que recebe. */
+    /** Conta ou cartao: exatamente um. Cartao so recebe receita e despesa. */
+    account_id: Id.optional(),
+    card_id: Id.optional(),
+    /** So na transferencia: a conta que recebe, ou o cartao cuja fatura e paga. */
     conta_destino_id: Id.optional(),
+    cartao_destino_id: Id.optional(),
     category_id: Id.nullable().optional(),
     status: z.enum(STATUS_DE_LANCAMENTO).default("realizado"),
     observacao: textoOpcional(500),
   })
   .superRefine((l, ctx) => {
+    if (!l.account_id === !l.card_id)
+      ctx.addIssue({
+        code: "custom",
+        path: ["account_id"],
+        message: "escolha a conta ou o cartão",
+      });
     if (l.tipo !== "transferencia") return;
-    if (!l.conta_destino_id)
+    if (l.card_id)
+      ctx.addIssue({
+        code: "custom",
+        path: ["card_id"],
+        message: "transferência sai de uma conta",
+      });
+    if (!l.conta_destino_id === !l.cartao_destino_id)
       ctx.addIssue({
         code: "custom",
         path: ["conta_destino_id"],
@@ -140,6 +155,9 @@ export const FiltroDeLancamentos = z.object({
   de: Data.optional(),
   ate: Data.optional(),
   conta: Id.optional(),
+  cartao: Id.optional(),
+  fatura: Id.optional(),
+  importacao: Id.optional(),
   categoria: Id.optional(),
   status: z.enum(STATUS_DE_LANCAMENTO).optional(),
   q: z.string().trim().max(100).optional(),
@@ -188,7 +206,9 @@ export type Categoria = z.infer<typeof Categoria>;
 
 export const Lancamento = z.object({
   id: Id,
-  account_id: Id,
+  account_id: Id.nullable(),
+  card_id: Id.nullable(),
+  statement_id: Id.nullable(),
   tipo: z.enum(TIPOS_DE_LANCAMENTO),
   valor: Dinheiro,
   data: Data,

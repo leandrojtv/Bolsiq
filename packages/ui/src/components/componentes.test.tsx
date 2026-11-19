@@ -11,7 +11,12 @@ import {
   EmptyState,
   ErrorState,
   Money,
+  MARCA_DO_MODULO,
+  moduloDaRota,
+  modulos,
+  navegacaoFinancas,
   navegacaoPadrao,
+  navegacaoPainel,
   ordenar,
   Percent,
   Price,
@@ -471,5 +476,55 @@ describe("Sheet", () => {
     expect(screen.getByRole("dialog", { name: "Novo alerta" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(mudar).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("AppShell com modulos", () => {
+  it("seletor marca o modulo e a marca muda para Bolsiq Finanças", () => {
+    render(
+      <AppShell
+        nav={navegacaoFinancas("/financas/contas")}
+        modules={modulos(moduloDaRota("/financas/contas"))}
+        brand={MARCA_DO_MODULO.financas}
+      >
+        x
+      </AppShell>,
+    );
+    // Um seletor no menu lateral e outro no topo do celular.
+    const seletores = screen.getAllByRole("navigation", { name: "Módulo" });
+    expect(seletores).toHaveLength(2);
+    const financas = within(seletores[0] as HTMLElement).getByRole("link", {
+      name: "Finanças",
+    });
+    expect(financas.getAttribute("aria-current")).toBe("page");
+    expect(financas.getAttribute("href")).toBe("/financas");
+    expect(screen.getAllByText("Bolsiq Finanças")).toHaveLength(2);
+    const menu = screen.getAllByRole("navigation", { name: "Navegação principal" })[0];
+    expect(
+      within(menu as HTMLElement)
+        .getByRole("link", { name: "Contas" })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      within(menu as HTMLElement)
+        .getByRole("link", { name: "Visão geral" })
+        .getAttribute("aria-current"),
+    ).toBeNull();
+  });
+
+  it("rota define o modulo e a navegacao do painel", () => {
+    expect(moduloDaRota("/financas")).toBe("financas");
+    expect(moduloDaRota("/financasx")).toBe("investimentos");
+    expect(moduloDaRota("/painel")).toBe("painel");
+    expect(moduloDaRota("/ativo/PETR4")).toBe("investimentos");
+    expect(navegacaoFinancas("/financas")[0]?.current).toBe(true);
+    expect(navegacaoPainel("/painel")).toMatchObject([
+      { href: "/painel", current: true },
+    ]);
+    expect(
+      modulos("painel")
+        .filter((m) => m.current)
+        .map((m) => m.id),
+    ).toEqual(["painel"]);
   });
 });

@@ -548,27 +548,24 @@ function Posicoes({
                   {c}
                 </th>
               ))}
+              <th scope="col" className="sticky right-0 bg-surface p-2">
+                <span className="sr-only">Editar</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {p.posicoes.map((x) => (
               <tr key={x.ticker} className="border-t border-border">
-                <th scope="row" className="py-0.5 pr-0 pl-2 text-left font-normal">
-                  <div className="flex items-center gap-0.5">
-                    <Link
-                      href={`/ativo/${x.ticker}`}
-                      className="flex flex-col gap-0.5 text-text"
-                    >
-                      <span className="font-mono font-semibold">{x.ticker}</span>
-                      {x.evento && (
-                        <span className="text-[11px] text-link">{x.evento}</span>
-                      )}
-                    </Link>
-                    <BotaoEditar
-                      rotulo={`Editar ${x.ticker}`}
-                      onClick={() => onEditar(x.ticker)}
-                    />
-                  </div>
+                <th scope="row" className="px-2 py-2.5 text-left font-normal">
+                  <Link
+                    href={`/ativo/${x.ticker}`}
+                    className="flex flex-col gap-0.5 text-text"
+                  >
+                    <span className="font-mono font-semibold">{x.ticker}</span>
+                    {x.evento && (
+                      <span className="text-[11px] text-link">{x.evento}</span>
+                    )}
+                  </Link>
                 </th>
                 <td className={num}>
                   {formatarNumero(x.quantidade, Number(x.quantidade) % 1 ? 4 : 0)}
@@ -593,6 +590,12 @@ function Posicoes({
                 </td>
                 <td className={num}>{formatarDinheiro(x.resultado_realizado)}</td>
                 <td className={num}>{formatarDinheiro(x.proventos_recebidos)}</td>
+                <td className="sticky right-0 bg-surface py-0.5 pr-1 pl-1 text-right">
+                  <BotaoEditar
+                    rotulo={`Editar ${x.ticker}`}
+                    onClick={() => onEditar(x.ticker)}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -642,6 +645,9 @@ function RendaFixaEOutros({
               <th scope="col" className="p-2 text-left font-medium">
                 Pendência
               </th>
+              <th scope="col" className="sticky right-0 bg-surface p-2">
+                <span className="sr-only">Editar</span>
+              </th>
             </tr>
           </thead>
           {[...grupos].map(([grupo, itens]) => (
@@ -649,7 +655,7 @@ function RendaFixaEOutros({
               <tr className="border-t border-border bg-surface-2">
                 <th
                   scope="rowgroup"
-                  colSpan={9}
+                  colSpan={10}
                   className="px-2 py-2 text-left text-xs font-semibold text-text-2"
                 >
                   {grupo}
@@ -657,14 +663,8 @@ function RendaFixaEOutros({
               </tr>
               {itens.map((x) => (
                 <tr key={x.id} className="border-t border-border align-top">
-                  <th scope="row" className="py-0.5 pr-0 pl-2 text-left font-normal">
-                    <div className="flex items-center gap-0.5">
-                      {x.ativo}
-                      <BotaoEditar
-                        rotulo={`Editar ${x.ativo}`}
-                        onClick={() => onEditar(x)}
-                      />
-                    </div>
+                  <th scope="row" className="px-2 py-2.5 text-left font-normal">
+                    {x.ativo}
                   </th>
                   <td className="px-2 py-2.5">{x.corretora}</td>
                   <td className="px-2 py-2.5 whitespace-nowrap">{indexadorETaxa(x)}</td>
@@ -683,6 +683,12 @@ function RendaFixaEOutros({
                   </td>
                   <td className="px-2 py-2.5 text-xs text-warn">
                     {x.pendencias.join("; ") || "-"}
+                  </td>
+                  <td className="sticky right-0 bg-surface py-0.5 pr-1 pl-1 text-right">
+                    <BotaoEditar
+                      rotulo={`Editar ${x.ativo}`}
+                      onClick={() => onEditar(x)}
+                    />
                   </td>
                 </tr>
               ))}

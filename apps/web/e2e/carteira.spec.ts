@@ -61,6 +61,7 @@ test("carteira de conferência aparece com os mesmos números", async ({ page })
     "Não realizado",
     "Realizado",
     "Proventos",
+    "Editar",
   ]);
   const comPreco = {
     Cotação: /^R\$\s[\d.,]+$/,

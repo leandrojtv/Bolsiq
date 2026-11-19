@@ -219,7 +219,7 @@ Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
   que o design não prevê.
 - "Renda fixa, fundos e outros": posições vigentes agrupadas por classe, com o
   valor do extrato. Entram no patrimônio e na alocação, não no TWR.
-- Edição manual (#86): o lápis à direita do nome do ativo abre um sheet. Na renda variável,
+- Edição manual (#86): o lápis no fim da linha do ativo abre um sheet. Na renda variável,
   lista as transações do ativo (lançadas, importadas ou automáticas) com editar
   e excluir, e "Excluir ATIVO da carteira" apaga todas. Na renda fixa, corrige
   ativo, saldos, valor aplicado, vencimento, indexador e taxa, ou exclui a

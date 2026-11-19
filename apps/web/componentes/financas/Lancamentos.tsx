@@ -7,6 +7,7 @@ import {
   EdicaoDeLancamento,
   NovoLancamento,
   STATUS_DE_LANCAMENTO,
+  type Cartao,
   type Categoria,
   type Conta,
   type Lancamento,
@@ -20,8 +21,11 @@ import {
   apagarLancamento,
   CHAVE,
   criarLancamento,
+  destinoDoSeletor,
+  PREFIXO_CARTAO,
   editarLancamento,
   STATUS_ROTULO,
+  useCartoes,
   useCategorias,
   useContas,
   useLancamentos,
@@ -60,6 +64,38 @@ function OpcoesDeCategoria({
   );
 }
 
+/** Contas e, num grupo a parte, cartoes (valor `cartao:<id>`). */
+function OpcoesDeDestino({
+  contas,
+  cartoes,
+  sem,
+}: {
+  contas: Conta[];
+  cartoes: Cartao[];
+  sem?: string;
+}) {
+  return (
+    <>
+      {contas
+        .filter((c) => c.id !== sem)
+        .map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.nome}
+          </option>
+        ))}
+      {cartoes.length > 0 && (
+        <optgroup label="Cartões">
+          {cartoes.map((c) => (
+            <option key={c.id} value={`${PREFIXO_CARTAO}${c.id}`}>
+              {c.nome}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+}
+
 /**
  * Lancamento rapido: valor, descricao, data, conta e categoria. Enter em
  * qualquer campo salva (e um form), e o foco volta para o valor.
@@ -72,6 +108,8 @@ export function LancamentoRapido({
   onSalvo: () => void;
 }) {
   const { data: categorias = [] } = useCategorias();
+  const { data: todosCartoes = [] } = useCartoes();
+  const cartoes = todosCartoes.filter((c) => !c.arquivado);
   const ativas = contas.filter((c) => !c.arquivada);
   const [tipo, setTipo] = useState<"despesa" | "receita">("despesa");
   const [valor, setValor] = useState("");
@@ -81,9 +119,11 @@ export function LancamentoRapido({
   const [categoria, setCategoria] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const contaEscolhida = ativas.some((c) => c.id === conta)
-    ? conta
-    : (ativas[0]?.id ?? "");
+  const contaEscolhida =
+    ativas.some((c) => c.id === conta) ||
+    cartoes.some((c) => `${PREFIXO_CARTAO}${c.id}` === conta)
+      ? conta
+      : (ativas[0]?.id ?? "");
 
   async function salvar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -94,7 +134,7 @@ export function LancamentoRapido({
       valor,
       descricao,
       data,
-      account_id: contaEscolhida,
+      ...destinoDoSeletor(contaEscolhida),
       category_id: categoria || null,
     };
     const r = NovoLancamento.safeParse(digitado);
@@ -174,11 +214,7 @@ export function LancamentoRapido({
             value={contaEscolhida}
             onChange={(e) => setConta(e.target.value)}
           >
-            {ativas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
+            <OpcoesDeDestino contas={ativas} cartoes={cartoes} />
           </select>
         </label>
         <label className={ROTULO}>
@@ -221,12 +257,18 @@ export function FormularioDeLancamento({
   inicial?: Lancamento;
   onSalvo: () => void;
 }) {
+  const { data: todosCartoes = [] } = useCartoes();
+  const cartoes = todosCartoes.filter((c) => !c.arquivado || c.id === inicial?.card_id);
   const ativas = contas.filter((c) => !c.arquivada || c.id === inicial?.account_id);
   const [tipo, setTipo] = useState<TipoDeLancamento>(inicial?.tipo ?? "despesa");
   const [valor, setValor] = useState(inicial?.valor.replace(".", ",") ?? "");
   const [descricao, setDescricao] = useState(inicial?.descricao ?? "");
   const [data, setData] = useState(inicial?.data ?? hojeEmSp());
-  const [conta, setConta] = useState(inicial?.account_id ?? ativas[0]?.id ?? "");
+  const [conta, setConta] = useState(
+    inicial?.card_id
+      ? `${PREFIXO_CARTAO}${inicial.card_id}`
+      : (inicial?.account_id ?? ativas[0]?.id ?? ""),
+  );
   const [destino, setDestino] = useState("");
   const [categoria, setCategoria] = useState(inicial?.category_id ?? "");
   const [status, setStatus] = useState<StatusDeLancamento>(
@@ -247,7 +289,7 @@ export function FormularioDeLancamento({
           valor,
           descricao,
           data,
-          account_id: conta,
+          ...(inicial.card_id ? {} : { account_id: conta }),
           status,
           observacao,
           ...(transferencia ? {} : { category_id: categoria || null }),
@@ -261,11 +303,13 @@ export function FormularioDeLancamento({
           valor,
           descricao,
           data,
-          account_id: conta,
+          ...destinoDoSeletor(conta),
           status,
           observacao,
           ...(transferencia
-            ? { conta_destino_id: destino }
+            ? destino.startsWith(PREFIXO_CARTAO)
+              ? { cartao_destino_id: destino.slice(PREFIXO_CARTAO.length) }
+              : { conta_destino_id: destino }
             : { category_id: categoria || null }),
         };
         const r = NovoLancamento.safeParse(novo);
@@ -341,17 +385,17 @@ export function FormularioDeLancamento({
           </select>
         </label>
         <label className={ROTULO}>
-          {transferencia ? "Conta de origem" : "Conta"}
+          {transferencia ? "Conta de origem" : "Conta ou cartão"}
           <select
             className={CAMPO}
             value={conta}
+            disabled={Boolean(inicial?.card_id)}
             onChange={(e) => setConta(e.target.value)}
           >
-            {ativas.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
+            <OpcoesDeDestino
+              contas={ativas}
+              cartoes={transferencia && !inicial?.card_id ? [] : cartoes}
+            />
           </select>
         </label>
         {transferencia && !inicial ? (
@@ -363,13 +407,7 @@ export function FormularioDeLancamento({
               onChange={(e) => setDestino(e.target.value)}
             >
               <option value="">Escolha</option>
-              {ativas
-                .filter((c) => c.id !== conta)
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nome}
-                  </option>
-                ))}
+              <OpcoesDeDestino contas={ativas} cartoes={cartoes} sem={conta} />
             </select>
           </label>
         ) : !transferencia ? (
@@ -400,6 +438,7 @@ export function FormularioDeLancamento({
       {transferencia && (
         <p className="m-0 text-xs text-text-3">
           Transferência move o saldo entre as contas e não conta como receita nem despesa.
+          Para um cartão, é o pagamento da fatura.
         </p>
       )}
       {erro && (
@@ -418,6 +457,7 @@ export function PaginaDeLancamentos() {
   const cliente = useQueryClient();
   const { data: contas = [], isPending: carregandoContas } = useContas();
   const { data: categorias = [] } = useCategorias();
+  const { data: cartoes = [] } = useCartoes();
   const [filtro, setFiltro] = useState({
     de: "",
     ate: "",
@@ -427,15 +467,23 @@ export function PaginaDeLancamentos() {
     q: "",
   });
   const [pagina, setPagina] = useState(1);
+  const { conta: contaOuCartao, ...outros } = filtro;
   const { data, isPending } = useLancamentos({
-    ...filtro,
+    ...outros,
+    ...(contaOuCartao.startsWith(PREFIXO_CARTAO)
+      ? { cartao: contaOuCartao.slice(PREFIXO_CARTAO.length) }
+      : { conta: contaOuCartao }),
     pagina: String(pagina),
     por_pagina: String(POR_PAGINA),
   });
   const [aberto, setAberto] = useState<Lancamento | "novo" | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const atualizar = () => void cliente.invalidateQueries({ queryKey: CHAVE });
-  const nomeDaConta = new Map(contas.map((c) => [c.id, c.nome]));
+  const nomeDaConta = new Map([
+    ...contas.map((c) => [c.id, c.nome] as const),
+    ...cartoes.map((c) => [c.id, c.nome] as const),
+  ]);
+  const ondeEsta = (l: Lancamento) => nomeDaConta.get(l.account_id ?? l.card_id ?? "");
   const nomeDaCategoria = new Map(categorias.map((c) => [c.id, c.nome]));
   const mudar = (k: keyof typeof filtro, v: string) => {
     setFiltro((f) => ({ ...f, [k]: v }));
@@ -512,11 +560,7 @@ export function PaginaDeLancamentos() {
               onChange={(e) => mudar("conta", e.target.value)}
             >
               <option value="">Todas</option>
-              {contas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nome}
-                </option>
-              ))}
+              <OpcoesDeDestino contas={contas} cartoes={cartoes} />
             </select>
           </label>
           <label className={ROTULO}>
@@ -595,11 +639,11 @@ export function PaginaDeLancamentos() {
                         <span className="ml-2 text-xs text-text-3">transferência</span>
                       )}
                       <span className="block font-mono text-xs text-text-3 md:hidden">
-                        {dataBr(l.data)} · {nomeDaConta.get(l.account_id)}
+                        {dataBr(l.data)} · {ondeEsta(l)}
                       </span>
                     </td>
                     <td className="hidden py-2.5 text-text-2 md:table-cell">
-                      {nomeDaConta.get(l.account_id)}
+                      {ondeEsta(l)}
                     </td>
                     <td className="hidden py-2.5 text-text-2 md:table-cell">
                       {l.category_id ? nomeDaCategoria.get(l.category_id) : "-"}

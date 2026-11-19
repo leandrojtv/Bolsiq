@@ -16,6 +16,15 @@ describe("OpenAPI do BFF de financas", () => {
     expect(Object.keys(doc.components.securitySchemes)).toEqual(["sessao"]);
   });
 
+  it("upload de OFX e multipart", () => {
+    const op = (doc.paths["/api/financas/importacoes"]?.post ?? {}) as {
+      requestBody?: { content: Record<string, unknown> };
+    };
+    expect(Object.keys(op.requestBody?.content ?? {})).toEqual(["multipart/form-data"]);
+    const linha = doc.paths["/api/financas/importacoes/{id}/linhas/{linha}"]?.patch;
+    expect(linha?.parameters).toHaveLength(2);
+  });
+
   it("parametros de caminho e de consulta entram", () => {
     const lista = doc.paths["/api/financas/lancamentos"]?.get;
     expect(lista?.parameters?.length).toBeGreaterThanOrEqual(8);

@@ -73,6 +73,10 @@ const Env = z.object({
   ASSISTANT_IMPORT_TOLERANCE: z.coerce.number().min(0).max(0.1).default(0.005),
   /** Limites do envio da importacao com IA (ADR 0027): MB por arquivo e arquivos por envio. */
   ASSISTANT_IMPORT_MAX_MB: z.coerce.number().int().positive().default(50),
+  /** Importacao de OFX do Bolsiq Financas: por arquivo (MB), linhas somadas, arquivos por envio. */
+  FINANCE_IMPORT_MAX_MB: z.coerce.number().positive().default(5),
+  FINANCE_IMPORT_MAX_ROWS: z.coerce.number().int().positive().default(5000),
+  FINANCE_IMPORT_MAX_FILES: z.coerce.number().int().positive().default(10),
   ASSISTANT_IMPORT_MAX_PAGES: z.coerce.number().int().positive().default(500),
   ASSISTANT_IMPORT_MAX_FILES: z.coerce.number().int().positive().default(20),
   /** Custo estimado (US$) acima do qual o job espera a confirmacao do usuario. */

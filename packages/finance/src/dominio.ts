@@ -120,9 +120,13 @@ export function totaisDoMes(
   };
 }
 
+/** Destino da transferencia: outra conta, ou a fatura de um cartao (pagamento). */
+export type DestinoDeTransferencia =
+  { account_id: string } | { card_id: string; statement_id: string };
+
 export interface PedidoDeTransferencia {
   de: string;
-  para: string;
+  para: string | DestinoDeTransferencia;
   valor: string;
   data: string;
   descricao: string;
@@ -132,7 +136,9 @@ export interface PedidoDeTransferencia {
 
 export interface LadoDaTransferencia {
   id: string;
-  account_id: string;
+  account_id: string | null;
+  card_id: string | null;
+  statement_id: string | null;
   tipo: "transferencia";
   valor: string;
   data: string;
@@ -154,7 +160,10 @@ export function montarTransferencia(
   p: PedidoDeTransferencia,
   ids: { saida: string; entrada: string },
 ): [LadoDaTransferencia, LadoDaTransferencia] {
-  if (p.de === p.para) throw new Error("transferencia para a mesma conta");
+  const para: DestinoDeTransferencia =
+    typeof p.para === "string" ? { account_id: p.para } : p.para;
+  if ("account_id" in para && para.account_id === p.de)
+    throw new Error("transferencia para a mesma conta");
   if (!d(p.valor).gt(0)) throw new Error("valor da transferencia precisa ser positivo");
   const comum = {
     tipo: "transferencia" as const,
@@ -172,13 +181,17 @@ export function montarTransferencia(
       ...comum,
       id: ids.saida,
       account_id: p.de,
+      card_id: null,
+      statement_id: null,
       transferencia_par_id: ids.entrada,
       transferencia_sentido: "saida",
     },
     {
       ...comum,
       id: ids.entrada,
-      account_id: p.para,
+      account_id: "account_id" in para ? para.account_id : null,
+      card_id: "card_id" in para ? para.card_id : null,
+      statement_id: "card_id" in para ? para.statement_id : null,
       transferencia_par_id: ids.saida,
       transferencia_sentido: "entrada",
     },

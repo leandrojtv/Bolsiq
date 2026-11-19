@@ -83,6 +83,22 @@ describe("NovoLancamento", () => {
       NovoLancamento.safeParse({ ...t, conta_destino_id: "a" }).error?.issues[0]?.message,
     ).toBe("origem e destino iguais");
     expect(NovoLancamento.safeParse({ ...t, conta_destino_id: "b" }).success).toBe(true);
+    expect(NovoLancamento.safeParse({ ...t, cartao_destino_id: "c" }).success).toBe(true);
+  });
+  it("conta ou cartao, exatamente um; transferencia sai de conta", () => {
+    const { account_id: _, ...semConta } = base;
+    expect(NovoLancamento.safeParse(semConta).error?.issues[0]?.message).toBe(
+      "escolha a conta ou o cartão",
+    );
+    expect(NovoLancamento.safeParse({ ...semConta, card_id: "c" }).success).toBe(true);
+    expect(
+      NovoLancamento.safeParse({
+        ...semConta,
+        card_id: "c",
+        tipo: "transferencia",
+        conta_destino_id: "b",
+      }).error?.issues[0]?.message,
+    ).toBe("transferência sai de uma conta");
   });
   it("edicao parcial", () => {
     expect(EdicaoDeLancamento.parse({ valor: "1,5", observacao: "" })).toEqual({

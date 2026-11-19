@@ -41,8 +41,9 @@ ROLE` e `set_config(..., true)`). `audit_log` append-only por `REVOKE`. `outbox`
 6. **Painel geral (`/painel`) compõe chamando os módulos pelo BFF**, nunca por SQL entre
    schemas. Nesta etapa a rota existe com estado vazio.
 7. **Eventos via outbox no schema `finance`**, publicados no NATS como `finance.*`
-   (ADR 0008). A tabela nasce agora; o publicador entra com o primeiro evento
-   (`finance.importacao_confirmada`).
+   (ADR 0008). A tabela nasce agora; o primeiro evento
+   (`finance.importacao.confirmada.v1`) chegou com o [ADR 0032](0032-importacao-ofx-financas.md),
+   e o publicador entra com o primeiro consumidor.
 8. **Jobs no pg-boss rodando no `portfolio-worker`** por enquanto, com o mesmo argumento
    do ADR 0027: ele já tem fila, conexão e o passo de migrations dos schemas do app. As
    migrations do `finance` passam a ser aplicadas por ele (journal `drizzle_finance`).

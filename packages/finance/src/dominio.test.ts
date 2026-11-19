@@ -157,6 +157,14 @@ describe("montarTransferencia", () => {
       transferencia_sentido: "entrada",
     });
   });
+  it("pagamento de fatura: entrada no cartao", () => {
+    const [s, e] = montarTransferencia(
+      { ...pedido, para: { card_id: "c", statement_id: "f" } },
+      { saida: "s", entrada: "e" },
+    );
+    expect(s).toMatchObject({ account_id: "a", card_id: null, statement_id: null });
+    expect(e).toMatchObject({ account_id: null, card_id: "c", statement_id: "f" });
+  });
   it("recusa mesma conta e valor nao positivo", () => {
     expect(() =>
       montarTransferencia({ ...pedido, para: "a" }, { saida: "s", entrada: "e" }),

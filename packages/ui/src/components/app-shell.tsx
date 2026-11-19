@@ -13,10 +13,13 @@ import {
   Briefcase,
   ChartLine,
   Columns2,
+  CreditCard,
+  FileUp,
   Funnel,
   Landmark,
   LayoutDashboard,
   LayoutGrid,
+  ListChecks,
   ReceiptText,
   Search,
   Tags,
@@ -140,8 +143,13 @@ export function navegacaoFinancas(atual: string): NavItem[] {
       label: "Lançamentos",
       icon: <ReceiptText {...ICONE} />,
     },
+    { href: "/financas/importar", label: "Importar", icon: <FileUp {...ICONE} /> },
+    { href: "/financas/cartoes", label: "Cartões", icon: <CreditCard {...ICONE} /> },
     { href: "/financas/contas", label: "Contas", icon: <Landmark {...ICONE} /> },
+    // Abaixo de 768 px a barra inferior mostra os cinco primeiros; estes dois
+    // ficam nos atalhos da visao geral.
     { href: "/financas/categorias", label: "Categorias", icon: <Tags {...ICONE} /> },
+    { href: "/financas/regras", label: "Regras", icon: <ListChecks {...ICONE} /> },
   ];
   return itens.map(({ exato, ...i }) => ({
     ...i,

@@ -15,6 +15,20 @@
       "when": 1795116479373,
       "tag": "0001_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795129949823,
+      "tag": "0002_importacao_ofx",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795129957196,
+      "tag": "0003_rls_importacao",
+      "breakpoints": true
     }
   ]
 }

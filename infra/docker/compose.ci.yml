@@ -197,6 +197,9 @@ services:
       ASSISTANT_IMPORT_MAX_MB: ${ASSISTANT_IMPORT_MAX_MB:-50}
       ASSISTANT_IMPORT_MAX_FILES: ${ASSISTANT_IMPORT_MAX_FILES:-20}
       ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
+      FINANCE_IMPORT_MAX_MB: ${FINANCE_IMPORT_MAX_MB:-5}
+      FINANCE_IMPORT_MAX_ROWS: ${FINANCE_IMPORT_MAX_ROWS:-5000}
+      FINANCE_IMPORT_MAX_FILES: ${FINANCE_IMPORT_MAX_FILES:-10}
       ASSISTANT_OLLAMA_HOSTS: host.docker.internal,ollama,llm-falso
       # Vazio usa a DeepSeek de verdade, como no `make dev-up`. So o job e2e aponta
       # para o provedor falso (ASSISTANT_DEEPSEEK_URL=http://llm-falso:11434).

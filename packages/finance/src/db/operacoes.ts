@@ -34,8 +34,18 @@ import {
   normalizarDescricao,
   totaisDoMes,
 } from "../dominio.js";
+import { faturaDaCompra, faturaDoMes, type CicloDoCartao } from "../cartao.js";
 import type { TransacaoDoUsuario } from "./sessao.js";
-import { accounts, audit_log, categories, transactions } from "./schema.js";
+import {
+  accounts,
+  audit_log,
+  cards,
+  categories,
+  import_rows,
+  imports,
+  statements,
+  transactions,
+} from "./schema.js";
 
 /**
  * Operacoes de banco do Bolsiq Financas. Recebem a transacao ja aberta por
@@ -79,7 +89,7 @@ export async function auditar(
   });
 }
 
-const unico = (erro: unknown) =>
+export const unico = (erro: unknown) =>
   (erro as { cause?: { code?: string } }).cause?.code === "23505" ||
   (erro as { code?: string }).code === "23505";
 
@@ -126,7 +136,11 @@ export async function listarCategorias(tx: Tx, uid: string): Promise<Categoria[]
   return linhas as Categoria[];
 }
 
-async function categoriaDoUsuario(tx: Tx, uid: string, id: string): Promise<Categoria> {
+export async function categoriaDoUsuario(
+  tx: Tx,
+  uid: string,
+  id: string,
+): Promise<Categoria> {
   const [c] = await tx
     .select(colunasDeCategoria)
     .from(categories)
@@ -227,11 +241,16 @@ export async function apagarCategoria(
   const atual = await categoriaDoUsuario(tx, uid, id);
   if (atual.sistema)
     throw new ErroDeFinancas(409, "Categoria do sistema não pode ser apagada; arquive.");
-  // FK composta sem ON DELETE: solta lancamentos e subcategorias antes.
+  // FK composta sem ON DELETE: solta lancamentos, linhas de importacao e
+  // subcategorias antes. As regras da categoria saem em cascata.
   await tx
     .update(transactions)
     .set({ category_id: null, atualizada_em: sql`now()` })
     .where(and(eq(transactions.user_id, uid), eq(transactions.category_id, id)));
+  await tx
+    .update(import_rows)
+    .set({ category_id: null })
+    .where(and(eq(import_rows.user_id, uid), eq(import_rows.category_id, id)));
   await tx
     .update(categories)
     .set({ parent_id: null })
@@ -276,6 +295,16 @@ const colunasDeConta = (hoje: string) => ({
   arquivada: accounts.arquivada,
   saldo_atual: saldoAte(hoje),
 });
+
+/** Saldo realizado da conta no fim de `data`. */
+export async function saldoDaConta(
+  tx: Tx,
+  uid: string,
+  id: string,
+  data: string,
+): Promise<string> {
+  return (await contaDoUsuario(tx, uid, id, data)).saldo_atual;
+}
 
 export async function listarContas(tx: Tx, uid: string, hoje: string): Promise<Conta[]> {
   const linhas = await tx
@@ -371,6 +400,18 @@ export async function apagarConta(
     .where(and(eq(transactions.user_id, uid), eq(transactions.account_id, id)));
   if ((uso?.n ?? 0) > 0)
     throw new ErroDeFinancas(409, "A conta tem lançamentos; arquive em vez de apagar.");
+  const [importada] = await tx
+    .select({ id: imports.id })
+    .from(imports)
+    .where(and(eq(imports.user_id, uid), eq(imports.account_id, id)))
+    .limit(1);
+  if (importada)
+    throw new ErroDeFinancas(409, "A conta tem importações; arquive em vez de apagar.");
+  // Cartao que costumava pagar por ela fica sem conta de pagamento.
+  await tx
+    .update(cards)
+    .set({ account_id: null })
+    .where(and(eq(cards.user_id, uid), eq(cards.account_id, id)));
   await tx.delete(accounts).where(and(eq(accounts.user_id, uid), eq(accounts.id, id)));
   await auditar(tx, uid, "conta.apagada", "account", id, origem, atual.nome);
 }
@@ -380,6 +421,8 @@ export async function apagarConta(
 const colunasDeLancamento = {
   id: transactions.id,
   account_id: transactions.account_id,
+  card_id: transactions.card_id,
+  statement_id: transactions.statement_id,
   tipo: transactions.tipo,
   valor: transactions.valor,
   data: transactions.data,
@@ -403,6 +446,9 @@ export async function listarLancamentos(
     f.de ? gte(transactions.data, f.de) : undefined,
     f.ate ? lte(transactions.data, f.ate) : undefined,
     f.conta ? eq(transactions.account_id, f.conta) : undefined,
+    f.cartao ? eq(transactions.card_id, f.cartao) : undefined,
+    f.fatura ? eq(transactions.statement_id, f.fatura) : undefined,
+    f.importacao ? eq(transactions.importacao_id, f.importacao) : undefined,
     f.categoria ? eq(transactions.category_id, f.categoria) : undefined,
     f.status ? eq(transactions.status, f.status) : undefined,
     f.q
@@ -435,12 +481,71 @@ async function lancamentoDoUsuario(tx: Tx, uid: string, id: string): Promise<Lan
   return l as Lancamento;
 }
 
-async function exigirConta(tx: Tx, uid: string, id: string): Promise<void> {
+export async function exigirConta(tx: Tx, uid: string, id: string): Promise<void> {
   const [c] = await tx
     .select({ id: accounts.id })
     .from(accounts)
     .where(and(eq(accounts.user_id, uid), eq(accounts.id, id)));
   if (!c) throw new ErroDeFinancas(404, "Conta não encontrada.");
+}
+
+export async function exigirCartao(
+  tx: Tx,
+  uid: string,
+  id: string,
+): Promise<CicloDoCartao> {
+  const [c] = await tx
+    .select({
+      dia_fechamento: cards.dia_fechamento,
+      dia_vencimento: cards.dia_vencimento,
+    })
+    .from(cards)
+    .where(and(eq(cards.user_id, uid), eq(cards.id, id)));
+  if (!c) throw new ErroDeFinancas(404, "Cartão não encontrado.");
+  return c;
+}
+
+/** A fatura do cartao que vence em `vencimento`, criada se ainda nao existe. */
+export async function obterFatura(
+  tx: Tx,
+  uid: string,
+  cardId: string,
+  vencimento: string,
+): Promise<string> {
+  const ciclo = await exigirCartao(tx, uid, cardId);
+  const f = faturaDoMes(
+    ciclo,
+    Number(vencimento.slice(0, 4)),
+    Number(vencimento.slice(5, 7)),
+  );
+  await tx
+    .insert(statements)
+    .values({ id: randomUUID(), user_id: uid, card_id: cardId, ...f })
+    .onConflictDoNothing();
+  const [s] = await tx
+    .select({ id: statements.id })
+    .from(statements)
+    .where(
+      and(
+        eq(statements.user_id, uid),
+        eq(statements.card_id, cardId),
+        eq(statements.vencimento, f.vencimento),
+      ),
+    );
+  /* c8 ignore next */
+  if (!s) throw new ErroDeFinancas(404, "Fatura não encontrada.");
+  return s.id;
+}
+
+/** A fatura em que entra uma compra ou pagamento do cartao feito em `data`. */
+export async function faturaDaData(
+  tx: Tx,
+  uid: string,
+  cardId: string,
+  data: string,
+): Promise<string> {
+  const ciclo = await exigirCartao(tx, uid, cardId);
+  return obterFatura(tx, uid, cardId, faturaDaCompra(ciclo, data).vencimento);
 }
 
 async function exigirCategoriaCompativel(
@@ -470,13 +575,23 @@ export async function criarLancamento(
   l: NovoLancamento,
   origem?: Origem,
 ): Promise<Lancamento[]> {
-  await exigirConta(tx, uid, l.account_id);
+  if (l.account_id) await exigirConta(tx, uid, l.account_id);
   if (l.tipo === "transferencia") {
-    await exigirConta(tx, uid, l.conta_destino_id ?? "");
+    if (!l.account_id) throw new ErroDeFinancas(422, "Transferência sai de uma conta.");
+    let para: Parameters<typeof montarTransferencia>[0]["para"];
+    if (l.cartao_destino_id) {
+      para = {
+        card_id: l.cartao_destino_id,
+        statement_id: await faturaDaData(tx, uid, l.cartao_destino_id, l.data),
+      };
+    } else {
+      await exigirConta(tx, uid, l.conta_destino_id ?? "");
+      para = l.conta_destino_id ?? "";
+    }
     const lados = montarTransferencia(
       {
         de: l.account_id,
-        para: l.conta_destino_id ?? "",
+        para,
         valor: l.valor,
         data: l.data,
         descricao: l.descricao,
@@ -501,7 +616,9 @@ export async function criarLancamento(
   await tx.insert(transactions).values({
     id,
     user_id: uid,
-    account_id: l.account_id,
+    account_id: l.account_id ?? null,
+    card_id: l.card_id ?? null,
+    statement_id: l.card_id ? await faturaDaData(tx, uid, l.card_id, l.data) : null,
     tipo: l.tipo,
     valor: moeda(d(l.valor)),
     data: l.data,
@@ -542,6 +659,8 @@ export async function editarLancamento(
     // Trocar a conta de um lado so: a outra ponta continua a mesma.
     const proprio: Partial<typeof transactions.$inferInsert> = {};
     if (e.account_id !== undefined && e.account_id !== atual.account_id) {
+      if (atual.card_id)
+        throw new ErroDeFinancas(422, "Este lado da transferência é um cartão.");
       await exigirConta(tx, uid, e.account_id);
       const par = await lancamentoDoUsuario(tx, uid, atual.transferencia_par_id ?? "");
       if (par.account_id === e.account_id)
@@ -560,7 +679,9 @@ export async function editarLancamento(
         .set({ ...proprio, atualizada_em: sql`now()` })
         .where(and(eq(transactions.user_id, uid), eq(transactions.id, id)));
   } else {
-    if (e.account_id !== undefined) {
+    if (e.account_id !== undefined && e.account_id !== atual.account_id) {
+      if (atual.card_id)
+        throw new ErroDeFinancas(422, "Lançamento de cartão não muda para conta.");
       await exigirConta(tx, uid, e.account_id);
       comum.account_id = e.account_id;
     }

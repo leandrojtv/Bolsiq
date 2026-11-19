@@ -504,9 +504,11 @@ function BotaoEditar({ rotulo, onClick }: { rotulo: string; onClick: () => void 
       aria-label={rotulo}
       title={rotulo}
       onClick={onClick}
-      className="inline-flex size-touch items-center justify-center rounded-control text-text-3 hover:bg-surface-2 hover:text-text"
+      className="group inline-flex size-touch shrink-0 items-center justify-center"
     >
-      <Pencil aria-hidden="true" size={16} />
+      <span className="inline-flex size-8 items-center justify-center rounded-control border border-border-strong text-link group-hover:bg-surface-2 group-hover:text-link-hover">
+        <Pencil aria-hidden="true" size={15} />
+      </span>
     </button>
   );
 }
@@ -551,12 +553,8 @@ function Posicoes({
           <tbody>
             {p.posicoes.map((x) => (
               <tr key={x.ticker} className="border-t border-border">
-                <th scope="row" className="py-0.5 pr-2 pl-0 text-left font-normal">
+                <th scope="row" className="py-0.5 pr-0 pl-2 text-left font-normal">
                   <div className="flex items-center gap-0.5">
-                    <BotaoEditar
-                      rotulo={`Editar ${x.ticker}`}
-                      onClick={() => onEditar(x.ticker)}
-                    />
                     <Link
                       href={`/ativo/${x.ticker}`}
                       className="flex flex-col gap-0.5 text-text"
@@ -566,6 +564,10 @@ function Posicoes({
                         <span className="text-[11px] text-link">{x.evento}</span>
                       )}
                     </Link>
+                    <BotaoEditar
+                      rotulo={`Editar ${x.ticker}`}
+                      onClick={() => onEditar(x.ticker)}
+                    />
                   </div>
                 </th>
                 <td className={num}>
@@ -655,13 +657,13 @@ function RendaFixaEOutros({
               </tr>
               {itens.map((x) => (
                 <tr key={x.id} className="border-t border-border align-top">
-                  <th scope="row" className="py-0.5 pr-2 pl-0 text-left font-normal">
+                  <th scope="row" className="py-0.5 pr-0 pl-2 text-left font-normal">
                     <div className="flex items-center gap-0.5">
+                      {x.ativo}
                       <BotaoEditar
                         rotulo={`Editar ${x.ativo}`}
                         onClick={() => onEditar(x)}
                       />
-                      {x.ativo}
                     </div>
                   </th>
                   <td className="px-2 py-2.5">{x.corretora}</td>

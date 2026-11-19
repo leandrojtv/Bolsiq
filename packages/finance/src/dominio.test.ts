@@ -74,9 +74,9 @@ describe("saldoNaData", () => {
     expect(saldoNaData(conta, lancamentos, "2026-03-31")).toBe("1449.70");
   });
   it("com previstos, e o saldo previsto", () => {
-    expect(saldoNaData(conta, lancamentos, "2026-03-31", { incluirPrevistos: true })).toBe(
-      "1249.70",
-    );
+    expect(
+      saldoNaData(conta, lancamentos, "2026-03-31", { incluirPrevistos: true }),
+    ).toBe("1249.70");
   });
   it("antes do saldo inicial nao ha saldo conhecido", () => {
     expect(saldoNaData(conta, lancamentos, "2026-02-28")).toBeNull();
@@ -158,11 +158,11 @@ describe("montarTransferencia", () => {
     });
   });
   it("recusa mesma conta e valor nao positivo", () => {
-    expect(() => montarTransferencia({ ...pedido, para: "a" }, { saida: "s", entrada: "e" })).toThrow(
-      /mesma conta/,
-    );
-    expect(() => montarTransferencia({ ...pedido, valor: "0" }, { saida: "s", entrada: "e" })).toThrow(
-      /positivo/,
-    );
+    expect(() =>
+      montarTransferencia({ ...pedido, para: "a" }, { saida: "s", entrada: "e" }),
+    ).toThrow(/mesma conta/);
+    expect(() =>
+      montarTransferencia({ ...pedido, valor: "0" }, { saida: "s", entrada: "e" }),
+    ).toThrow(/positivo/);
   });
 });

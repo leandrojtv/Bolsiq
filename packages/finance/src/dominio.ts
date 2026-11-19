@@ -26,12 +26,13 @@ const CONTA_NO_SALDO: StatusDeLancamento[] = ["realizado", "conciliado"];
  * Quanto o lancamento move o saldo da conta: receita soma, despesa subtrai, e a
  * transferencia segue o sentido. Valor sempre positivo no banco.
  */
-export function efeitoNoSaldo(l: Pick<LancamentoBase, "tipo" | "valor" | "transferencia_sentido">): string {
+export function efeitoNoSaldo(
+  l: Pick<LancamentoBase, "tipo" | "valor" | "transferencia_sentido">,
+): string {
   const v = d(l.valor);
   if (l.tipo === "receita") return moeda(v);
   if (l.tipo === "despesa") return moeda(v.neg());
-  if (l.transferencia_sentido === null)
-    throw new Error("transferencia sem sentido");
+  if (l.transferencia_sentido === null) throw new Error("transferencia sem sentido");
   return moeda(l.transferencia_sentido === "entrada" ? v : v.neg());
 }
 
@@ -48,7 +49,10 @@ export interface ContaParaSaldo {
  */
 export function saldoNaData(
   conta: ContaParaSaldo,
-  lancamentos: Pick<LancamentoBase, "tipo" | "valor" | "data" | "status" | "transferencia_sentido">[],
+  lancamentos: Pick<
+    LancamentoBase,
+    "tipo" | "valor" | "data" | "status" | "transferencia_sentido"
+  >[],
   data: string,
   { incluirPrevistos = false }: { incluirPrevistos?: boolean } = {},
 ): string | null {
@@ -95,7 +99,10 @@ export function totaisDoMes(
     if (l.status === "previsto") alvo.previsto = alvo.previsto.plus(l.valor);
     else alvo.realizado = alvo.realizado.plus(l.valor);
   }
-  const fechar = (s: { previsto: ReturnType<typeof d>; realizado: ReturnType<typeof d> }) => ({
+  const fechar = (s: {
+    previsto: ReturnType<typeof d>;
+    realizado: ReturnType<typeof d>;
+  }) => ({
     previsto: moeda(s.previsto),
     realizado: moeda(s.realizado),
     total: moeda(s.previsto.plus(s.realizado)),

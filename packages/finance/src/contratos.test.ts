@@ -31,7 +31,11 @@ describe("NovaConta", () => {
       saldo_inicial: "-150,30",
       data_saldo_inicial: "2026-03-01",
     });
-    expect(r).toMatchObject({ nome: "Nubank", instituicao: null, saldo_inicial: "-150.30" });
+    expect(r).toMatchObject({
+      nome: "Nubank",
+      instituicao: null,
+      saldo_inicial: "-150.30",
+    });
   });
   it("saldo padrao e zero e -0 vira 0", () => {
     const base = { nome: "X", tipo: "carteira", data_saldo_inicial: "2026-03-01" };
@@ -62,7 +66,10 @@ describe("NovoLancamento", () => {
     account_id: "a",
   };
   it("normaliza valor e usa realizado por padrao", () => {
-    expect(NovoLancamento.parse(base)).toMatchObject({ valor: "45.90", status: "realizado" });
+    expect(NovoLancamento.parse(base)).toMatchObject({
+      valor: "45.90",
+      status: "realizado",
+    });
   });
   it("recusa valor zero", () => {
     expect(NovoLancamento.safeParse({ ...base, valor: "0" }).success).toBe(false);

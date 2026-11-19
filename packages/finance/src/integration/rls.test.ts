@@ -71,16 +71,25 @@ const conta = (nome: string, saldo = "1000") =>
 
 beforeAll(async () => {
   container = await new GenericContainer("timescale/timescaledb-ha:pg17")
-    .withEnvironment({ POSTGRES_USER: "dono", POSTGRES_PASSWORD: "dono", POSTGRES_DB: "ci" })
+    .withEnvironment({
+      POSTGRES_USER: "dono",
+      POSTGRES_PASSWORD: "dono",
+      POSTGRES_DB: "ci",
+    })
     .withExposedPorts(5432)
     .withWaitStrategy(Wait.forSuccessfulCommand("pg_isready -h 127.0.0.1 -p 5432"))
     .withStartupTimeout(120_000)
     .start();
   const porta = container.getMappedPort(5432);
-  dono = new Pool({ connectionString: `postgres://dono:dono@${HOST}:${porta}/ci`, max: 3 });
+  dono = new Pool({
+    connectionString: `postgres://dono:dono@${HOST}:${porta}/ci`,
+    max: 3,
+  });
 
   const pasta = resolve(import.meta.dirname, "../../migrations");
-  for (const arquivo of readdirSync(pasta).filter((f) => f.endsWith(".sql")).sort()) {
+  for (const arquivo of readdirSync(pasta)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()) {
     for (const bloco of readFileSync(resolve(pasta, arquivo), "utf8").split(
       "--> statement-breakpoint",
     )) {
@@ -88,16 +97,23 @@ beforeAll(async () => {
     }
   }
   await dono.query("ALTER ROLE bolsiq_app LOGIN PASSWORD 'app'");
-  app = new Pool({ connectionString: `postgres://bolsiq_app:app@${HOST}:${porta}/ci`, max: 2 });
+  app = new Pool({
+    connectionString: `postgres://bolsiq_app:app@${HOST}:${porta}/ci`,
+    max: 2,
+  });
   // Como o web: conecta como superusuario e troca o papel na transacao (ADR 0022).
   db = drizzle(dono);
 
   for (const u of [A, B]) await comoUsuario(db, u, (tx) => semearCategorias(tx, u));
-  contaA = (await comoUsuario(db, A, (tx) => criarConta(tx, A, conta("Corrente A"), HOJE))).id;
+  contaA = (
+    await comoUsuario(db, A, (tx) => criarConta(tx, A, conta("Corrente A"), HOJE))
+  ).id;
   poupancaA = (
     await comoUsuario(db, A, (tx) => criarConta(tx, A, conta("Poupança A", "0"), HOJE))
   ).id;
-  contaB = (await comoUsuario(db, B, (tx) => criarConta(tx, B, conta("Corrente B"), HOJE))).id;
+  contaB = (
+    await comoUsuario(db, B, (tx) => criarConta(tx, B, conta("Corrente B"), HOJE))
+  ).id;
   const categoriasB = await comoUsuario(db, B, (tx) => listarCategorias(tx, B));
   categoriaB = categoriasB.find((c) => c.nome === "Mercado")?.id ?? "";
   const [l] = await comoUsuario(db, B, (tx) =>
@@ -149,8 +165,14 @@ describe("RLS do finance", () => {
 
   it("A nao le conta, categoria nem lancamento do B", async () => {
     for (const tabela of ["accounts", "categories", "transactions"]) {
-      const r = await cru<{ user_id: string }>(A, `SELECT user_id FROM finance.${tabela}`);
-      expect(r.rows.every((x) => x.user_id === A), tabela).toBe(true);
+      const r = await cru<{ user_id: string }>(
+        A,
+        `SELECT user_id FROM finance.${tabela}`,
+      );
+      expect(
+        r.rows.every((x) => x.user_id === A),
+        tabela,
+      ).toBe(true);
     }
     const forjado = await cru(A, "SELECT * FROM finance.transactions WHERE id = $1", [
       lancamentoB,
@@ -306,7 +328,9 @@ describe("operacoes do finance", () => {
       "Corrente A": "5700.00",
       "Poupança A": "300.00",
     });
-    const resumo = await comoUsuario(db, A, (tx) => resumoDoMes(tx, A, "2026-03-01", HOJE));
+    const resumo = await comoUsuario(db, A, (tx) =>
+      resumoDoMes(tx, A, "2026-03-01", HOJE),
+    );
     expect(resumo.receita.total).toBe("5000.00");
     expect(resumo.despesa.total).toBe("0.00");
 
@@ -366,7 +390,11 @@ describe("operacoes do finance", () => {
         ),
       );
     const busca = await comoUsuario(db, A, (tx) =>
-      listarLancamentos(tx, A, FiltroDeLancamentos.parse({ q: "padaria", por_pagina: "1" })),
+      listarLancamentos(
+        tx,
+        A,
+        FiltroDeLancamentos.parse({ q: "padaria", por_pagina: "1" }),
+      ),
     );
     expect(busca.meta.total).toBe(2);
     expect(busca.data.map((l) => l.descricao)).toEqual(["Padaria do bairro"]);

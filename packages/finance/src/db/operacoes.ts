@@ -1,5 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { CATEGORIAS_PADRAO } from "../categorias-padrao.js";
 import type {
   Categoria,
@@ -161,7 +173,8 @@ export async function criarCategoria(
       icone: c.icone ?? null,
     });
   } catch (erro) {
-    if (unico(erro)) throw new ErroDeFinancas(409, "Já existe uma categoria com esse nome.");
+    if (unico(erro))
+      throw new ErroDeFinancas(409, "Já existe uma categoria com esse nome.");
     throw erro;
   }
   await auditar(tx, uid, "categoria.criada", "category", id, origem, c.nome);
@@ -223,7 +236,9 @@ export async function apagarCategoria(
     .update(categories)
     .set({ parent_id: null })
     .where(and(eq(categories.user_id, uid), eq(categories.parent_id, id)));
-  await tx.delete(categories).where(and(eq(categories.user_id, uid), eq(categories.id, id)));
+  await tx
+    .delete(categories)
+    .where(and(eq(categories.user_id, uid), eq(categories.id, id)));
   await auditar(tx, uid, "categoria.apagada", "category", id, origem, atual.nome);
 }
 
@@ -271,7 +286,12 @@ export async function listarContas(tx: Tx, uid: string, hoje: string): Promise<C
   return linhas as Conta[];
 }
 
-async function contaDoUsuario(tx: Tx, uid: string, id: string, hoje: string): Promise<Conta> {
+async function contaDoUsuario(
+  tx: Tx,
+  uid: string,
+  id: string,
+  hoje: string,
+): Promise<Conta> {
   const [c] = await tx
     .select(colunasDeConta(hoje))
     .from(accounts)
@@ -328,7 +348,8 @@ export async function editarConta(
         .set(mudancas)
         .where(and(eq(accounts.user_id, uid), eq(accounts.id, id)));
     } catch (erro) {
-      if (unico(erro)) throw new ErroDeFinancas(409, "Já existe uma conta com esse nome.");
+      if (unico(erro))
+        throw new ErroDeFinancas(409, "Já existe uma conta com esse nome.");
       throw erro;
     }
   }
@@ -465,7 +486,14 @@ export async function criarLancamento(
       { saida: randomUUID(), entrada: randomUUID() },
     );
     await tx.insert(transactions).values(lados.map((x) => ({ ...x, user_id: uid })));
-    await auditar(tx, uid, "lancamento.transferencia", "transaction", lados[0].id, origem);
+    await auditar(
+      tx,
+      uid,
+      "lancamento.transferencia",
+      "transaction",
+      lados[0].id,
+      origem,
+    );
     return Promise.all(lados.map((x) => lancamentoDoUsuario(tx, uid, x.id)));
   }
   await exigirCategoriaCompativel(tx, uid, l.category_id, l.tipo);
@@ -510,8 +538,7 @@ export async function editarLancamento(
   if (e.observacao !== undefined) comum.observacao = e.observacao;
 
   if (atual.tipo === "transferencia") {
-    if (e.category_id)
-      throw new ErroDeFinancas(422, "Transferência não tem categoria.");
+    if (e.category_id) throw new ErroDeFinancas(422, "Transferência não tem categoria.");
     // Trocar a conta de um lado so: a outra ponta continua a mesma.
     const proprio: Partial<typeof transactions.$inferInsert> = {};
     if (e.account_id !== undefined && e.account_id !== atual.account_id) {

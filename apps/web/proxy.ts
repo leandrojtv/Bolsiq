@@ -13,6 +13,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export const COOKIE_DO_USUARIO = "bolsiq_uid";
 const EXIGEM_LOGIN = [
   "/carteiras",
+  "/financas",
+  "/painel",
   "/configuracoes/conta",
   "/configuracoes/seguranca",
   "/configuracoes/assistente",

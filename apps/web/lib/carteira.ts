@@ -39,6 +39,7 @@ import {
   retornoDaSerie,
   ultimos12Meses,
   umAnoAntes,
+  type EdicaoDePosicao,
   type NovaTransacao,
 } from "./carteira-modelo";
 import { hojeEmSp } from "./indicadores-tecnicos";
@@ -184,6 +185,188 @@ export async function adicionarTransacao(
     );
   });
   return { id };
+}
+
+export interface TransacaoNaTela {
+  id: string;
+  ticker: string;
+  tipo: string;
+  data: string;
+  quantidade: string;
+  preco: string;
+  taxas: string;
+  corretora: string | null;
+  /** "manual", "importada" ou "automatica" (evento corporativo). */
+  origem: "manual" | "importada" | "automatica";
+}
+
+export async function listarTransacoes(
+  uid: string,
+  carteira: string,
+  ticker: string,
+): Promise<TransacaoNaTela[]> {
+  const linhas = await comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    return tx
+      .select()
+      .from(transactions)
+      .where(
+        and(eq(transactions.portfolio_id, carteira), eq(transactions.ticker, ticker)),
+      )
+      .orderBy(desc(transactions.data), desc(transactions.criada_em));
+  });
+  return linhas.map((l) => ({
+    id: l.id,
+    ticker: l.ticker,
+    tipo: l.tipo,
+    data: l.data,
+    quantidade: l.quantidade,
+    preco: l.preco,
+    taxas: l.taxas,
+    corretora: l.corretora,
+    origem: l.origem_evento_id ? "automatica" : l.importacao_id ? "importada" : "manual",
+  }));
+}
+
+async function transacaoDaCarteira(
+  tx: TransacaoDoUsuario<Record<string, unknown>>,
+  carteira: string,
+  id: string,
+) {
+  const [t] = await tx
+    .select({ data: transactions.data, ticker: transactions.ticker })
+    .from(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.portfolio_id, carteira)));
+  if (!t) throw new ErroDeCarteira(404, "Transação não encontrada.");
+  return t;
+}
+
+export async function editarTransacao(
+  uid: string,
+  carteira: string,
+  id: string,
+  t: NovaTransacao,
+): Promise<void> {
+  await comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    const antes = await transacaoDaCarteira(tx, carteira, id);
+    await tx
+      .update(transactions)
+      .set({
+        ticker: t.ticker,
+        tipo: t.tipo,
+        data: t.data,
+        quantidade: t.quantidade,
+        preco: t.preco,
+        taxas: t.taxas,
+        ...(t.corretora === undefined ? {} : { corretora: t.corretora || null }),
+      })
+      .where(and(eq(transactions.id, id), eq(transactions.portfolio_id, carteira)));
+    await marcar(tx, carteira, antes.data < t.data ? antes.data : t.data);
+    await auditar(
+      tx,
+      uid,
+      "transacao.editada",
+      carteira,
+      `${id}: ${t.tipo} ${t.ticker} ${t.data}`,
+    );
+  });
+}
+
+export async function excluirTransacao(
+  uid: string,
+  carteira: string,
+  id: string,
+): Promise<void> {
+  await comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    const antes = await transacaoDaCarteira(tx, carteira, id);
+    await tx
+      .delete(transactions)
+      .where(and(eq(transactions.id, id), eq(transactions.portfolio_id, carteira)));
+    await marcar(tx, carteira, antes.data);
+    await auditar(
+      tx,
+      uid,
+      "transacao.excluida",
+      carteira,
+      `${id}: ${antes.ticker} ${antes.data}`,
+    );
+  });
+}
+
+/** Tira o ativo da carteira: apaga todas as transacoes do ticker. */
+export async function excluirAtivo(
+  uid: string,
+  carteira: string,
+  ticker: string,
+): Promise<{ excluidas: number }> {
+  return comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    const apagadas = await tx
+      .delete(transactions)
+      .where(
+        and(eq(transactions.portfolio_id, carteira), eq(transactions.ticker, ticker)),
+      )
+      .returning({ data: transactions.data });
+    if (apagadas.length === 0) throw new ErroDeCarteira(404, "Ativo não encontrado.");
+    await marcar(tx, carteira, apagadas.map((a) => a.data).sort()[0] as string);
+    await auditar(
+      tx,
+      uid,
+      "ativo.excluido",
+      carteira,
+      `${ticker}: ${apagadas.length} transações`,
+    );
+    return { excluidas: apagadas.length };
+  });
+}
+
+/** Corrige a posicao de extrato vigente. Nao mexe em transacao: sem recalculo. */
+export async function editarPosicao(
+  uid: string,
+  carteira: string,
+  id: string,
+  p: EdicaoDePosicao,
+): Promise<void> {
+  await comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    const [alterada] = await tx
+      .update(posicoes)
+      .set(p)
+      .where(
+        and(
+          eq(posicoes.id, id),
+          eq(posicoes.portfolio_id, carteira),
+          eq(posicoes.vigente, true),
+        ),
+      )
+      .returning({ id: posicoes.id });
+    if (!alterada) throw new ErroDeCarteira(404, "Posição não encontrada.");
+    await auditar(tx, uid, "posicao.editada", carteira, `${id}: ${p.ativo}`);
+  });
+}
+
+export async function excluirPosicao(
+  uid: string,
+  carteira: string,
+  id: string,
+): Promise<void> {
+  await comoUsuario(banco(), uid, async (tx) => {
+    await garantirDona(tx, uid, carteira);
+    const [apagada] = await tx
+      .delete(posicoes)
+      .where(
+        and(
+          eq(posicoes.id, id),
+          eq(posicoes.portfolio_id, carteira),
+          eq(posicoes.vigente, true),
+        ),
+      )
+      .returning({ ativo: posicoes.ativo });
+    if (!apagada) throw new ErroDeCarteira(404, "Posição não encontrada.");
+    await auditar(tx, uid, "posicao.excluida", carteira, `${id}: ${apagada.ativo}`);
+  });
 }
 
 export interface RelatorioNaTela {

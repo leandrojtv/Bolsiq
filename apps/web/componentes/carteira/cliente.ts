@@ -7,8 +7,8 @@ import {
   type ResultadoNaTela,
 } from "@/lib/importacao-ia-modelo";
 import type { Atalho } from "@bolsiq/assistant/puro";
-import type { NovaTransacao } from "@/lib/carteira-modelo";
-import type { PainelDaCarteira, RelatorioNaTela } from "@/lib/carteira";
+import type { PosicaoDigitada, TransacaoDigitada } from "@/lib/carteira-modelo";
+import type { PainelDaCarteira, RelatorioNaTela, TransacaoNaTela } from "@/lib/carteira";
 import type { DecisaoDeDivergencia, RevisaoDeCarga } from "@bolsiq/portfolio";
 
 const json = (method: string, corpo: unknown): RequestInit => ({
@@ -27,8 +27,34 @@ export const criarCarteira = (nome: string) =>
     (r) => r.data,
   );
 
-export const adicionarTransacao = (id: string, t: NovaTransacao) =>
+export const adicionarTransacao = (id: string, t: TransacaoDigitada) =>
   api<{ data: { id: string } }>(`carteiras/${id}/transacoes`, json("POST", t));
+
+export const chaveDasTransacoes = (id: string, ticker: string) =>
+  ["carteira", id, "transacoes", ticker] as const;
+
+export const lerTransacoes = (id: string, ticker: string) =>
+  api<{ data: TransacaoNaTela[] }>(
+    `carteiras/${id}/transacoes?ticker=${encodeURIComponent(ticker)}`,
+  ).then((r) => r.data);
+
+export const editarTransacao = (id: string, transacao: string, t: TransacaoDigitada) =>
+  api<null>(`carteiras/${id}/transacoes/${transacao}`, json("PATCH", t));
+
+export const excluirTransacao = (id: string, transacao: string) =>
+  api<null>(`carteiras/${id}/transacoes/${transacao}`, { method: "DELETE" });
+
+export const excluirAtivo = (id: string, ticker: string) =>
+  api<{ data: { excluidas: number } }>(
+    `carteiras/${id}/transacoes?ticker=${encodeURIComponent(ticker)}`,
+    { method: "DELETE" },
+  );
+
+export const editarPosicao = (id: string, posicao: string, p: PosicaoDigitada) =>
+  api<null>(`carteiras/${id}/posicoes/${posicao}`, json("PATCH", p));
+
+export const excluirPosicao = (id: string, posicao: string) =>
+  api<null>(`carteiras/${id}/posicoes/${posicao}`, { method: "DELETE" });
 
 export type FormatoDeImportacao = "bolsiq" | "b3" | "posicao_bolsiq";
 

@@ -61,6 +61,7 @@ test("carteira de conferência aparece com os mesmos números", async ({ page })
     "Não realizado",
     "Realizado",
     "Proventos",
+    "Editar",
   ]);
   const comPreco = {
     Cotação: /^R\$\s[\d.,]+$/,
@@ -111,9 +112,21 @@ test("usuário B não vê a carteira do usuário A nem por URL", async ({ browse
   expect(pagina?.status()).toBe(404);
   await expect(b.getByRole("region", { name: "Posições" })).toHaveCount(0);
 
+  const deA = (await (
+    await a.request.get(`/api/carteiras/${idA}/transacoes?ticker=PETR4`)
+  ).json()) as { data: { id: string }[] };
+  const transacaoDeA = deA.data[0]?.id;
+  expect(transacaoDeA).toBeTruthy();
+
   for (const [metodo, caminho] of [
     ["GET", `/api/carteiras/${idA}`],
     ["POST", `/api/carteiras/${idA}/transacoes`],
+    ["GET", `/api/carteiras/${idA}/transacoes?ticker=PETR4`],
+    ["DELETE", `/api/carteiras/${idA}/transacoes?ticker=PETR4`],
+    ["PATCH", `/api/carteiras/${idA}/transacoes/${transacaoDeA}`],
+    ["DELETE", `/api/carteiras/${idA}/transacoes/${transacaoDeA}`],
+    // Carteira de B com transacao de A: tambem nao acha.
+    ["DELETE", `/api/carteiras/${idB}/transacoes/${transacaoDeA}`],
   ] as const) {
     const r = await b.request.fetch(caminho, {
       method: metodo,
@@ -181,6 +194,62 @@ test("nova transação pelo formulário rápido", async ({ page }) => {
     "Preço médio": "R$ 30,50",
     Custo: "R$ 305,00",
   });
+});
+
+test("editar e excluir transação e ativo depois de lançado", async ({ page }) => {
+  await cadastrar(page, emailNovo("editar"));
+  for (const [ticker, quantidade] of [
+    ["ITUB4", "10"],
+    ["ITUB4", "5"],
+    ["BBAS3", "3"],
+  ]) {
+    await page.getByRole("button", { name: "+ Transação" }).click();
+    const nova = page.getByRole("dialog", { name: "Nova transação" });
+    await nova.getByLabel("Ativo").fill(ticker as string);
+    await nova.getByLabel("Data").fill("2024-03-01");
+    await nova.getByLabel("Quantidade").fill(quantidade as string);
+    await nova.getByLabel("Preço (R$)").fill("30,50");
+    await nova.getByRole("button", { name: "Salvar transação" }).click();
+    await expect(nova).toBeHidden();
+  }
+  const posicoes = page.getByRole("region", { name: "Posições" });
+  await conferir(posicoes, "ITUB4", { "Qtd.": "15" });
+
+  await posicoes.getByRole("button", { name: "Editar ITUB4" }).click();
+  const sheet = page.getByRole("dialog", { name: "Transações de ITUB4" });
+  const itens = sheet
+    .getByRole("list", { name: "Transações de ITUB4" })
+    .getByRole("listitem");
+  await expect(itens).toHaveCount(2);
+  await expect(itens.first()).toContainText("lançada");
+
+  // Editar: 10 vira 20, com fracao para conferir a ida e volta do decimal.
+  await itens.filter({ hasText: "10 x" }).getByRole("button", { name: "Editar" }).click();
+  await expect(sheet.getByLabel("Quantidade")).toHaveValue("10");
+  await expect(sheet.getByLabel("Preço (R$)")).toHaveValue("30,5");
+  await sheet.getByLabel("Quantidade").fill("20,125");
+  await sheet.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(itens.filter({ hasText: "20,1250 x" })).toHaveCount(1);
+  // Com o sheet aberto o resto da pagina sai da arvore de acessibilidade.
+  await page.keyboard.press("Escape");
+  await conferir(posicoes, "ITUB4", { "Qtd.": "25,1250" });
+
+  // Excluir uma transacao pede confirmacao.
+  await posicoes.getByRole("button", { name: "Editar ITUB4" }).click();
+  await itens.filter({ hasText: "5 x" }).getByRole("button", { name: "Excluir" }).click();
+  await sheet.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(itens).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await conferir(posicoes, "ITUB4", { "Qtd.": "20,1250" });
+
+  // Excluir o ativo inteiro.
+  await posicoes.getByRole("button", { name: "Editar BBAS3" }).click();
+  const bbas = page.getByRole("dialog", { name: "Transações de BBAS3" });
+  await bbas.getByRole("button", { name: "Excluir BBAS3 da carteira" }).click();
+  await bbas.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(bbas).toBeHidden();
+  await expect(posicoes.getByRole("row", { name: /BBAS3/ })).toHaveCount(0);
+  await expect(posicoes.getByRole("row", { name: /ITUB4/ })).toBeVisible();
 });
 
 const POSICAO = readFileSync(
@@ -290,4 +359,44 @@ test("mesma carga é recusada; mais recente substitui só a corretora", async ({
   await expect(secao.getByRole("row", { name: /CDB NUBANK/ })).toContainText(
     "valor do extrato de 05/11",
   );
+});
+
+test("editar e excluir posição de renda fixa importada", async ({ page }) => {
+  await cadastrar(page, emailNovo("editar-posicao"));
+  const sheet = await revisar(page, POSICAO);
+  await sheet.getByRole("button", { name: "Confirmar importação" }).click();
+  await expect(sheet.getByRole("status")).toContainText("5 de 9");
+  await page.keyboard.press("Escape");
+
+  const secao = page.getByRole("region", { name: "Renda fixa, fundos e outros" });
+  const cdb = secao.getByRole("row", { name: /CDB NUBANK/ });
+  await cdb.getByRole("button", { name: /^Editar / }).click();
+  const edicao = page.getByRole("dialog", { name: /^Editar CDB NUBANK/ });
+  await expect(edicao.getByLabel("% do indexador")).toHaveValue("120");
+  await edicao.getByLabel("Saldo bruto (R$)").fill("1.234,56");
+  await edicao.getByLabel("% do indexador").fill("110");
+  await edicao.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(edicao).toBeHidden();
+  await expect(cdb).toContainText("R$ 1.234,56");
+  await expect(cdb).toContainText("110% CDI");
+
+  await cdb.getByRole("button", { name: /^Editar / }).click();
+  await edicao.getByRole("button", { name: "Excluir posição" }).click();
+  await edicao.getByRole("button", { name: "Confirmar exclusão" }).click();
+  await expect(edicao).toBeHidden();
+  await expect(secao.getByRole("row", { name: /CDB NUBANK/ })).toHaveCount(0);
+
+  // A carga gerou saldo inicial de ITUB4: tambem se edita.
+  const posicoes = page.getByRole("region", { name: "Posições" });
+  await posicoes.getByRole("button", { name: "Editar ITUB4" }).click();
+  const itub = page.getByRole("dialog", { name: "Transações de ITUB4" });
+  const saldo = itub.getByRole("listitem").filter({ hasText: "Saldo inicial" });
+  await expect(saldo).toContainText("importada");
+  await saldo.getByRole("button", { name: "Editar" }).click();
+  await expect(itub.getByLabel("Tipo")).toHaveValue("saldo_inicial");
+  await itub.getByLabel("Quantidade").fill("120");
+  await itub.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(itub.getByRole("listitem").filter({ hasText: "120 x" })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await conferir(posicoes, "ITUB4", { "Qtd.": "120" });
 });

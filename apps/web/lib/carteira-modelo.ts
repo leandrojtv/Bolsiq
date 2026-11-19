@@ -10,11 +10,15 @@ export const TIPOS_DE_TRANSACAO = [
   { tipo: "desdobramento", rotulo: "Desdobramento" },
   { tipo: "grupamento", rotulo: "Grupamento" },
   { tipo: "bonificacao", rotulo: "Bonificação" },
+  // Gerado pela carga de posicao; editavel como qualquer outro (#86).
+  { tipo: "saldo_inicial", rotulo: "Saldo inicial" },
 ] as const;
 export type TipoNaTela = (typeof TIPOS_DE_TRANSACAO)[number]["tipo"];
 
 /** Em desdobramento e grupamento a "quantidade" e o fator e nao ha preco. */
 export const SEM_PRECO: TipoNaTela[] = ["desdobramento", "grupamento"];
+/** Preco zero e valido: bonificacao sem preco de emissao, saldo inicial sem preco medio. */
+const SEM_PRECO_OBRIGATORIO: TipoNaTela[] = ["bonificacao", "saldo_inicial"];
 
 const decimal = (campo: string, permiteZero: boolean) =>
   z.string().transform((v, ctx) => {
@@ -41,10 +45,66 @@ export const NovaTransacao = z
     corretora: z.string().trim().max(60).optional(),
   })
   .superRefine((t, ctx) => {
-    if (!SEM_PRECO.includes(t.tipo) && t.tipo !== "bonificacao" && Number(t.preco) <= 0)
+    if (
+      !SEM_PRECO.includes(t.tipo) &&
+      !SEM_PRECO_OBRIGATORIO.includes(t.tipo) &&
+      Number(t.preco) <= 0
+    )
       ctx.addIssue({ code: "custom", path: ["preco"], message: "informe o preço" });
   });
 export type NovaTransacao = z.infer<typeof NovaTransacao>;
+/** O que o formulario envia: o BFF valida o texto digitado, nao o ja convertido. */
+export type TransacaoDigitada = z.input<typeof NovaTransacao>;
+
+const opcional = <T extends z.ZodTypeAny>(s: T) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    s.nullable(),
+  );
+
+/** "120" (por cento) vira "1.2", a fracao que o banco guarda. */
+const percentual = (campo: string) =>
+  opcional(
+    z.string().transform((v, ctx) => {
+      const d = decimalDigitado(v);
+      if (d === null) {
+        ctx.addIssue({ code: "custom", message: `${campo} inválido` });
+        return z.NEVER;
+      }
+      return semZeros((Number(d) / 100).toFixed(8));
+    }),
+  );
+
+export const EdicaoDePosicao = z.object({
+  ativo: z.string().trim().min(1, "informe o ativo").max(200),
+  saldo_bruto: decimal("saldo bruto", true),
+  valor_aplicado: opcional(decimal("valor aplicado", true)),
+  saldo_liquido: opcional(decimal("saldo líquido", true)),
+  vencimento: opcional(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "vencimento inválido")),
+  indexador: opcional(
+    z
+      .string()
+      .trim()
+      .max(20)
+      .transform((v) => v.toUpperCase()),
+  ),
+  pct_indexador: percentual("% do indexador"),
+  taxa_aa: percentual("taxa ao ano"),
+});
+export type EdicaoDePosicao = z.infer<typeof EdicaoDePosicao>;
+export type PosicaoDigitada = Record<keyof EdicaoDePosicao, string>;
+
+/** "18.030000" vira "18.03"; "100.00000000" vira "100". */
+export function semZeros(v: string): string {
+  return v.includes(".") ? v.replace(/0+$/, "").replace(/\.$/, "") : v;
+}
+
+/** Valor do banco no campo do formulario: virgula decimal, sem zeros a direita. */
+export function paraCampo(v: string | null, emPercentual = false): string {
+  if (v === null) return "";
+  const n = emPercentual ? (Number(v) * 100).toFixed(6) : v;
+  return semZeros(n).replace(".", ",");
+}
 
 export const NovaCarteira = z.object({
   nome: z.string().trim().min(1, "dê um nome").max(40, "até 40 caracteres"),

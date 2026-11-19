@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { Upload } from "lucide-react";
+import { Pencil, Upload } from "lucide-react";
 import {
   Button,
   Card,
@@ -26,6 +26,7 @@ import {
 import { CAMPO } from "../conta/campos";
 import { GraficoDeLinhas } from "../comparar/GraficoDeLinhas";
 import { chaveDoPainel, criarCarteira, lerPainel } from "./cliente";
+import { EditarPosicao, TransacoesDoAtivo } from "./EditarAtivo";
 import { Importar } from "./Importar";
 import { FormularioDeTransacao } from "./NovaTransacao";
 
@@ -65,6 +66,8 @@ export function PaginaDaCarteira({ inicial }: { inicial: PainelDaCarteira }) {
   const [aberto, setAberto] = useState<"transacao" | "importar" | "carteira" | null>(
     null,
   );
+  const [ativo, setAtivo] = useState<string | null>(null);
+  const [posicao, setPosicao] = useState<PosicaoDeExtrato | null>(null);
   const atualizar = () => void cliente.invalidateQueries({ queryKey: chaveDoPainel(id) });
 
   return (
@@ -121,11 +124,13 @@ export function PaginaDaCarteira({ inicial }: { inicial: PainelDaCarteira }) {
           </div>
           {p.transacoes > 0 && (
             <div className="flex flex-wrap items-start gap-5">
-              <Posicoes p={p} />
+              <Posicoes p={p} onEditar={setAtivo} />
               <Proventos p={p} />
             </div>
           )}
-          {p.posicoes_de_extrato.length > 0 && <RendaFixaEOutros p={p} />}
+          {p.posicoes_de_extrato.length > 0 && (
+            <RendaFixaEOutros p={p} onEditar={setPosicao} />
+          )}
         </>
       )}
 
@@ -142,6 +147,40 @@ export function PaginaDaCarteira({ inicial }: { inicial: PainelDaCarteira }) {
             atualizar();
           }}
         />
+      </Sheet>
+      <Sheet
+        open={ativo !== null}
+        onOpenChange={(v) => !v && setAtivo(null)}
+        title={`Transações de ${ativo ?? ""}`}
+        description="Edite ou exclua o que foi lançado ou importado."
+      >
+        {ativo && (
+          <TransacoesDoAtivo
+            key={ativo}
+            carteira={id}
+            ticker={ativo}
+            onMudou={atualizar}
+            onAtivoExcluido={() => setAtivo(null)}
+          />
+        )}
+      </Sheet>
+      <Sheet
+        open={posicao !== null}
+        onOpenChange={(v) => !v && setPosicao(null)}
+        title={`Editar ${posicao?.ativo ?? ""}`}
+        description={posicao ? `${posicao.grupo}, ${posicao.corretora}` : undefined}
+      >
+        {posicao && (
+          <EditarPosicao
+            key={posicao.id}
+            carteira={id}
+            posicao={posicao}
+            onMudou={() => {
+              setPosicao(null);
+              atualizar();
+            }}
+          />
+        )}
       </Sheet>
       <Sheet
         open={aberto === "importar"}
@@ -458,7 +497,29 @@ function Alocacao({ p }: { p: PainelDaCarteira }) {
   );
 }
 
-function Posicoes({ p }: { p: PainelDaCarteira }) {
+function BotaoEditar({ rotulo, onClick }: { rotulo: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={rotulo}
+      title={rotulo}
+      onClick={onClick}
+      className="group inline-flex size-touch shrink-0 items-center justify-center"
+    >
+      <span className="inline-flex size-8 items-center justify-center rounded-control border border-border-strong text-link group-hover:bg-surface-2 group-hover:text-link-hover">
+        <Pencil aria-hidden="true" size={15} />
+      </span>
+    </button>
+  );
+}
+
+function Posicoes({
+  p,
+  onEditar,
+}: {
+  p: PainelDaCarteira;
+  onEditar: (ticker: string) => void;
+}) {
   const num = "px-2 py-2.5 text-right font-mono tabular-nums whitespace-nowrap";
   return (
     <section
@@ -487,6 +548,9 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
                   {c}
                 </th>
               ))}
+              <th scope="col" className="sticky right-0 bg-surface p-2">
+                <span className="sr-only">Editar</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -526,6 +590,12 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
                 </td>
                 <td className={num}>{formatarDinheiro(x.resultado_realizado)}</td>
                 <td className={num}>{formatarDinheiro(x.proventos_recebidos)}</td>
+                <td className="sticky right-0 bg-surface py-0.5 pr-1 pl-1 text-right">
+                  <BotaoEditar
+                    rotulo={`Editar ${x.ticker}`}
+                    onClick={() => onEditar(x.ticker)}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -535,7 +605,13 @@ function Posicoes({ p }: { p: PainelDaCarteira }) {
   );
 }
 
-function RendaFixaEOutros({ p }: { p: PainelDaCarteira }) {
+function RendaFixaEOutros({
+  p,
+  onEditar,
+}: {
+  p: PainelDaCarteira;
+  onEditar: (posicao: PosicaoDeExtrato) => void;
+}) {
   const num = "px-2 py-2.5 text-right font-mono tabular-nums whitespace-nowrap";
   const grupos = new Map<string, PosicaoDeExtrato[]>();
   for (const x of p.posicoes_de_extrato)
@@ -569,6 +645,9 @@ function RendaFixaEOutros({ p }: { p: PainelDaCarteira }) {
               <th scope="col" className="p-2 text-left font-medium">
                 Pendência
               </th>
+              <th scope="col" className="sticky right-0 bg-surface p-2">
+                <span className="sr-only">Editar</span>
+              </th>
             </tr>
           </thead>
           {[...grupos].map(([grupo, itens]) => (
@@ -576,7 +655,7 @@ function RendaFixaEOutros({ p }: { p: PainelDaCarteira }) {
               <tr className="border-t border-border bg-surface-2">
                 <th
                   scope="rowgroup"
-                  colSpan={9}
+                  colSpan={10}
                   className="px-2 py-2 text-left text-xs font-semibold text-text-2"
                 >
                   {grupo}
@@ -604,6 +683,12 @@ function RendaFixaEOutros({ p }: { p: PainelDaCarteira }) {
                   </td>
                   <td className="px-2 py-2.5 text-xs text-warn">
                     {x.pendencias.join("; ") || "-"}
+                  </td>
+                  <td className="sticky right-0 bg-surface py-0.5 pr-1 pl-1 text-right">
+                    <BotaoEditar
+                      rotulo={`Editar ${x.ativo}`}
+                      onClick={() => onEditar(x)}
+                    />
                   </td>
                 </tr>
               ))}

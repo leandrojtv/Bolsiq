@@ -21,6 +21,7 @@ entre schemas de servicos diferentes.
 | Schema com RLS forcada                                              | pronto, 12 testes contra Postgres real                         |
 | Autenticacao (Better Auth)                                          | pronto: `packages/auth`, telas no `apps/web` (ADR 0022)        |
 | Telas `/carteiras`                                                  | prontas no `apps/web` ([web.md](web.md#carteira))              |
+| Editar e excluir transacao, ativo e posicao de extrato              | pronto (#86)                                                   |
 | Snapshot diario gravado                                             | pronto: `portfolio-worker`, job e recalculo por marcacao       |
 | Exportacao e exclusao LGPD                                          | pronto: `/configuracoes/conta`                                 |
 
@@ -285,6 +286,19 @@ Posicao sem ticker nao tem fluxo: nao ha retorno a medir, e a tela avisa. Transa
 anteriores a `data_posicao`, importadas depois do saldo inicial, dobram a quantidade
 e aparecem como divergencia na carga seguinte.
 
+## Edicao manual
+
+- **Transacao**: editar marca `recalcular_desde` na menor entre a data antiga e
+  a nova; excluir, na data dela. Vale para transacao lancada, importada ou
+  automatica (evento corporativo).
+- **Ativo**: excluir apaga todas as transacoes do ticker na carteira e marca
+  desde a mais antiga.
+- **Posicao de extrato**: so a vigente. Editar ou excluir nao mexe em
+  `cargas_de_posicao` nem em snapshot (o TWR nao inclui posicao sem ticker). A
+  proxima carga da corretora desliga a posicao corrigida, como qualquer outra.
+- Toda acao grava `audit_log` (`transacao.editada`, `transacao.excluida`,
+  `ativo.excluido`, `posicao.editada`, `posicao.excluida`).
+
 ## Seguranca
 
 Duas barreiras, nesta ordem:
@@ -342,6 +356,5 @@ na exportacao e caem com a carteira, pela FK.
 1. **Auditoria dos eventos de autenticacao** (login, 2FA, troca de senha) no
    `audit_log`. Hoje so as acoes na carteira sao auditadas.
 2. **Check que reprove acesso ao `portfolio` fora de `comoUsuario`.**
-3. **Editar e apagar transacao** pela tela.
-4. **Caixa** da carteira: o design mostra uma linha de caixa; ainda nao ha
+3. **Caixa** da carteira: o design mostra uma linha de caixa; ainda nao ha
    transacao de deposito ou saque.

@@ -219,9 +219,21 @@ Design em [docs/design/Carteira.dc.html](../design/Carteira.dc.html).
   que o design não prevê.
 - "Renda fixa, fundos e outros": posições vigentes agrupadas por classe, com o
   valor do extrato. Entram no patrimônio e na alocação, não no TWR.
+- Edição manual (#86): o lápis no fim da linha do ativo abre um sheet. Na renda variável,
+  lista as transações do ativo (lançadas, importadas ou automáticas) com editar
+  e excluir, e "Excluir ATIVO da carteira" apaga todas. Na renda fixa, corrige
+  ativo, saldos, valor aplicado, vencimento, indexador e taxa, ou exclui a
+  posição. Excluir pede um segundo toque. A próxima carga da corretora substitui
+  a posição corrigida.
+- Rotas do BFF: `GET` e `DELETE /api/carteiras/:id/transacoes?ticker=`,
+  `PATCH` e `DELETE /api/carteiras/:id/transacoes/:transacao`, `PATCH` e
+  `DELETE /api/carteiras/:id/posicoes/:posicao`. Validação com
+  `NovaTransacao` e `EdicaoDePosicao` (`lib/carteira-modelo.ts`); o formulário
+  envia o texto digitado e só o BFF converte.
 - Toda leitura e escrita passa por `comoUsuario` (RLS). Carteira de outro
   usuário responde 404.
 
 e2e: `e2e/carteira.spec.ts` (conferência, isolamento entre usuários,
-500 linhas em menos de 5 s, nova transação, carga e recarga de posições) e `e2e/autenticacao.spec.ts`
+500 linhas em menos de 5 s, nova transação, edição e exclusão de transação,
+ativo e posição, carga e recarga de posições) e `e2e/autenticacao.spec.ts`
 (login, recuperação, 2FA, watchlist, LGPD).

@@ -170,20 +170,24 @@ const COLUNAS = [
   "grid-cols-5",
 ];
 
+/** No menu lateral (220 px) empilhado; no topo do celular, em linha. */
 function SeletorDeModulo({
   modules,
   Link,
+  vertical = false,
   className,
 }: {
   modules: ModuloItem[];
   Link: LinkComponent;
+  vertical?: boolean;
   className?: string;
 }) {
   return (
     <nav
       aria-label="Módulo"
       className={cn(
-        "grid grid-cols-3 gap-1 rounded-control border border-border bg-surface p-1",
+        "flex gap-0.5 rounded-control border border-border bg-surface p-1",
+        vertical && "flex-col",
         className,
       )}
     >
@@ -193,7 +197,8 @@ function SeletorDeModulo({
           href={m.href}
           {...(m.current ? { "aria-current": "page" as const } : {})}
           className={cn(
-            "flex min-h-9 items-center justify-center rounded-item px-1 text-xs",
+            "flex min-h-9 flex-auto items-center rounded-item whitespace-nowrap",
+            vertical ? "px-3 text-sm" : "justify-center px-1.5 text-xs",
             m.current
               ? "bg-surface-2 font-semibold text-text"
               : "text-text-3 hover:text-text",
@@ -265,7 +270,7 @@ export function AppShell({
           <span className="text-lg font-bold tracking-tight">{brand}</span>
         </div>
         {modules && modules.length > 0 && (
-          <SeletorDeModulo modules={modules} Link={Link} className="mb-3" />
+          <SeletorDeModulo modules={modules} Link={Link} vertical className="mb-3" />
         )}
         {nav.map((i) => (
           <Link

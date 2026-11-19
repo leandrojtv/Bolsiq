@@ -475,7 +475,7 @@ export function PaginaDeLancamentos() {
       )}
 
       <Card title="Filtros">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-7">
           <label className={cn(ROTULO, "col-span-2")}>
             Buscar
             <input
@@ -570,7 +570,7 @@ export function PaginaDeLancamentos() {
           <table aria-label="Lançamentos" className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-left text-xs text-text-3">
-                <th className="py-2 font-medium">Data</th>
+                <th className="hidden py-2 font-medium md:table-cell">Data</th>
                 <th className="py-2 font-medium">Descrição</th>
                 <th className="hidden py-2 font-medium md:table-cell">Conta</th>
                 <th className="hidden py-2 font-medium md:table-cell">Categoria</th>
@@ -586,7 +586,7 @@ export function PaginaDeLancamentos() {
                 const valor = valorComSinal(l);
                 return (
                   <tr key={l.id} className="border-t border-border">
-                    <td className="py-2.5 font-mono text-xs whitespace-nowrap">
+                    <td className="hidden py-2.5 font-mono text-xs whitespace-nowrap md:table-cell">
                       {dataBr(l.data)}
                     </td>
                     <td className="py-2.5">
@@ -594,6 +594,9 @@ export function PaginaDeLancamentos() {
                       {l.tipo === "transferencia" && (
                         <span className="ml-2 text-xs text-text-3">transferência</span>
                       )}
+                      <span className="block font-mono text-xs text-text-3 md:hidden">
+                        {dataBr(l.data)} · {nomeDaConta.get(l.account_id)}
+                      </span>
                     </td>
                     <td className="hidden py-2.5 text-text-2 md:table-cell">
                       {nomeDaConta.get(l.account_id)}
@@ -604,7 +607,7 @@ export function PaginaDeLancamentos() {
                     <td className="hidden py-2.5 text-text-2 md:table-cell">
                       {STATUS_ROTULO[l.status]}
                     </td>
-                    <td className="py-2.5 text-right">
+                    <td className="py-2.5 text-right whitespace-nowrap">
                       <Money
                         value={valor}
                         className={cn(
@@ -616,6 +619,7 @@ export function PaginaDeLancamentos() {
                     <td className="py-2.5 text-right whitespace-nowrap">
                       <Button
                         variant="ghost"
+                        className="px-2"
                         aria-label={`Editar ${l.descricao}`}
                         onClick={() => setAberto(l)}
                       >
@@ -623,6 +627,7 @@ export function PaginaDeLancamentos() {
                       </Button>
                       <Button
                         variant="ghost"
+                        className="px-2"
                         aria-label={`Apagar ${l.descricao}`}
                         onClick={() => {
                           if (!window.confirm(`Apagar "${l.descricao}"?`)) return;

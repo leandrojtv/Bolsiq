@@ -46,7 +46,21 @@ test("Bolsiq Finanças: criar conta, lançar despesa e ver na lista", async ({ p
   await page.goto("/financas/contas");
   await expect(page.getByRole("list", { name: "Contas" })).toContainText("R$ 954,10");
 
-  // O ultimo modulo usado vira a entrada depois do login.
+  // A exportacao LGPD leva os dados de financas.
+  await page.goto("/configuracoes/conta");
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Exportar meus dados" }).click();
+  const dados = JSON.parse(
+    await (
+      await (await download).createReadStream()
+    )
+      .toArray()
+      .then((b: Buffer[]) => Buffer.concat(b).toString()),
+  ) as { financas: { contas: { nome: string }[]; lancamentos: { descricao: string }[] } };
+  expect(dados.financas.contas.map((c) => c.nome)).toEqual(["Conta do banco"]);
+  expect(dados.financas.lancamentos.map((l) => l.descricao)).toEqual(["Padaria"]);
+
+  // O ultimo modulo usado vira a entrada depois do login; /configuracoes nao conta.
   const contexto = page.context();
   const modulo = (await contexto.cookies()).filter((c) => c.name === "bolsiq_modulo");
   expect(modulo.map((c) => c.value)).toEqual(["financas"]);

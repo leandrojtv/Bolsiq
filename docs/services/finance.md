@@ -42,6 +42,9 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 - Categorias `sistema` (Tarifas bancárias, Juros e encargos, IOF) não se apagam
   nem trocam de natureza.
 
+Exportação e exclusão da conta (LGPD, `/configuracoes/conta`) incluem contas,
+categorias, lançamentos e auditoria do módulo.
+
 As migrations são aplicadas pelo passo de migrate do `portfolio-worker`, journal
 `drizzle_finance`.
 

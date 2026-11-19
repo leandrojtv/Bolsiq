@@ -262,9 +262,12 @@ services:
       - ./infra/kong:/kong:ro
     ports:
       - "127.0.0.1:8000:8000"
+    # restart: o Kong guarda o IP resolvido do upstream. Quando o deploy recria
+    # market-data ou web, o IP antigo pode ir para outro container (ja foi para o
+    # market-data-worker, que so serve health); reiniciar o Kong resolve de novo.
     depends_on:
-      market-data: { condition: service_healthy }
-      web: { condition: service_healthy }
+      market-data: { condition: service_healthy, restart: true }
+      web: { condition: service_healthy, restart: true }
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s

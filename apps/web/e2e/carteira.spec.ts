@@ -61,7 +61,6 @@ test("carteira de conferência aparece com os mesmos números", async ({ page })
     "Não realizado",
     "Realizado",
     "Proventos",
-    "Editar",
   ]);
   const comPreco = {
     Cotação: /^R\$\s[\d.,]+$/,
@@ -230,14 +229,17 @@ test("editar e excluir transação e ativo depois de lançado", async ({ page })
   await sheet.getByLabel("Quantidade").fill("20,125");
   await sheet.getByRole("button", { name: "Salvar alterações" }).click();
   await expect(itens.filter({ hasText: "20,1250 x" })).toHaveCount(1);
+  // Com o sheet aberto o resto da pagina sai da arvore de acessibilidade.
+  await page.keyboard.press("Escape");
   await conferir(posicoes, "ITUB4", { "Qtd.": "25,1250" });
 
   // Excluir uma transacao pede confirmacao.
+  await posicoes.getByRole("button", { name: "Editar ITUB4" }).click();
   await itens.filter({ hasText: "5 x" }).getByRole("button", { name: "Excluir" }).click();
   await sheet.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(itens).toHaveCount(1);
-  await conferir(posicoes, "ITUB4", { "Qtd.": "20,1250" });
   await page.keyboard.press("Escape");
+  await conferir(posicoes, "ITUB4", { "Qtd.": "20,1250" });
 
   // Excluir o ativo inteiro.
   await posicoes.getByRole("button", { name: "Editar BBAS3" }).click();
@@ -382,4 +384,18 @@ test("editar e excluir posição de renda fixa importada", async ({ page }) => {
   await edicao.getByRole("button", { name: "Confirmar exclusão" }).click();
   await expect(edicao).toBeHidden();
   await expect(secao.getByRole("row", { name: /CDB NUBANK/ })).toHaveCount(0);
+
+  // A carga gerou saldo inicial de ITUB4: tambem se edita.
+  const posicoes = page.getByRole("region", { name: "Posições" });
+  await posicoes.getByRole("button", { name: "Editar ITUB4" }).click();
+  const itub = page.getByRole("dialog", { name: "Transações de ITUB4" });
+  const saldo = itub.getByRole("listitem").filter({ hasText: "Saldo inicial" });
+  await expect(saldo).toContainText("importada");
+  await saldo.getByRole("button", { name: "Editar" }).click();
+  await expect(itub.getByLabel("Tipo")).toHaveValue("saldo_inicial");
+  await itub.getByLabel("Quantidade").fill("120");
+  await itub.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(itub.getByRole("listitem").filter({ hasText: "120 x" })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await conferir(posicoes, "ITUB4", { "Qtd.": "120" });
 });

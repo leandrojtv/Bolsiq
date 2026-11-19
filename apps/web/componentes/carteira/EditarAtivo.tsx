@@ -175,12 +175,18 @@ export function TransacoesDoAtivo({
       {data && data.length > 0 && (
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           <p className="m-0 text-xs text-text-3">
-            Excluir o ativo apaga as {data.length} transações dele nesta carteira. A
-            rentabilidade é recalculada.
+            {data.length === 1
+              ? "Excluir o ativo apaga a transação dele nesta carteira."
+              : `Excluir o ativo apaga as ${data.length} transações dele nesta carteira.`}{" "}
+            A rentabilidade é recalculada.
           </p>
           <Excluir
             rotulo={`Excluir ${ticker} da carteira`}
-            confirmacao={`Apagar ${data.length} transações?`}
+            confirmacao={
+              data.length === 1
+                ? "Apagar a transação?"
+                : `Apagar ${data.length} transações?`
+            }
             onExcluir={async () => {
               setErro(null);
               try {

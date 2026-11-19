@@ -198,3 +198,15 @@ describe("paraCampo", () => {
     expect(t).toMatchObject({ quantidade: "0.125", preco: "160.5" });
   });
 });
+
+describe("NovaTransacao com saldo inicial", () => {
+  it("aceita o tipo gerado pela carga de posicao, mesmo sem preco", () => {
+    const base = { ticker: "PRIO3", data: "2026-11-12", quantidade: "9" };
+    expect(
+      NovaTransacao.parse({ ...base, tipo: "saldo_inicial", preco: "56,91" }),
+    ).toMatchObject({ tipo: "saldo_inicial", preco: "56.91" });
+    expect(
+      NovaTransacao.safeParse({ ...base, tipo: "saldo_inicial", preco: "0" }).success,
+    ).toBe(true);
+  });
+});

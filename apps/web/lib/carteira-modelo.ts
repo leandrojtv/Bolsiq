@@ -10,11 +10,15 @@ export const TIPOS_DE_TRANSACAO = [
   { tipo: "desdobramento", rotulo: "Desdobramento" },
   { tipo: "grupamento", rotulo: "Grupamento" },
   { tipo: "bonificacao", rotulo: "Bonificação" },
+  // Gerado pela carga de posicao; editavel como qualquer outro (#86).
+  { tipo: "saldo_inicial", rotulo: "Saldo inicial" },
 ] as const;
 export type TipoNaTela = (typeof TIPOS_DE_TRANSACAO)[number]["tipo"];
 
 /** Em desdobramento e grupamento a "quantidade" e o fator e nao ha preco. */
 export const SEM_PRECO: TipoNaTela[] = ["desdobramento", "grupamento"];
+/** Preco zero e valido: bonificacao sem preco de emissao, saldo inicial sem preco medio. */
+const SEM_PRECO_OBRIGATORIO: TipoNaTela[] = ["bonificacao", "saldo_inicial"];
 
 const decimal = (campo: string, permiteZero: boolean) =>
   z.string().transform((v, ctx) => {
@@ -41,7 +45,11 @@ export const NovaTransacao = z
     corretora: z.string().trim().max(60).optional(),
   })
   .superRefine((t, ctx) => {
-    if (!SEM_PRECO.includes(t.tipo) && t.tipo !== "bonificacao" && Number(t.preco) <= 0)
+    if (
+      !SEM_PRECO.includes(t.tipo) &&
+      !SEM_PRECO_OBRIGATORIO.includes(t.tipo) &&
+      Number(t.preco) <= 0
+    )
       ctx.addIssue({ code: "custom", path: ["preco"], message: "informe o preço" });
   });
 export type NovaTransacao = z.infer<typeof NovaTransacao>;

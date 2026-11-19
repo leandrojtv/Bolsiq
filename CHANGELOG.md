@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2](https://github.com/leandrojtv/Bolsiq/compare/v0.2.1...v0.2.2) (2026-11-19)
+
+
+### Correções
+
+* **infra:** reinicia o Kong quando o deploy recria market-data ou web ([a469379](https://github.com/leandrojtv/Bolsiq/commit/a469379a625b19a8070b89c57f3a3748a7a10817))
+* **infra:** reinicia o Kong quando o deploy recria market-data ou web ([#81](https://github.com/leandrojtv/Bolsiq/issues/81)) ([71c2d94](https://github.com/leandrojtv/Bolsiq/commit/71c2d94f569b0014819fe2f5ec1767bf6cf423e5))
+
 ## [0.2.1](https://github.com/leandrojtv/Bolsiq/compare/v0.2.0...v0.2.1) (2026-11-18)
 
 

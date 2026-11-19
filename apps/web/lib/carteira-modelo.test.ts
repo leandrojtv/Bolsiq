@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  EdicaoDePosicao,
   NovaTransacao,
+  paraCampo,
   alinhar,
   ipcaMais6,
   retornoDaSerie,
@@ -145,5 +147,54 @@ describe("indexadorETaxa", () => {
     expect(indexadorETaxa({ ...nulos, pct_indexador: "1" })).toBe("100%");
     expect(indexadorETaxa({ ...nulos, indexador: "SELIC" })).toBe("SELIC");
     expect(indexadorETaxa(nulos)).toBe("-");
+  });
+});
+
+describe("EdicaoDePosicao", () => {
+  it("converte percentual em fracao e vazio em nulo", () => {
+    const r = EdicaoDePosicao.parse({
+      ativo: " CDB Banco X ",
+      saldo_bruto: "10.500,25",
+      valor_aplicado: "",
+      saldo_liquido: "10.200",
+      vencimento: "",
+      indexador: "cdi",
+      pct_indexador: "120",
+      taxa_aa: "7,95",
+    });
+    expect(r).toEqual({
+      ativo: "CDB Banco X",
+      saldo_bruto: "10500.25",
+      valor_aplicado: null,
+      saldo_liquido: "10200",
+      vencimento: null,
+      indexador: "CDI",
+      pct_indexador: "1.2",
+      taxa_aa: "0.0795",
+    });
+  });
+
+  it("recusa saldo invalido", () => {
+    expect(EdicaoDePosicao.safeParse({ ativo: "X", saldo_bruto: "abc" }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("paraCampo", () => {
+  it("leva o valor do banco ao formulario e volta igual", () => {
+    expect(paraCampo("0.12500000")).toBe("0,125");
+    expect(paraCampo("100.00000000")).toBe("100");
+    expect(paraCampo("18.030000")).toBe("18,03");
+    expect(paraCampo("0.07950000", true)).toBe("7,95");
+    expect(paraCampo(null)).toBe("");
+    const t = NovaTransacao.parse({
+      ticker: "HGLG11",
+      tipo: "compra",
+      data: "2024-01-15",
+      quantidade: paraCampo("0.12500000"),
+      preco: paraCampo("160.500000"),
+    });
+    expect(t).toMatchObject({ quantidade: "0.125", preco: "160.5" });
   });
 });

@@ -2,32 +2,41 @@
 
 import { useState, type FormEvent } from "react";
 import { Button, cn } from "@bolsiq/ui";
+import type { TransacaoNaTela } from "@/lib/carteira";
 import {
   NovaTransacao,
   SEM_PRECO,
   TIPOS_DE_TRANSACAO,
+  paraCampo,
   type TipoNaTela,
 } from "@/lib/carteira-modelo";
 import { hojeEmSp } from "@/lib/indicadores-tecnicos";
 import { CAMPO } from "../conta/campos";
-import { adicionarTransacao } from "./cliente";
+import { adicionarTransacao, editarTransacao } from "./cliente";
 
 const ROTULO = "flex flex-col gap-1.5 text-xs text-text-3";
 
-/** Formulario rapido de transacao; abre num sheet (embaixo no celular). */
+/**
+ * Formulario rapido de transacao; abre num sheet (embaixo no celular). Com
+ * `inicial`, edita a transacao em vez de criar outra.
+ */
 export function FormularioDeTransacao({
   carteira,
+  inicial,
   onSalva,
 }: {
   carteira: string;
+  inicial?: TransacaoNaTela;
   onSalva: () => void;
 }) {
-  const [ticker, setTicker] = useState("");
-  const [tipo, setTipo] = useState<TipoNaTela>("compra");
-  const [data, setData] = useState(hojeEmSp());
-  const [quantidade, setQuantidade] = useState("");
-  const [preco, setPreco] = useState("");
-  const [taxas, setTaxas] = useState("");
+  const [ticker, setTicker] = useState(inicial?.ticker ?? "");
+  const [tipo, setTipo] = useState<TipoNaTela>(
+    (inicial?.tipo as TipoNaTela | undefined) ?? "compra",
+  );
+  const [data, setData] = useState(inicial?.data ?? hojeEmSp());
+  const [quantidade, setQuantidade] = useState(paraCampo(inicial?.quantidade ?? null));
+  const [preco, setPreco] = useState(paraCampo(inicial?.preco ?? null));
+  const [taxas, setTaxas] = useState(paraCampo(inicial?.taxas ?? null));
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const semPreco = SEM_PRECO.includes(tipo);
@@ -35,18 +44,22 @@ export function FormularioDeTransacao({
   async function salvar(e: FormEvent) {
     e.preventDefault();
     setErro(null);
-    const r = NovaTransacao.safeParse({
+    // Vai o texto digitado: converter aqui e de novo no BFF leria "0.125" como 125.
+    const digitada = {
       ticker,
       tipo,
       data,
       quantidade,
       preco: semPreco ? "0" : preco,
       taxas: taxas || "0",
-    });
+    };
+    const r = NovaTransacao.safeParse(digitada);
     if (!r.success) return setErro(r.error.issues[0]?.message ?? "Dados inválidos.");
     setEnviando(true);
     try {
-      await adicionarTransacao(carteira, r.data);
+      await (inicial
+        ? editarTransacao(carteira, inicial.id, digitada)
+        : adicionarTransacao(carteira, digitada));
       onSalva();
     } catch (falha) {
       setErro((falha as Error).message);
@@ -129,7 +142,7 @@ export function FormularioDeTransacao({
         </p>
       )}
       <Button type="submit" variant="primary" disabled={enviando}>
-        Salvar transação
+        {inicial ? "Salvar alterações" : "Salvar transação"}
       </Button>
     </form>
   );

@@ -36,7 +36,7 @@ ROLE` e `set_config(..., true)`). `audit_log` append-only por `REVOKE`. `outbox`
 4. **`user_id` redundante em toda tabela**, como no `portfolio`: a política compara uma
    coluna indexada da própria linha, sem subconsulta.
 5. **Rotas de UI em `/financas/*` e BFF em `/api/financas/*`.** Todo endpoint tem
-   schema Zod e entra no OpenAPI gerado por `@bolsiq/finance` (`/api/financas/openapi.json`).
+   schema Zod e entra no OpenAPI gerado por `@bolsiq/finance` (`/api/financas/openapi`).
    Um teste do web reprova rota em `app/api/financas` que não esteja no documento.
 6. **Painel geral (`/painel`) compõe chamando os módulos pelo BFF**, nunca por SQL entre
    schemas. Nesta etapa a rota existe com estado vazio.

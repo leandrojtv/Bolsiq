@@ -29,7 +29,7 @@ const conta = await import("../app/api/financas/contas/[id]/route");
 const categoria = await import("../app/api/financas/categorias/[id]/route");
 const lancamentos = await import("../app/api/financas/lancamentos/route");
 const resumo = await import("../app/api/financas/resumo/route");
-const openapi = await import("../app/api/financas/openapi.json/route");
+const openapi = await import("../app/api/financas/openapi/route");
 
 const post = (corpo: unknown) =>
   new Request("http://x/api", {

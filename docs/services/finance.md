@@ -48,7 +48,7 @@ As migrations são aplicadas pelo passo de migrate do `portfolio-worker`, journa
 ## BFF
 
 Todas as rotas exigem a sessão (401 sem ela) e validam com Zod (422). O
-documento OpenAPI sai dos mesmos schemas em `/api/financas/openapi.json`, e
+documento OpenAPI sai dos mesmos schemas em `/api/financas/openapi`, e
 `apps/web/lib/financas-bff.test.ts` reprova rota sem entrada nele.
 
 | Rota                               | Métodos              |
@@ -60,7 +60,7 @@ documento OpenAPI sai dos mesmos schemas em `/api/financas/openapi.json`, e
 | `/api/financas/lancamentos`        | GET (paginado), POST |
 | `/api/financas/lancamentos/{id}`   | PATCH, DELETE        |
 | `/api/financas/resumo?mes=YYYY-MM` | GET                  |
-| `/api/financas/openapi.json`       | GET                  |
+| `/api/financas/openapi`            | GET                  |
 
 Filtros da listagem: `de`, `ate`, `conta`, `categoria`, `status`, `q` (texto, com
 e sem acento), `pagina`, `por_pagina` (até 200). Conta com lançamento não se

@@ -130,7 +130,7 @@ export const ROTAS_DE_FINANCAS: RouteSpec[] = [
   },
   {
     method: "get",
-    path: "/api/financas/openapi.json",
+    path: "/api/financas/openapi",
     summary: "Este documento",
     tags,
     response: z.record(z.unknown()),

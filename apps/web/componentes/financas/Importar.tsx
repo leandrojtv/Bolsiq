@@ -69,6 +69,15 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const { data: faturas = [] } = useFaturas(alvo === "cartao" ? cartao : "");
+  // A lista cobre os ciclos ao redor de hoje; extrato antigo sugere fatura fora dela.
+  const sugerida =
+    analise?.sugestao.card_id === cartao ? analise.sugestao.vencimento : null;
+  const opcoesDeFatura = [
+    ...faturas,
+    ...(sugerida && !faturas.some((f) => f.vencimento === sugerida)
+      ? [{ vencimento: sugerida }]
+      : []),
+  ].sort((a, b) => b.vencimento.localeCompare(a.vencimento));
 
   const formulario = (extra: Record<string, string> = {}) => {
     const form = new FormData();
@@ -217,7 +226,7 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
                     onChange={(e) => setVencimento(e.target.value)}
                   >
                     <option value="">Escolha</option>
-                    {faturas.map((f) => (
+                    {opcoesDeFatura.map((f) => (
                       <option key={f.vencimento} value={f.vencimento}>
                         {dataBr(f.vencimento)}
                         {f.vencimento === analise.sugestao.vencimento
@@ -460,7 +469,7 @@ function Revisao({
               <th className="hidden py-2 font-medium md:table-cell">Data</th>
               <th className="py-2 font-medium">Descrição</th>
               <th className="py-2 font-medium">Categoria</th>
-              <th className="py-2 text-right font-medium">Valor</th>
+              <th className="hidden py-2 text-right font-medium md:table-cell">Valor</th>
               <th className="py-2">
                 <span className="sr-only">Mais</span>
               </th>
@@ -505,8 +514,13 @@ function Revisao({
                   </td>
                   <td className="py-2.5">
                     <span className="break-words">{l.descricao_original}</span>
+                    {/* No celular, data e valor embaixo: a coluna fica para a categoria. */}
                     <span className="block font-mono text-xs text-text-3 md:hidden">
-                      {dataBr(l.data)}
+                      {dataBr(l.data)} ·{" "}
+                      <Money
+                        value={comSinal(l)}
+                        className={l.tipo === "despesa" ? "text-down" : "text-up"}
+                      />
                     </span>
                     <span className="flex flex-wrap gap-1.5 text-xs">
                       {l.parcela_atual && (
@@ -560,7 +574,7 @@ function Revisao({
                     ) : (
                       <select
                         aria-label={`Categoria de ${l.descricao_original}`}
-                        className={cn(CAMPO, "min-w-0 py-1 md:min-w-[150px]")}
+                        className={cn(CAMPO, "w-[130px] py-1 md:w-auto md:min-w-[150px]")}
                         value={l.category_id ?? ""}
                         disabled={!emRevisao || l.acao !== "importar"}
                         onChange={(e) => {
@@ -605,7 +619,7 @@ function Revisao({
                       </span>
                     )}
                   </td>
-                  <td className="py-2.5 text-right whitespace-nowrap">
+                  <td className="hidden py-2.5 text-right whitespace-nowrap md:table-cell">
                     <Money
                       value={comSinal(l)}
                       className={l.tipo === "despesa" ? "text-down" : "text-up"}

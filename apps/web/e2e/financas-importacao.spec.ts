@@ -34,7 +34,7 @@ test("Bolsiq Finanças: importa OFX, revisa, confirma, reimporta sem duplicar e 
     "extrato de conta · 6 linhas",
   );
   // O banco do arquivo (0341) sugere a conta do Itaú.
-  await expect(page.getByLabel("Conta", { exact: true })).toHaveValue(/.+/);
+  await expect(page.getByRole("combobox", { name: /^Conta/ })).toHaveValue(/.+/);
   await page.getByRole("button", { name: "Revisar linhas" }).click();
 
   const linhas = page.getByRole("table", { name: "Linhas da importação" });
@@ -44,7 +44,10 @@ test("Bolsiq Finanças: importa OFX, revisa, confirma, reimporta sem duplicar e 
     .getByLabel("Categoria de SALÁRIO EMPRESA EXEMPLO")
     .selectOption({ label: "Salário" });
   await expect(linhas.getByRole("button", { name: "Criar regra" })).toBeVisible();
-  await linhas.getByLabel("Importar ALUGUEL APTO").uncheck();
+  // A caixa reflete o servidor: muda quando a edicao da linha volta.
+  const aluguel = linhas.getByLabel("Importar ALUGUEL APTO");
+  await aluguel.click();
+  await expect(aluguel).not.toBeChecked();
   await expect(page.getByText("5 marcadas")).toBeVisible();
 
   await page.getByRole("button", { name: "Confirmar importação" }).click();
@@ -59,7 +62,7 @@ test("Bolsiq Finanças: importa OFX, revisa, confirma, reimporta sem duplicar e 
   await page.goto("/financas/importar");
   await page.getByLabel("Arquivos OFX").setInputFiles(OFX);
   await page.getByRole("button", { name: "Revisar linhas" }).click();
-  await expect(page.getByText("já importada")).toHaveCount(5);
+  await expect(page.getByText("já importada", { exact: true })).toHaveCount(5);
   await expect(page.getByText("1 marcada", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Cancelar" }).click();
 

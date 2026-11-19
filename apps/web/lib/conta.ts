@@ -151,8 +151,13 @@ export async function exportarDados(uid: string) {
   // Bolsiq Financas (ADR 0031): mesmo caminho, com RLS.
   const deFinancas = await comoUsuario(db, uid, async (tx) => ({
     contas: await tx.select().from(financas.accounts),
+    cartoes: await tx.select().from(financas.cards),
+    faturas: await tx.select().from(financas.statements),
     categorias: await tx.select().from(financas.categories),
     lancamentos: await tx.select().from(financas.transactions),
+    importacoes: await tx.select().from(financas.imports),
+    linhas_importadas: await tx.select().from(financas.import_rows),
+    regras: await tx.select().from(financas.categorization_rules),
     auditoria: await tx.select().from(financas.audit_log),
   }));
   return {
@@ -209,8 +214,15 @@ export async function excluirDados(uid: string): Promise<void> {
       .where(eq(assistente.extractions.user_id, uid));
     // Jobs da importacao em segundo plano; os arquivos caem junto, pela FK.
     await tx.delete(assistente.importJobs).where(eq(assistente.importJobs.user_id, uid));
-    // Financas: lancamentos antes de contas e categorias, pelas FKs compostas.
+    // Financas, na ordem das FKs compostas: lancamentos, importacoes (as linhas
+    // caem junto), regras, faturas, cartoes, categorias e contas.
     await tx.delete(financas.transactions).where(eq(financas.transactions.user_id, uid));
+    await tx.delete(financas.imports).where(eq(financas.imports.user_id, uid));
+    await tx
+      .delete(financas.categorization_rules)
+      .where(eq(financas.categorization_rules.user_id, uid));
+    await tx.delete(financas.statements).where(eq(financas.statements.user_id, uid));
+    await tx.delete(financas.cards).where(eq(financas.cards.user_id, uid));
     await tx.delete(financas.categories).where(eq(financas.categories.user_id, uid));
     await tx.delete(financas.accounts).where(eq(financas.accounts.user_id, uid));
   });
@@ -228,6 +240,10 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx.delete(watchlist).where(eq(watchlist.user_id, uid));
     await tx.delete(portfolio.audit_log).where(eq(portfolio.audit_log.user_id, uid));
     await tx.delete(financas.audit_log).where(eq(financas.audit_log.user_id, uid));
+    // Evento de importacao ainda no outbox leva o user_id no payload.
+    await tx
+      .delete(financas.outbox)
+      .where(sql`${financas.outbox.payload}->>'user_id' = ${uid}`);
     // Consumo e append-only para a aplicacao, como a auditoria: mesmo caminho.
     await tx.delete(assistente.usage).where(eq(assistente.usage.user_id, uid));
   });

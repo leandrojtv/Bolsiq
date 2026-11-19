@@ -115,12 +115,22 @@ export function VisaoGeral() {
           ))}
         </ul>
       </Card>
-      <Link
-        href="/financas/lancamentos"
-        className="text-sm text-link hover:text-link-hover"
-      >
-        Ver todos os lançamentos
-      </Link>
+      <nav aria-label="Atalhos" className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+        {[
+          ["/financas/lancamentos", "Ver todos os lançamentos"],
+          ["/financas/importar", "Importar extrato ou fatura"],
+          ["/financas/categorias", "Categorias"],
+          ["/financas/regras", "Regras de categorização"],
+        ].map(([href, rotulo]) => (
+          <Link
+            key={href}
+            href={href as string}
+            className="text-link hover:text-link-hover"
+          >
+            {rotulo}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

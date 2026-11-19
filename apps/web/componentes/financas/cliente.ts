@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import type {
+  Cartao,
+  Importacao,
+  ImportacaoComLinhas,
+  Regra,
+  ResumoDeFatura,
   Categoria,
   Conta,
   EdicaoDigitada,
@@ -49,6 +54,76 @@ export const useLancamentos = (filtro: Record<string, string>) =>
         ).toString()}`,
       ),
   });
+
+export const useCartoes = () =>
+  useQuery({
+    queryKey: [...CHAVE, "cartoes"],
+    queryFn: () => api<{ data: Cartao[] }>("financas/cartoes").then((r) => r.data),
+  });
+
+export const useFaturas = (cartao: string) =>
+  useQuery({
+    queryKey: [...CHAVE, "faturas", cartao],
+    enabled: cartao !== "",
+    queryFn: () =>
+      api<{ data: ResumoDeFatura[] }>(`financas/cartoes/${cartao}/faturas`).then(
+        (r) => r.data,
+      ),
+  });
+
+export const useImportacoes = () =>
+  useQuery({
+    queryKey: [...CHAVE, "importacoes"],
+    queryFn: () =>
+      api<{ data: Importacao[] }>("financas/importacoes").then((r) => r.data),
+  });
+
+export const useRegras = () =>
+  useQuery({
+    queryKey: [...CHAVE, "regras"],
+    queryFn: () => api<{ data: Regra[] }>("financas/regras").then((r) => r.data),
+  });
+
+export const criarCartao = (c: Record<string, unknown>) =>
+  api<{ data: Cartao }>("financas/cartoes", json("POST", c)).then((r) => r.data);
+export const editarCartao = (id: string, c: Record<string, unknown>) =>
+  api<{ data: Cartao }>(`financas/cartoes/${id}`, json("PATCH", c)).then((r) => r.data);
+export const apagarCartao = (id: string) =>
+  api<null>(`financas/cartoes/${id}`, { method: "DELETE" });
+
+export const editarLinha = (
+  importacao: string,
+  linha: string,
+  e: Record<string, unknown>,
+) =>
+  api<{ data: ImportacaoComLinhas }>(
+    `financas/importacoes/${importacao}/linhas/${linha}`,
+    json("PATCH", e),
+  ).then((r) => r.data);
+export const acaoDaImportacao = (
+  id: string,
+  acao: "confirmar" | "cancelar" | "desfazer",
+) =>
+  api<{ data: Importacao }>(`financas/importacoes/${id}/${acao}`, {
+    method: "POST",
+  }).then((r) => r.data);
+
+export const criarRegra = (r: Record<string, unknown>) =>
+  api<{ data: Regra }>("financas/regras", json("POST", r)).then((x) => x.data);
+export const editarRegra = (id: string, r: Record<string, unknown>) =>
+  api<{ data: Regra }>(`financas/regras/${id}`, json("PATCH", r)).then((x) => x.data);
+export const apagarRegra = (id: string) =>
+  api<null>(`financas/regras/${id}`, { method: "DELETE" });
+
+/**
+ * Valor do seletor "Conta" que tambem lista cartoes: `cartao:<id>` vira
+ * card_id, o resto e account_id.
+ */
+export const PREFIXO_CARTAO = "cartao:";
+export const destinoDoSeletor = (v: string) =>
+  v.startsWith(PREFIXO_CARTAO)
+    ? { card_id: v.slice(PREFIXO_CARTAO.length) }
+    : { account_id: v };
 
 export const criarConta = (c: Record<string, unknown>) =>
   api<{ data: Conta }>("financas/contas", json("POST", c)).then((r) => r.data);

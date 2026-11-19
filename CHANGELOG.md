@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1](https://github.com/leandrojtv/Bolsiq/compare/v0.2.0...v0.2.1) (2026-11-18)
+
+
+### Correções
+
+* **ci:** ignora links de compare e releases no lychee ([#79](https://github.com/leandrojtv/Bolsiq/issues/79)) ([537b7aa](https://github.com/leandrojtv/Bolsiq/commit/537b7aac80362bc7cc7e33bc2d0793d4c65446af))
+* **web:** voltar do ativo no celular leva a busca ([3a08eae](https://github.com/leandrojtv/Bolsiq/commit/3a08eaefc653f3093228fe947e978520cb978667))
+* **web:** voltar do ativo no celular leva a busca ([#75](https://github.com/leandrojtv/Bolsiq/issues/75)) ([29242ce](https://github.com/leandrojtv/Bolsiq/commit/29242cef082de1ac444955f09112035299818a51))
+
+
+### Documentação
+
+* **web:** rota /ativo na lista de rotas ([#75](https://github.com/leandrojtv/Bolsiq/issues/75)) ([0d89aaa](https://github.com/leandrojtv/Bolsiq/commit/0d89aaae652312b4b0c270bb9ed7534ff6d49fe4))
+
 ## [0.2.0](https://github.com/leandrojtv/Bolsiq/compare/v0.1.1...v0.2.0) (2026-11-18)
 
 

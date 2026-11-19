@@ -3,6 +3,7 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 import { schema as alertas } from "@bolsiq/alerts";
 import { schema as assistente } from "@bolsiq/assistant";
 import { usuarios, watchlist } from "@bolsiq/auth";
+import { schema as financas } from "@bolsiq/finance";
 import { comoUsuario, schema as portfolio } from "@bolsiq/portfolio";
 import { banco } from "./analytics";
 
@@ -147,12 +148,20 @@ export async function exportarDados(uid: string) {
         .from(assistente.importJobs),
     };
   });
+  // Bolsiq Financas (ADR 0031): mesmo caminho, com RLS.
+  const deFinancas = await comoUsuario(db, uid, async (tx) => ({
+    contas: await tx.select().from(financas.accounts),
+    categorias: await tx.select().from(financas.categories),
+    lancamentos: await tx.select().from(financas.transactions),
+    auditoria: await tx.select().from(financas.audit_log),
+  }));
   return {
     gerado_em: new Date().toISOString(),
     conta: conta ?? null,
     watchlist: await lerWatchlist(uid),
     ...carteira,
     assistente: doAssistente,
+    financas: deFinancas,
     alertas: {
       regras: await db.select().from(alertRules).where(eq(alertRules.user_id, uid)),
       notificacoes: await db
@@ -171,8 +180,8 @@ export async function exportarDados(uid: string) {
 }
 
 /**
- * Exclusao da conta (LGPD, art. 18, VI). Apaga dados de carteira, alertas e
- * watchlist; a conta em si (sessoes, senha, 2FA) o Better Auth apaga depois.
+ * Exclusao da conta (LGPD, art. 18, VI). Apaga dados de carteira, financas,
+ * alertas e watchlist; a conta em si (sessoes, senha, 2FA) o Better Auth apaga depois.
  *
  * A auditoria e append-only para a aplicacao (REVOKE no papel bolsiq_app);
  * aqui ela sai pela conexao do dono das tabelas, fora do `comoUsuario`. E a
@@ -200,6 +209,10 @@ export async function excluirDados(uid: string): Promise<void> {
       .where(eq(assistente.extractions.user_id, uid));
     // Jobs da importacao em segundo plano; os arquivos caem junto, pela FK.
     await tx.delete(assistente.importJobs).where(eq(assistente.importJobs.user_id, uid));
+    // Financas: lancamentos antes de contas e categorias, pelas FKs compostas.
+    await tx.delete(financas.transactions).where(eq(financas.transactions.user_id, uid));
+    await tx.delete(financas.categories).where(eq(financas.categories.user_id, uid));
+    await tx.delete(financas.accounts).where(eq(financas.accounts.user_id, uid));
   });
   const { alertRules, notifications, deliveries, userPrefs, pushSubscriptions } = alertas;
   await db.transaction(async (tx) => {
@@ -214,6 +227,7 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.user_id, uid));
     await tx.delete(watchlist).where(eq(watchlist.user_id, uid));
     await tx.delete(portfolio.audit_log).where(eq(portfolio.audit_log.user_id, uid));
+    await tx.delete(financas.audit_log).where(eq(financas.audit_log.user_id, uid));
     // Consumo e append-only para a aplicacao, como a auditoria: mesmo caminho.
     await tx.delete(assistente.usage).where(eq(assistente.usage.user_id, uid));
   });

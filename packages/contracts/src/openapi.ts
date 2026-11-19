@@ -12,7 +12,7 @@ import type { ZodType, ZodTypeDef } from "zod";
 export type AnySchema = ZodType<unknown, ZodTypeDef, unknown>;
 
 export interface RouteSpec {
-  method: "get" | "post" | "put" | "delete";
+  method: "get" | "post" | "put" | "patch" | "delete";
   path: string;
   summary: string;
   tags: string[];

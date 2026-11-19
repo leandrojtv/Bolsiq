@@ -28,6 +28,7 @@ anterior como `substituído por`.
 | [0028](0028-sinais-dos-indicadores.md)           | Sinais verde, amarelo e vermelho dos indicadores         | aceito       |
 | [0029](0029-recuperar-jobs-perdidos-ao-subir.md) | Recuperar jobs agendados perdidos ao subir o worker      | aceito       |
 | [0030](0030-producao-em-vm-unica-no-azure.md)    | Produção numa VM única no Azure com desligamento noturno | aceito       |
+| [0031](0031-bolsiq-financas.md)                  | Bolsiq Finanças: módulo de finanças pessoais             | aceito       |
 
 ## Números reservados
 

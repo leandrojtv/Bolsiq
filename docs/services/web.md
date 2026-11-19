@@ -19,6 +19,11 @@ Decisões no [ADR 0020](../adr/0020-bff-do-web.md).
 
 O assistente "Pergunte ao Bolsiq" está em [assistant.md](assistant.md).
 
+O app tem três áreas, trocadas pelo seletor de módulo do `AppShell`:
+Investimentos, Finanças ([finance.md](finance.md)) e Painel. O último módulo
+usado fica no cookie `bolsiq_modulo` e define a tela de entrada depois do login
+quando não há `volta`.
+
 ## Rodando
 
 ```bash
@@ -64,6 +69,8 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 | `/api/push`                                       | chave VAPID pública e inscrição de Web Push               |
 | `/manifest.webmanifest`, `/icones/*`, `/sw.js`    | PWA                                                       |
 | `/api/assistente/*`                               | assistente: chat, configuração, perfil e conversas        |
+| `/financas/*`, `/api/financas/*`                  | Bolsiq Finanças ([finance.md](finance.md))                |
+| `/painel`                                         | Painel geral; por enquanto só o estado vazio              |
 
 ## Página do ativo
 

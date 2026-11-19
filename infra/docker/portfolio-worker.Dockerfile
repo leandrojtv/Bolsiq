@@ -2,7 +2,7 @@
 
 # Imagem do portfolio-worker: snapshot diario das carteiras, importacao com IA
 # em segundo plano (ADR 0027) e migrations dos schemas `app`, `portfolio`
-# (ADR 0022) e `assistant` (ADR 0024).
+# (ADR 0022), `assistant` (ADR 0024) e `finance` (ADR 0031).
 
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
@@ -54,6 +54,7 @@ WORKDIR /app
 COPY --from=build --chown=bolsiq:bolsiq /app ./
 COPY --from=build --chown=bolsiq:bolsiq /repo/packages/auth/migrations ./migrations/app
 COPY --from=build --chown=bolsiq:bolsiq /repo/packages/portfolio/migrations ./migrations/portfolio
+COPY --from=build --chown=bolsiq:bolsiq /repo/packages/finance/migrations ./migrations/finance
 COPY --from=pruner --chown=bolsiq:bolsiq /repo/packages/assistant/migrations ./migrations/assistant
 USER bolsiq
 EXPOSE 3004

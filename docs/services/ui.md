@@ -76,6 +76,7 @@ existem e vale o fallback, as famílias que o `@fontsource` registra.
 | `RangeInput`                           | mínimo e máximo do screener                                              |
 | `EmptyState`, `ErrorState`, `Skeleton` | estados; erro com `role=alert` e código de correlação                    |
 | `AppShell`                             | menu de 220 px; abaixo de 768 px, navegação inferior de 5 itens          |
+| `navegacaoPadrao`, `navegacaoFinancas` | menu de cada módulo; `modules` e `brand` mostram o seletor e o nome      |
 
 Os números usam JetBrains Mono com `tabular-nums`. Valor monetário chega como
 string decimal do `/v1` (regra 5) e só vira `number` no último passo, para o

@@ -1,6 +1,6 @@
 /**
  * Migrations dos schemas do app que nao tem processo proprio: `portfolio`,
- * `assistant` e `app` (Better Auth e watchlist). Passo unico antes do web e do worker.
+ * `assistant`, `finance` (ADR 0031) e `app` (Better Auth e watchlist). Passo unico antes do web e do worker.
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ try {
     ["app", "drizzle_app"],
     ["portfolio", "drizzle_portfolio"],
     ["assistant", "drizzle_assistant"],
+    ["finance", "drizzle_finance"],
   ] as const) {
     await migrate(drizzle(pool), {
       migrationsFolder: resolve(raiz, pasta),

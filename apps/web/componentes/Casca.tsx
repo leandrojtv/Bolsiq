@@ -5,9 +5,19 @@ import { MessageCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ComponentProps, type ReactNode } from "react";
-import { AppShell, navegacaoPadrao, type LinkComponent } from "@bolsiq/ui";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  AppShell,
+  MARCA_DO_MODULO,
+  moduloDaRota,
+  modulos,
+  navegacaoFinancas,
+  navegacaoPadrao,
+  navegacaoPainel,
+  type LinkComponent,
+} from "@bolsiq/ui";
 import { buscarCotacoes } from "@/lib/api";
+import { lembrarModulo, moduloParaLembrar } from "@/lib/modulo";
 import { useSino } from "./alertas/useSino";
 import { useConta } from "./conta/Conta";
 import { BuscaGlobal, ID_DA_BUSCA } from "./BuscaGlobal";
@@ -47,11 +57,25 @@ export function Casca({ children }: { children: ReactNode }) {
   const porTicker = new Map((data?.data ?? []).map((c) => [c.ticker, c]));
   const [assistenteAberto, setAssistenteAberto] = useState(false);
   const [assistenteUsado, setAssistenteUsado] = useState(false);
+  const modulo = moduloDaRota(caminho);
+  // Ultimo modulo usado: define a entrada depois do login (ADR 0031).
+  useEffect(() => {
+    const m = moduloParaLembrar(caminho);
+    if (m) lembrarModulo(m);
+  }, [caminho]);
+  const nav =
+    modulo === "financas"
+      ? navegacaoFinancas(caminho)
+      : modulo === "painel"
+        ? navegacaoPainel(caminho)
+        : navegacaoPadrao(caminho === "/" ? "/ativo" : caminho);
 
   return (
     <AppShell
-      nav={navegacaoPadrao(caminho === "/" ? "/ativo" : caminho)}
-      watchlist={lista.map((t) => {
+      nav={nav}
+      modules={modulos(modulo)}
+      brand={MARCA_DO_MODULO[modulo]}
+      watchlist={(modulo === "investimentos" ? lista : []).map((t) => {
         const c = porTicker.get(t);
         return {
           ticker: t,

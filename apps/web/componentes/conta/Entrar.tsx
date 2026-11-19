@@ -4,11 +4,18 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { Button } from "@bolsiq/ui";
 import { authCliente } from "@/lib/auth-cliente";
+import { entradaDoModulo, moduloDoCookie } from "@/lib/modulo";
 import { Campo, Mensagem, TelaDeConta, mensagemDeErro } from "./campos";
 
-/** So caminho interno: `volta` vem da URL e nao pode mandar para outro site. */
+/**
+ * So caminho interno: `volta` vem da URL e nao pode mandar para outro site. Sem
+ * `volta`, a entrada do ultimo modulo usado (ADR 0031).
+ */
 function destino(volta: string | undefined): string {
-  return volta && volta.startsWith("/") && !volta.startsWith("//") ? volta : "/carteiras";
+  if (volta && volta.startsWith("/") && !volta.startsWith("//")) return volta;
+  return typeof document === "undefined"
+    ? "/carteiras"
+    : entradaDoModulo(moduloDoCookie(document.cookie));
 }
 
 export function Entrar({

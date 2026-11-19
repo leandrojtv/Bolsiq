@@ -8,7 +8,19 @@ import {
   type ComponentType,
   type ReactNode,
 } from "react";
-import { Bell, Briefcase, ChartLine, Columns2, Funnel, Search } from "lucide-react";
+import {
+  Bell,
+  Briefcase,
+  ChartLine,
+  Columns2,
+  Funnel,
+  Landmark,
+  LayoutDashboard,
+  LayoutGrid,
+  ReceiptText,
+  Search,
+  Tags,
+} from "lucide-react";
 import { cn } from "../lib/cn.js";
 import { direcaoDe, formatarPercentual, type Numero } from "../lib/formato.js";
 
@@ -33,9 +45,47 @@ export type LinkComponent = ComponentType<
   AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }
 >;
 
+/** As tres areas do Bolsiq (ADR 0031). */
+export type Modulo = "investimentos" | "financas" | "painel";
+
+export interface ModuloItem {
+  id: Modulo;
+  label: string;
+  /** Tela de entrada do modulo. */
+  href: string;
+  current?: boolean;
+}
+
+export const MODULOS: readonly Omit<ModuloItem, "current">[] = [
+  { id: "investimentos", label: "Investimentos", href: "/carteiras" },
+  { id: "financas", label: "Finanças", href: "/financas" },
+  { id: "painel", label: "Painel", href: "/painel" },
+];
+
+/** Nome no cabecalho de cada modulo. */
+export const MARCA_DO_MODULO: Record<Modulo, string> = {
+  investimentos: "Bolsiq",
+  financas: "Bolsiq Finanças",
+  painel: "Bolsiq",
+};
+
+export function moduloDaRota(caminho: string): Modulo {
+  if (caminho === "/financas" || caminho.startsWith("/financas/")) return "financas";
+  if (caminho === "/painel" || caminho.startsWith("/painel/")) return "painel";
+  return "investimentos";
+}
+
+export function modulos(atual: Modulo): ModuloItem[] {
+  return MODULOS.map((m) => ({ ...m, current: m.id === atual }));
+}
+
 export interface AppShellProps {
   /** Itens do menu. Os cinco primeiros vao para a navegacao inferior no celular. */
   nav: NavItem[];
+  /** Seletor de modulo (Investimentos, Financas, Painel). Sem ele, nao aparece. */
+  modules?: ModuloItem[];
+  /** Nome no cabecalho; muda com o modulo ("Bolsiq Financas"). */
+  brand?: string;
   watchlist?: WatchItem[];
   notifications?: number;
   onNotificationsClick?: () => void;
@@ -75,6 +125,92 @@ export function navegacaoPadrao(atual: string): NavItem[] {
   return itens.map((i) => ({ ...i, current: atual.startsWith(i.href) }));
 }
 
+/** Navegacao do Bolsiq Financas. */
+export function navegacaoFinancas(atual: string): NavItem[] {
+  const itens: (Omit<NavItem, "current"> & { exato?: boolean })[] = [
+    {
+      href: "/financas",
+      label: "Visão geral",
+      shortLabel: "Início",
+      icon: <LayoutDashboard {...ICONE} />,
+      exato: true,
+    },
+    {
+      href: "/financas/lancamentos",
+      label: "Lançamentos",
+      icon: <ReceiptText {...ICONE} />,
+    },
+    { href: "/financas/contas", label: "Contas", icon: <Landmark {...ICONE} /> },
+    { href: "/financas/categorias", label: "Categorias", icon: <Tags {...ICONE} /> },
+  ];
+  return itens.map(({ exato, ...i }) => ({
+    ...i,
+    current: exato ? atual === i.href : atual.startsWith(i.href),
+  }));
+}
+
+/** Navegacao do Painel geral. */
+export function navegacaoPainel(atual: string): NavItem[] {
+  return [
+    {
+      href: "/painel",
+      label: "Painel geral",
+      shortLabel: "Painel",
+      icon: <LayoutGrid {...ICONE} />,
+      current: atual.startsWith("/painel"),
+    },
+  ];
+}
+
+const COLUNAS = [
+  "grid-cols-1",
+  "grid-cols-2",
+  "grid-cols-3",
+  "grid-cols-4",
+  "grid-cols-5",
+];
+
+/** No menu lateral (220 px) empilhado; no topo do celular, em linha. */
+function SeletorDeModulo({
+  modules,
+  Link,
+  vertical = false,
+  className,
+}: {
+  modules: ModuloItem[];
+  Link: LinkComponent;
+  vertical?: boolean;
+  className?: string;
+}) {
+  return (
+    <nav
+      aria-label="Módulo"
+      className={cn(
+        "flex gap-0.5 rounded-control border border-border bg-surface p-1",
+        vertical && "flex-col",
+        className,
+      )}
+    >
+      {modules.map((m) => (
+        <Link
+          key={m.id}
+          href={m.href}
+          {...(m.current ? { "aria-current": "page" as const } : {})}
+          className={cn(
+            "flex min-h-9 flex-auto items-center rounded-item whitespace-nowrap",
+            vertical ? "px-3 text-sm" : "justify-center px-1.5 text-xs",
+            m.current
+              ? "bg-surface-2 font-semibold text-text"
+              : "text-text-3 hover:text-text",
+          )}
+        >
+          {m.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 function LinkPadrao(props: AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) {
   return <a {...props} />;
 }
@@ -86,6 +222,8 @@ function LinkPadrao(props: AnchorHTMLAttributes<HTMLAnchorElement> & { href: str
  */
 export function AppShell({
   nav,
+  modules,
+  brand = "Bolsiq",
   watchlist = [],
   notifications = 0,
   onNotificationsClick,
@@ -129,8 +267,11 @@ export function AppShell({
           >
             B
           </div>
-          <span className="text-lg font-bold tracking-tight">Bolsiq</span>
+          <span className="text-lg font-bold tracking-tight">{brand}</span>
         </div>
+        {modules && modules.length > 0 && (
+          <SeletorDeModulo modules={modules} Link={Link} vertical className="mb-3" />
+        )}
         {nav.map((i) => (
           <Link
             key={i.href}
@@ -188,6 +329,12 @@ export function AppShell({
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {modules && modules.length > 0 && (
+          <div className="flex flex-col gap-2 px-4 pt-3 md:hidden">
+            <span className="text-sm font-bold tracking-tight">{brand}</span>
+            <SeletorDeModulo modules={modules} Link={Link} />
+          </div>
+        )}
         <header
           className={cn(
             "flex-wrap items-center gap-3 px-4 pt-4 md:flex md:px-content md:pt-5",
@@ -257,7 +404,10 @@ export function AppShell({
 
       <nav
         aria-label="Navegação principal"
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-sidebar px-1 pt-1.5 pb-[18px] md:hidden"
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-20 grid border-t border-border bg-sidebar px-1 pt-1.5 pb-[18px] md:hidden",
+          COLUNAS[Math.min(nav.length, 5) - 1] ?? "grid-cols-5",
+        )}
       >
         {nav.slice(0, 5).map((i) => (
           <Link

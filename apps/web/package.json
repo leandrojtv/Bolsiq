@@ -22,6 +22,7 @@
     "@bolsiq/auth": "workspace:*",
     "@bolsiq/contracts": "workspace:*",
     "@bolsiq/db-core": "workspace:*",
+    "@bolsiq/finance": "workspace:*",
     "@bolsiq/portfolio": "workspace:*",
     "@bolsiq/ui": "workspace:*",
     "@react-email/components": "1.0.12",

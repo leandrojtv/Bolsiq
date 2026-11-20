@@ -43,7 +43,8 @@ export function GraficoDeCategorias({
       {
         animation: false,
         textStyle: { fontFamily: fonte },
-        grid: { left: 8, right: 16, top: 4, bottom: 4, containLabel: true },
+        // Margem direita para o rotulo da maior barra caber.
+        grid: { left: 8, right: 96, top: 4, bottom: 4, containLabel: true },
         tooltip: {
           trigger: "axis",
           axisPointer: { type: "none" },

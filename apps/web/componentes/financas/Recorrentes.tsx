@@ -67,6 +67,8 @@ function FormularioDeRecorrencia({
   const [ativa, setAtiva] = useState(inicial?.ativa ?? true);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // As contas podem chegar depois do formulario abrir: sem escolha, a primeira.
+  const destinoEscolhido = destino || (contas.find((c) => !c.arquivada)?.id ?? "");
 
   async function salvar(e: FormEvent) {
     e.preventDefault();
@@ -83,7 +85,7 @@ function FormularioDeRecorrencia({
       valor_variavel: variavel,
       ativa,
     };
-    const nova = { ...comum, ...destinoDoSeletor(destino) };
+    const nova = { ...comum, ...destinoDoSeletor(destinoEscolhido) };
     const r = NovaRecorrencia.safeParse(nova);
     if (!r.success) return setErro(r.error.issues[0]?.message ?? "Dados inválidos.");
     setEnviando(true);
@@ -137,7 +139,7 @@ function FormularioDeRecorrencia({
           Conta ou cartão
           <select
             className={CAMPO}
-            value={destino}
+            value={destinoEscolhido}
             disabled={inicial !== undefined}
             onChange={(e) => setDestino(e.target.value)}
           >

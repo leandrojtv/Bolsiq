@@ -61,7 +61,8 @@ export function Barra({
   rotulo: string;
 }) {
   const pct = total > 0 ? Math.min(100, (valor / total) * 100) : valor > 0 ? 100 : 0;
-  const estourou = total > 0 && valor > total;
+  // Gasto sem planejamento (total zero) tambem e estouro.
+  const estourou = valor > total;
   return (
     <div
       role="meter"

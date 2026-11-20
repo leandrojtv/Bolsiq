@@ -27,7 +27,9 @@ test("Bolsiq Finanças: compra no cartão, fatura, pagamento e despesa sem dobra
   // Compra no cartao pelo lancamento rapido.
   await page.goto("/financas/lancamentos");
   const rapido = page.getByRole("form", { name: "Lançamento rápido" });
-  await rapido.getByLabel("Conta").selectOption({ label: "Roxinho" });
+  await rapido
+    .getByRole("combobox", { name: /^Conta/ })
+    .selectOption({ label: "Roxinho" });
   await rapido.getByLabel("Valor").fill("250");
   await rapido.getByLabel("Descrição").fill("Supermercado");
   await rapido.getByLabel("Categoria").selectOption({ label: "Mercado" });

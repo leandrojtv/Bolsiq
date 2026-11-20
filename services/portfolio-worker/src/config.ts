@@ -11,6 +11,8 @@ export const Env = z.object({
   PORT: z.coerce.number().int().positive().default(3004),
   /** Snapshot do fechamento: dias uteis, 19h de Brasilia. */
   SNAPSHOT_CRON: z.string().default("0 19 * * 1-5"),
+  /** Rotina diaria do Bolsiq Financas: recorrencias e fechamento de fatura. */
+  FINANCE_ROTINA_CRON: z.string().default("10 3 * * *"),
   /** De quanto em quanto tempo procura carteira marcada para recalcular. */
   RECALCULO_MS: z.coerce.number().int().positive().default(2000),
   // Importacao com IA (ADR 0027): o worker usa a chave do usuario.

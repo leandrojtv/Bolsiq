@@ -422,15 +422,18 @@ export const SUBJECT_FINANCE = "finance.>";
  */
 export const streams = {
   marketdata: { name: STREAM_MARKETDATA, subject: SUBJECT_MARKETDATA },
-  analytics: { name: STREAM_ANALYTICS, subject: SUBJECT_ANALYTICS },
-  // Poucos eventos por usuario, consumidos na hora. Sem reserva de bytes (-1):
-  // MARKETDATA e ANALYTICS ja reservam os 16 GB do `max_file_store` do
-  // nats.conf, e qualquer reserva a mais e recusada. O teto e por mensagens e
-  // pela idade (30 dias, a mesma dos outros).
+  // Indicadores mudam por trimestre: poucos MB por mes. 1 GB de teto libera a
+  // reserva do JetStream para o FINANCE dentro do `max_file_store` (nats.conf).
+  analytics: {
+    name: STREAM_ANALYTICS,
+    subject: SUBJECT_ANALYTICS,
+    max_bytes: 1024 * 1024 * 1024,
+  },
+  // Poucos eventos por usuario, consumidos na hora.
   finance: {
     name: STREAM_FINANCE,
     subject: SUBJECT_FINANCE,
-    max_bytes: -1,
+    max_bytes: 1024 * 1024 * 1024,
     max_msgs: 1_000_000,
   },
 } as const;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PreferenciaFinanceira, TipoFinanceiro } from "@bolsiq/alerts/financas";
 
 /**
  * Modelo dos formularios de alerta, sem banco: o navegador valida com o mesmo
@@ -174,6 +175,8 @@ export const Preferencias = z.object({
     .regex(/^\d{2}:\d{2}$/)
     .nullable(),
   fuso: z.string().min(3),
+  /** Alertas do Bolsiq Financas por tipo (ADR 0037). Ausente: o padrao. */
+  financas: z.record(TipoFinanceiro, PreferenciaFinanceira).default({}),
 });
 export type Preferencias = z.infer<typeof Preferencias>;
 
@@ -193,6 +196,8 @@ export interface NotificacaoNaTela {
   corpo: string;
   ticker: string | null;
   tipo: TipoDeRegra | null;
+  /** Destino do aviso do sistema (financas, relatorio); nulo nos de regra. */
+  link: string | null;
   criada_em: string;
   lida: boolean;
 }

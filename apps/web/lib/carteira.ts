@@ -504,7 +504,7 @@ async function ou<T>(caminho: string, validade: number): Promise<T | null> {
   }
 }
 
-async function cotacoes(tickers: string[]): Promise<Map<string, LiveQuote>> {
+export async function cotacoes(tickers: string[]): Promise<Map<string, LiveQuote>> {
   const lotes: string[][] = [];
   for (let i = 0; i < tickers.length; i += 20) lotes.push(tickers.slice(i, i + 20));
   const lote = (l: string[]) =>

@@ -163,9 +163,14 @@ function Historico({
 export default function PainelDoAssistente({
   aberto,
   aoMudar,
+  pergunta,
+  aoUsarPergunta,
 }: {
   aberto: boolean;
   aoMudar: (aberto: boolean) => void;
+  /** Pergunta de um atalho da tela: vai para a caixa de texto, sem enviar. */
+  pergunta?: string | undefined;
+  aoUsarPergunta?: () => void;
 }) {
   const caminho = usePathname();
   const modulo = moduloDaRota(caminho);
@@ -179,6 +184,11 @@ export default function PainelDoAssistente({
   const fim = useRef<HTMLDivElement>(null);
   const [texto, setTexto] = useState("");
   const [vendoHistorico, setVendoHistorico] = useState(false);
+  useEffect(() => {
+    if (!pergunta) return;
+    setTexto(pergunta);
+    aoUsarPergunta?.();
+  }, [pergunta, aoUsarPergunta]);
 
   const { data: estado } = useQuery({
     queryKey: CHAVES.estado,

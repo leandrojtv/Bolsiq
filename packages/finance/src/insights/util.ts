@@ -1,4 +1,4 @@
-import { Decimal } from "decimal.js";
+import type { Decimal } from "decimal.js";
 import { d, moeda } from "../decimal.js";
 import { somarMeses } from "../parcelamento.js";
 import type { LancamentoDeInsight, TipoDeInsight } from "./tipos.js";
@@ -54,7 +54,7 @@ export const soma = (ls: { valor: string }[]) =>
 export const anual = (mensal: Decimal) => moeda(mensal.times(12));
 
 export const brl = (v: Decimal | string) =>
-  `R$ ${Number(d(v).toFixed(2)).toLocaleString("pt-BR", {
+  `R$ ${Number((typeof v === "string" ? d(v) : v).toFixed(2)).toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

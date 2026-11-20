@@ -1,4 +1,3 @@
-import type { Decimal } from "decimal.js";
 import { d, moeda } from "../decimal.js";
 import { somarDias } from "../recorrencia.js";
 import { ehTarifa } from "./tarifas.js";
@@ -137,7 +136,7 @@ function montar(
   const atual = d(ultima.valor);
   const anteriores = c.slice(0, -1);
   const media = anteriores
-    .reduce((s, l) => s.plus(l.valor), d(0) as Decimal)
+    .reduce((s, l) => s.plus(l.valor), d(0))
     .div(anteriores.length)
     .toDecimalPlaces(2);
   const reajuste = atual.gt(media)

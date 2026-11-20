@@ -57,6 +57,20 @@
       "when": 1795136978178,
       "tag": "0007_rls_parcelamentos_metas",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795174201045,
+      "tag": "0008_insights",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795174204858,
+      "tag": "0009_rls_insights",
+      "breakpoints": true
     }
   ]
 }

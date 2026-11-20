@@ -22,7 +22,7 @@ export type Corte =
   | { tipo: "categoria"; category_id: string; reducao_pct: number }
   | { tipo: "formiga"; reducao_pct: number };
 
-export interface ResultadoDaSimulacao {
+export interface ResultadoDosCortes {
   itens: { tipo: Corte["tipo"]; id: string; nome: string; economia_mensal: string }[];
   economia_mensal: string;
   economia_anual: string;
@@ -47,8 +47,8 @@ const fracao = (p: number) => d(Math.min(100, Math.max(0, p))).div(100);
 export function simularCortes(
   base: BaseDoSimulador,
   cortes: Corte[],
-): ResultadoDaSimulacao {
-  const itens: ResultadoDaSimulacao["itens"] = [];
+): ResultadoDosCortes {
+  const itens: ResultadoDosCortes["itens"] = [];
   for (const c of cortes) {
     if (c.tipo === "assinatura") {
       const a = base.assinaturas.find((x) => x.id === c.id);

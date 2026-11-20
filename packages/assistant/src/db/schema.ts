@@ -38,6 +38,15 @@ export const settings = assistant.table("settings", {
   consentimento_importacao_em: utc("consentimento_importacao_em"),
   /** Guardar o arquivo original das importacoes com IA. Padrao: nao. */
   guardar_original: boolean("guardar_original").notNull().default(false),
+  /**
+   * Consentimento do Bolsiq Financas (ADR 0036): lancamentos, saldos e parcelas
+   * vao ao provedor. Separado do de investimentos, que nao cobria esses dados.
+   */
+  consentimento_financas_em: utc("consentimento_financas_em"),
+  /** Relatorio mensal no sino. Gasta tokens do usuario: desligado por padrao. */
+  relatorio_mensal: boolean("relatorio_mensal").notNull().default(false),
+  /** Ultimo mes (AAAA-MM) com relatorio entregue: o job nao gera duas vezes. */
+  relatorio_ultimo_mes: text("relatorio_ultimo_mes"),
   atualizado_em: utc("atualizado_em").notNull().defaultNow(),
 });
 
@@ -54,6 +63,8 @@ export const conversations = assistant.table(
     id: text("id").primaryKey(),
     user_id: text("user_id").notNull(),
     titulo: text("titulo").notNull(),
+    /** investimentos, financas ou painel: define prompt e ferramentas (ADR 0036). */
+    modulo: text("modulo").notNull().default("investimentos"),
     tokens_entrada: integer("tokens_entrada").notNull().default(0),
     tokens_saida: integer("tokens_saida").notNull().default(0),
     custo_estimado: numeric("custo_estimado", { precision: 14, scale: 6 }),
@@ -92,7 +103,7 @@ export const usage = assistant.table(
     provedor: text("provedor").notNull(),
     modelo: text("modelo").notNull(),
     plataforma: boolean("plataforma").notNull().default(false),
-    /** `chat` ou `importacao`: o limite de mensagens conta so o chat. */
+    /** `chat`, `importacao` ou `relatorio`: o limite de mensagens conta so o chat. */
     origem: text("origem").notNull().default("chat"),
     tokens_entrada: integer("tokens_entrada").notNull(),
     tokens_saida: integer("tokens_saida").notNull(),

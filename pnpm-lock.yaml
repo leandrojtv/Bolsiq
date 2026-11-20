@@ -308,6 +308,9 @@ importers:
       '@bolsiq/analytics':
         specifier: workspace:*
         version: link:../analytics
+      '@bolsiq/finance':
+        specifier: workspace:*
+        version: link:../finance
       '@bolsiq/portfolio':
         specifier: workspace:*
         version: link:../portfolio

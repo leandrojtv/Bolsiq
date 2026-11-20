@@ -131,7 +131,7 @@ const provIndicadores = (data: string): Proveniencia => ({
 });
 
 /** Falha de fonte vira dado que o modelo le ("nao tenho"), nunca excecao crua. */
-async function seguro<T>(fn: () => Promise<T>) {
+export async function seguro<T>(fn: () => Promise<T>) {
   try {
     return limitarSaida(await fn());
   } catch {

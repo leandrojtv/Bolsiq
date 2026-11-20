@@ -58,6 +58,10 @@ export function criarAuth(o: OpcoesDeAuth) {
       window: 60,
       max: 100,
       customRules: {
+        // Leitura da propria sessao (cookie assinado, cache de 1 min): fora do
+        // limite global por IP. Com ela limitada, quem divide IP (NAT, CI)
+        // aparecia deslogado depois de 100 navegacoes por minuto.
+        "/get-session": false,
         "/sign-in/email": { window: 60, max: o.limiteDeLogin },
         "/sign-up/email": { window: 60, max: o.limiteDeLogin },
         "/request-password-reset": { window: 60, max: o.limiteDeLogin },

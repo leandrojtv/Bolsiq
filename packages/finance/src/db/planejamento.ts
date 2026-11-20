@@ -7,6 +7,7 @@ import type {
   Planejamento,
 } from "../contratos-planejamento.js";
 import { d, moeda } from "../decimal.js";
+import { mediaDosMeses } from "../orcamento.js";
 import { compararPlanejamento } from "../planejamento.js";
 import { vezesNoMes, type RegraDeRecorrencia } from "../recorrencia.js";
 import {
@@ -241,5 +242,130 @@ export async function puxarRecorrencias(
     .onConflictDoNothing()
     .returning({ id: budget_items.id });
   await auditar(tx, uid, "planejamento.recorrencias", "budget_item", competencia, origem);
+  return inseridos.length;
+}
+
+/**
+ * Edicao inline do orcamento: o valor da categoria no mes. Grava no item geral
+ * da categoria (sem descricao): total = geral + itens com descricao.
+ */
+export async function definirValorDaCategoria(
+  tx: Tx,
+  uid: string,
+  mes: string,
+  categoryId: string,
+  valor: string,
+  origem?: Origem,
+): Promise<Planejamento> {
+  await categoriaDoUsuario(tx, uid, categoryId);
+  const competencia = competenciaDoMes(mes);
+  const outros = await tx
+    .select({ valor: budget_items.valor })
+    .from(budget_items)
+    .where(
+      and(
+        eq(budget_items.user_id, uid),
+        eq(budget_items.competencia, competencia),
+        eq(budget_items.category_id, categoryId),
+        sql`${budget_items.descricao} is not null`,
+      ),
+    );
+  const comDescricao = outros.reduce((s, o) => s.plus(o.valor), d(0));
+  const geral = d(valor).minus(comDescricao);
+  if (geral.lt(0))
+    throw new ErroDeFinancas(
+      422,
+      `Os itens desta categoria já somam ${moeda(comDescricao)}; edite ou apague os itens.`,
+    );
+  await tx
+    .insert(budget_items)
+    .values({
+      id: randomUUID(),
+      user_id: uid,
+      competencia,
+      category_id: categoryId,
+      valor: moeda(geral),
+    })
+    .onConflictDoUpdate({
+      target: [
+        budget_items.user_id,
+        budget_items.competencia,
+        budget_items.category_id,
+        budget_items.descricao,
+      ],
+      set: { valor: moeda(geral) },
+    });
+  await auditar(
+    tx,
+    uid,
+    "planejamento.categoria",
+    "budget_item",
+    categoryId,
+    origem,
+    valor,
+  );
+  return obterPlanejamento(tx, uid, mes);
+}
+
+/**
+ * Sugere o orcamento pela media do realizado dos ultimos 3 meses, por
+ * categoria de despesa. So preenche categoria ainda sem planejamento no mes.
+ */
+export async function sugerirPelaMedia(
+  tx: Tx,
+  uid: string,
+  mes: string,
+  origem?: Origem,
+): Promise<number> {
+  const competencia = competenciaDoMes(mes);
+  const inicio = sql`(${competencia}::date - interval '3 months')::date`;
+  const medias = await tx
+    .select({
+      category_id: sql<string>`${transactions.category_id}`,
+      total: sql<string>`sum(${transactions.valor})::numeric(18,2)::text`,
+    })
+    .from(transactions)
+    .innerJoin(
+      categories,
+      and(eq(categories.id, transactions.category_id), eq(categories.user_id, uid)),
+    )
+    .where(
+      and(
+        eq(transactions.user_id, uid),
+        eq(transactions.tipo, "despesa"),
+        sql`${transactions.status} <> 'previsto'`,
+        sql`${transactions.competencia} >= ${inicio}`,
+        sql`${transactions.competencia} < ${competencia}::date`,
+      ),
+    )
+    .groupBy(transactions.category_id);
+  const jaTem = new Set(
+    (
+      await tx
+        .select({ c: budget_items.category_id })
+        .from(budget_items)
+        .where(
+          and(eq(budget_items.user_id, uid), eq(budget_items.competencia, competencia)),
+        )
+    ).map((x) => x.c),
+  );
+  const itens = medias
+    .filter((m) => !jaTem.has(m.category_id))
+    .map((m) => ({
+      id: randomUUID(),
+      user_id: uid,
+      competencia,
+      category_id: m.category_id,
+      valor: mediaDosMeses([m.total]),
+      fixo: false,
+    }))
+    .filter((i) => d(i.valor).gt(0));
+  if (!itens.length) return 0;
+  const inseridos = await tx
+    .insert(budget_items)
+    .values(itens)
+    .onConflictDoNothing()
+    .returning({ id: budget_items.id });
+  await auditar(tx, uid, "planejamento.sugerido", "budget_item", competencia, origem);
   return inseridos.length;
 }

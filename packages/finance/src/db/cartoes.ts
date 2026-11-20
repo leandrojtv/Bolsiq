@@ -344,6 +344,18 @@ export async function fecharFaturas(tx: Tx, uid: string, hoje: string): Promise<
         .update(statements)
         .set({ status: "fechada" })
         .where(and(eq(statements.user_id, uid), eq(statements.id, f.id)));
+      // O que estava previsto na fatura (parcela, assinatura) foi cobrado.
+      await tx
+        .update(transactions)
+        .set({ status: "realizado", atualizada_em: sql`now()` })
+        .where(
+          and(
+            eq(transactions.user_id, uid),
+            eq(transactions.statement_id, f.id),
+            eq(transactions.status, "previsto"),
+            eq(transactions.tipo, "despesa"),
+          ),
+        );
     }
     if (f.pagamento_id) {
       // So o previsto acompanha o total; realizado e do usuario.

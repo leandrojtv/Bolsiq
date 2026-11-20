@@ -57,6 +57,11 @@ import {
   type Tx,
 } from "./operacoes.js";
 import {
+  acharParcelaDoPlano,
+  apagarPlanosVazios,
+  criarPlanoDaParcelaImportada,
+} from "./parcelamentos.js";
+import {
   accounts,
   cards,
   categories,
@@ -420,6 +425,23 @@ export async function criarImportacao(
       );
     });
 
+  // Parcela de compra parcelada ja prevista num plano: concilia com ela.
+  const doPlano = new Map<number, string>();
+  if (dest.card_id)
+    for (const [k, p] of propostas.entries())
+      if (
+        p.parcela_atual &&
+        !fitidGravado.has(p.fitid ?? "") &&
+        !hashGravado.has(p.hash)
+      ) {
+        const achada = await acharParcelaDoPlano(tx, uid, dest.card_id, {
+          descricao_normalizada: p.descricao_normalizada,
+          valor: p.valor,
+          parcela_atual: p.parcela_atual,
+        });
+        if (achada) doPlano.set(k, achada.transaction_id);
+      }
+
   const regras = await regrasDoUsuario(tx, uid);
   const natureza = await naturezas(tx, uid);
   const hist = await historico(tx, uid);
@@ -474,7 +496,8 @@ export async function criarImportacao(
       noLote.has(`h:${p.hash}`);
     if (p.fitid) noLote.add(`f:${p.fitid}`);
     noLote.add(`h:${p.hash}`);
-    const manual = repetida ? undefined : parecido(p);
+    const daParcela = repetida ? undefined : doPlano.get(ordem);
+    const manual = repetida ? undefined : daParcela ? { id: daParcela } : parecido(p);
     if (manual) usados.add(manual.id);
     const situacao = repetida ? "ja_importada" : manual ? "possivel_duplicata" : "nova";
     const cat = categorizar(p.descricao_normalizada, p.tipo, regras, hist, natureza);
@@ -912,6 +935,7 @@ export async function confirmarImportacao(
   uid: string,
   id: string,
   origem?: Origem,
+  hoje = new Date().toISOString().slice(0, 10),
 ): Promise<Importacao> {
   // Trava a importacao: duas confirmacoes simultaneas nao gravam em dobro.
   const [travada] = await tx
@@ -1037,6 +1061,13 @@ export async function confirmarImportacao(
         .set({
           fitid: sql`coalesce(${transactions.fitid}, ${l.fitid})`,
           hash_dedupe: sql`coalesce(${transactions.hash_dedupe}, ${l.hash_dedupe})`,
+          // Parcela prevista de um plano: aconteceu, e e da fatura importada.
+          status: sql`case when ${transactions.status} = 'previsto' then 'realizado' else ${transactions.status} end`,
+          ...(imp.statement_id
+            ? {
+                statement_id: sql`case when ${transactions.installment_plan_id} is not null then ${imp.statement_id} else ${transactions.statement_id} end`,
+              }
+            : {}),
           atualizada_em: sql`now()`,
         })
         .where(
@@ -1060,6 +1091,35 @@ export async function confirmarImportacao(
       .update(import_rows)
       .set({ transaction_id: tid })
       .where(and(eq(import_rows.user_id, uid), eq(import_rows.id, linhaId)));
+
+  // Parcela sem plano (ex.: "PARC 03/10"): cria o plano e gera as restantes.
+  if (imp.card_id && imp.vencimento)
+    for (const l of linhas)
+      if (
+        l.acao === "importar" &&
+        l.parcela_atual &&
+        l.parcela_total &&
+        l.parcela_total > l.parcela_atual &&
+        !ehTransferencia(l)
+      )
+        await criarPlanoDaParcelaImportada(
+          tx,
+          uid,
+          {
+            card_id: imp.card_id,
+            statement_vencimento: imp.vencimento,
+            transaction_id: ligacao.get(l.id) as string,
+            descricao: l.descricao_normalizada,
+            descricao_normalizada: l.descricao_normalizada,
+            category_id: l.category_id,
+            data: l.data,
+            valor: (l.divisoes as { valor: string }[] | null)?.[0]?.valor ?? l.valor,
+            parcela_atual: l.parcela_atual,
+            parcela_total: l.parcela_total,
+            importacao_id: id,
+          },
+          hoje,
+        );
 
   await contarUsoDasRegras(tx, uid, linhas);
   await aprenderRegras(tx, uid, linhas);
@@ -1181,12 +1241,15 @@ export async function desfazerImportacao(
         .set({
           fitid: sql`case when ${transactions.fitid} = ${l.fitid} then null else ${transactions.fitid} end`,
           hash_dedupe: sql`case when ${transactions.hash_dedupe} = ${l.hash_dedupe} then null else ${transactions.hash_dedupe} end`,
+          // Parcela de plano conciliada volta a ser prevista.
+          status: sql`case when ${transactions.installment_plan_id} is not null then 'previsto' else ${transactions.status} end`,
         })
         .where(and(eq(transactions.user_id, uid), eq(transactions.id, l.duplicata_de)));
   await tx
     .update(import_rows)
     .set({ transaction_id: null })
     .where(and(eq(import_rows.user_id, uid), eq(import_rows.import_id, id)));
+  await apagarPlanosVazios(tx, uid);
   await tx
     .update(imports)
     .set({ status: "desfeita" })

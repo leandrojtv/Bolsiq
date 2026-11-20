@@ -1,7 +1,9 @@
 import { and, asc, eq, gte, lte, or, sql } from "drizzle-orm";
 import type { PainelDoMes } from "../contratos-planejamento.js";
 import { d, moeda } from "../decimal.js";
+import { estadoDoOrcamento } from "../orcamento.js";
 import { numerosDoMes, type LancamentoDoPainel } from "../painel.js";
+import { obterPlanejamento } from "./planejamento.js";
 import { somarDias } from "../recorrencia.js";
 import { listarContas, type Tx } from "./operacoes.js";
 import { accounts, cards, categories, statements, transactions } from "./schema.js";
@@ -121,8 +123,36 @@ export async function painelDoMes(
     )
     .orderBy(asc(transactions.data));
 
+  // Orcamento: despesas planejadas contra o consumo (realizado + previsto).
+  const plano = await obterPlanejamento(tx, uid, competencia.slice(0, 7));
+  const despesasPlanejadas = plano.categorias.filter((c) => c.natureza === "despesa");
+  const planejado = despesasPlanejadas.reduce((s, c) => s.plus(c.planejado), d(0));
+  const consumo = despesasPlanejadas.reduce((s, c) => s.plus(c.consumo), d(0));
+  const [parcelas] = await tx
+    .select({
+      v: sql<string>`coalesce(sum(${transactions.valor}), 0)::numeric(18,2)::text`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.user_id, uid),
+        eq(transactions.competencia, competencia),
+        sql`${transactions.installment_plan_id} is not null`,
+        sql`${transactions.parcela_numero} is not null`,
+      ),
+    );
+
   return {
     competencia,
+    orcamento: {
+      planejado: moeda(planejado),
+      consumo: moeda(consumo),
+      percentual: planejado.isZero()
+        ? null
+        : Number(consumo.div(planejado).times(100).toFixed(1)),
+      estado: estadoDoOrcamento(moeda(planejado), moeda(consumo)),
+    },
+    comprometido_parcelas: moeda(d(parcelas?.v ?? "0")),
     renda: numeros.renda,
     despesas: numeros.despesas,
     saldo_previsto_fim_do_mes: moeda(d(previsto?.v ?? "0")),

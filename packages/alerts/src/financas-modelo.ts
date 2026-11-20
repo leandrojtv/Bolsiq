@@ -76,7 +76,10 @@ export interface AvisoFinanceiro {
 }
 
 type P = Record<string, unknown>;
-const s = (p: P, k: string) => String(p[k] ?? "");
+const s = (p: P, k: string) => {
+  const v = p[k];
+  return typeof v === "string" || typeof v === "number" ? String(v) : "";
+};
 
 /** Traduz o evento em aviso. `null` para evento do finance que nao e alerta. */
 export function avisoDoEvento(nome: string, p: P): AvisoFinanceiro | null {

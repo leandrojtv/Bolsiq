@@ -207,6 +207,8 @@ export function GraficoDoPatrimonio({
     const rotulos = pontos.map((p) => rotuloDoMes(p.mes));
     return {
       ...base(),
+      // A legenda quebra em duas linhas no celular: espaco para ela e o eixo.
+      grid: { left: 8, right: 8, top: 12, bottom: 64, containLabel: true },
       xAxis: {
         type: "category",
         data: rotulos,

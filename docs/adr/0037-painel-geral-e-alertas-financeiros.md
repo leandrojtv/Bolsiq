@@ -108,6 +108,8 @@ O aviso leva o `link` da tela certa em `dados`.
 - Um evento a mais por fato no NATS e uma linha por fato em `emitted_alerts`, que cresce
   devagar (fatos, não lançamentos).
 - O `portfolio-worker` passa a depender do NATS.
+- O stream `FINANCE` tem limite próprio (1 GB, 1 milhão de mensagens): os outros dois
+  reservam 8 GB cada e o `max_file_store` do `nats.conf` é 16 GB.
 
 ## Alternativas consideradas
 

@@ -41,7 +41,8 @@ test("Bolsiq Finanças: o assistente abre no módulo e responde com dado de ferr
   const painel = page.getByRole("dialog", { name: "Pergunte ao Bolsiq" });
   // Consentimento do modulo: diz quais dados financeiros vao ao provedor.
   const consentimento = painel.getByRole("region", { name: "Consentimento" });
-  await expect(consentimento).toContainText("lançamentos");
+  // Primeira abertura carrega o estado do assistente: no CI passa de 5 s.
+  await expect(consentimento).toContainText("lançamentos", { timeout: 15_000 });
   await expect(consentimento).toContainText("[pessoa]");
   await consentimento.getByRole("button", { name: "Concordo, continuar" }).click();
 

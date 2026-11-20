@@ -13,6 +13,7 @@ import {
 } from "@bolsiq/finance";
 import { d } from "@bolsiq/finance/puro";
 import type { Proveniencia } from "../tipos.js";
+import { ErroParaOModelo } from "../ferramentas.js";
 import { anonimizarDescricao } from "./anonimizar.js";
 import type { FontesFinanceiras, LancamentoFinanceiro } from "./tipos.js";
 
@@ -96,8 +97,14 @@ export function fontesFinanceirasDoBanco(
             ),
           )
           .orderBy(asc(transactions.data), asc(transactions.id))
-          .limit(MAX_LINHAS_LIDAS),
+          // Um a mais que o teto: passar dele e erro explicito, nunca soma parcial.
+          .limit(MAX_LINHAS_LIDAS + 1),
       );
+      if (linhas.length > MAX_LINHAS_LIDAS)
+        throw new ErroParaOModelo(
+          "periodo_grande",
+          `O período tem mais de ${MAX_LINHAS_LIDAS} lançamentos. Peça um período menor.`,
+        );
       return {
         dados: linhas.map((l): LancamentoFinanceiro => ({
           id: l.id,

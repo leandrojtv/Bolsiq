@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fontesDeTeste, HOJE } from "../../eval/base.js";
 import { fontesFinanceirasDeTeste } from "../../eval/base-financas.js";
-import { NOMES_DAS_FERRAMENTAS } from "../ferramentas.js";
+import { ErroParaOModelo, NOMES_DAS_FERRAMENTAS } from "../ferramentas.js";
 import { ferramentasDoModulo, moduloDoCaminho } from "../modulos.js";
 import { montarSistema } from "../prompt.js";
 import {
@@ -98,6 +98,29 @@ describe("ferramentas financeiras", () => {
     expect((s.meses as unknown[]).length).toBe(11);
     const curta = await chamar(f, "simular_compra", { valor: 100 });
     expect((curta.meses as unknown[]).length).toBe(6);
+  });
+
+  it("periodo com lancamentos demais vira erro explicito, nao soma parcial", async () => {
+    const g = criarFerramentasFinanceiras(
+      {
+        ...fontesFinanceirasDeTeste(),
+        lancamentos: () =>
+          Promise.reject(new ErroParaOModelo("periodo_grande", "Peça um período menor.")),
+      },
+      { hoje: HOJE },
+    );
+    expect(await chamar(g, "gastos_por_categoria", {})).toEqual({
+      erro: "periodo_grande",
+      mensagem: "Peça um período menor.",
+    });
+  });
+
+  it("compra em mais de 24x: o veredito ve todas as parcelas, a saida mostra 25 meses", async () => {
+    const s = await chamar(f, "simular_compra", { valor: 48000, parcelas: 48 });
+    expect(s.erro).toBeUndefined();
+    expect((s.meses as unknown[]).length).toBe(25);
+    expect(s.meses_omitidos).toBe(24);
+    expect(s.valor_da_parcela).toBe("1000.00");
   });
 
   it("capacidade de aporte usa os 3 meses completos anteriores", async () => {

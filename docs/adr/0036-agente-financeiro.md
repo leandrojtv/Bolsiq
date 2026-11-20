@@ -60,10 +60,15 @@ categoria, conta ou cartão), resumo do mês, orçamento, saldos e fluxo, parcel
 assinaturas e insights.
 
 **Nome de pessoa não vai ao provedor.** Descrição com PIX, TED, DOC, TEF ou
-transferência: o que não é palavra do banco, número ou empresa (LTDA, S/A, ME...) vira
-`[pessoa]`, e CPF vira `[documento]`. Vale para lançamentos, parcelas, assinaturas e o
-texto dos insights (que repetem a descrição). Erra para o lado da privacidade: PIX para
-loja sem sufixo de empresa também perde o nome.
+transferência: o que não é palavra do banco, número ou sufixo de empresa (LTDA, S/A,
+EPP, CIA) vira `[pessoa]`, inclusive o nome da empresa, que pode vir junto com o de uma
+pessoa. MEI, ME e EIRELI costumam levar o nome do titular e também viram `[pessoa]`.
+CPF vira `[documento]`. Vale para lançamentos, parcelas, assinaturas e o texto dos
+insights (que repetem a descrição). Erra para o lado da privacidade.
+
+**Leitura com teto explícito.** Até 5.000 lançamentos por período; passar disso é erro
+`periodo_grande` para o modelo, nunca soma parcial. `simular_compra` aceita até 48x e
+julga com todas as parcelas, mas devolve só os 25 primeiros meses.
 
 **Relatório mensal, opt-in.** `settings.relatorio_mensal`, desligado por padrão. A tela de
 configuração mostra o custo estimado (3.500 tokens de entrada e 600 de saída, ao preço do

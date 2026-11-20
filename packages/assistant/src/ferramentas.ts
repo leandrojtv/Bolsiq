@@ -131,10 +131,21 @@ const provIndicadores = (data: string): Proveniencia => ({
 });
 
 /** Falha de fonte vira dado que o modelo le ("nao tenho"), nunca excecao crua. */
+/** Erro que a fonte quer explicar ao modelo, em vez de "indisponivel". */
+export class ErroParaOModelo extends Error {
+  constructor(
+    readonly erro: string,
+    readonly mensagem: string,
+  ) {
+    super(mensagem);
+  }
+}
+
 export async function seguro<T>(fn: () => Promise<T>) {
   try {
     return limitarSaida(await fn());
-  } catch {
+  } catch (e) {
+    if (e instanceof ErroParaOModelo) return { erro: e.erro, mensagem: e.mensagem };
     return { erro: "indisponivel", mensagem: "A fonte não respondeu agora." };
   }
 }

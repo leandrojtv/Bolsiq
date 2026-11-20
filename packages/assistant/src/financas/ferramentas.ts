@@ -269,18 +269,25 @@ export function criarFerramentasFinanceiras(
       }),
       execute: ({ valor, parcelas }) =>
         seguro(async () => {
-          const meses = Math.min(Math.max(parcelas + 1, 6), MAX_MESES_DO_FLUXO + 1);
+          // O veredito olha todas as parcelas (ate 48x); a saida mostra so os
+          // primeiros meses, para caber no limite da ferramenta.
           const [fluxo, resumo] = await Promise.all([
-            fontes.fluxo(meses),
+            fontes.fluxo(Math.max(parcelas + 1, 6)),
             fontes.resumoDoMes(mesAtual),
           ]);
+          const r = simularCompra({
+            valor: valor.toFixed(2),
+            parcelas,
+            fluxo: fluxo.dados,
+            resumo: resumo.dados,
+          });
+          const mostrados = MAX_MESES_DO_FLUXO + 1;
           return {
-            ...simularCompra({
-              valor: valor.toFixed(2),
-              parcelas,
-              fluxo: fluxo.dados,
-              resumo: resumo.dados,
-            }),
+            ...r,
+            meses: r.meses.slice(0, mostrados),
+            ...(r.meses.length > mostrados
+              ? { meses_omitidos: r.meses.length - mostrados }
+              : {}),
             proveniencia: fluxo.proveniencia,
           };
         }),

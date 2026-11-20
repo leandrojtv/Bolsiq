@@ -8,7 +8,12 @@
 import { createServer } from "node:http";
 import PgBoss from "pg-boss";
 import { criarDb, criarPool } from "@bolsiq/db-core";
-import { JOB_ROTINA_DIARIA, rotinaDiaria } from "@bolsiq/finance";
+import {
+  JOB_INSIGHTS,
+  JOB_ROTINA_DIARIA,
+  rotinaDeInsights,
+  rotinaDiaria,
+} from "@bolsiq/finance";
 import { carregarEnv } from "./config.js";
 import { iniciarImportacao } from "./importacao.js";
 import {
@@ -65,6 +70,22 @@ await boss.work(JOB_ROTINA_DIARIA, async () => {
 });
 // Ao subir tambem: um deploy depois do horario nao deixa o dia sem previstos.
 await boss.send(JOB_ROTINA_DIARIA, {}, { singletonKey: hojeEmSp() });
+
+// Insights (ADR 0035): o web enfileira { user_id } ao confirmar uma importacao;
+// o cron diario, sem usuario, recalcula todos.
+await boss.createQueue(JOB_INSIGHTS, {
+  name: JOB_INSIGHTS,
+  retryLimit: 2,
+  retryDelay: 120,
+});
+await boss.schedule(JOB_INSIGHTS, env.FINANCE_INSIGHTS_CRON, undefined, {
+  tz: "America/Sao_Paulo",
+});
+await boss.work<{ user_id?: string }>(JOB_INSIGHTS, async ([trabalho]) => {
+  const r = await rotinaDeInsights(db, hojeEmSp(), trabalho?.data?.user_id);
+  log("info", "insights do financas", { ...r });
+  return r;
+});
 
 let ultimoCiclo = Date.now();
 let parado = false;

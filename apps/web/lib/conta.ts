@@ -162,6 +162,9 @@ export async function exportarDados(uid: string) {
     planejamento: await tx.select().from(financas.budget_items),
     parcelamentos: await tx.select().from(financas.installment_plans),
     metas: await tx.select().from(financas.goals),
+    insights: await tx.select().from(financas.insights),
+    respostas_aos_insights: await tx.select().from(financas.insight_feedback),
+    ajustes_dos_insights: await tx.select().from(financas.insight_settings),
     auditoria: await tx.select().from(financas.audit_log),
   }));
   return {
@@ -227,6 +230,13 @@ export async function excluirDados(uid: string): Promise<void> {
       .where(eq(financas.categorization_rules.user_id, uid));
     await tx.delete(financas.recurrences).where(eq(financas.recurrences.user_id, uid));
     await tx.delete(financas.budget_items).where(eq(financas.budget_items.user_id, uid));
+    await tx.delete(financas.insights).where(eq(financas.insights.user_id, uid));
+    await tx
+      .delete(financas.insight_feedback)
+      .where(eq(financas.insight_feedback.user_id, uid));
+    await tx
+      .delete(financas.insight_settings)
+      .where(eq(financas.insight_settings.user_id, uid));
     await tx
       .delete(financas.installment_plans)
       .where(eq(financas.installment_plans.user_id, uid));
@@ -250,7 +260,7 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx.delete(watchlist).where(eq(watchlist.user_id, uid));
     await tx.delete(portfolio.audit_log).where(eq(portfolio.audit_log.user_id, uid));
     await tx.delete(financas.audit_log).where(eq(financas.audit_log.user_id, uid));
-    // Evento de importacao ainda no outbox leva o user_id no payload.
+    // Eventos de importacao e de insight ainda no outbox levam o user_id no payload.
     await tx
       .delete(financas.outbox)
       .where(sql`${financas.outbox.payload}->>'user_id' = ${uid}`);

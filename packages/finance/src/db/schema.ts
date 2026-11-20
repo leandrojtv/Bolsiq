@@ -683,3 +683,80 @@ export const outbox = finance.table(
     index("outbox_event_name_idx").on(t.event_name),
   ],
 );
+
+/**
+ * Cache dos insights por usuario e mes (ADR 0035). Os insights sao calculados
+ * no codigo; aqui fica o resultado, para a tela e para a IA (Prompt 7) lerem
+ * sem recalcular. `anunciados` sao as chaves ja publicadas no outbox
+ * (assinatura nova, reajuste, tarifa nova): o mesmo fato nao vira dois eventos.
+ */
+export const insights = finance.table(
+  "insights",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    /** YYYY-MM */
+    periodo: text("periodo").notNull(),
+    calculado_em: utc("calculado_em").notNull().defaultNow(),
+    /** Lista ordenada por impacto anual, no formato de `Insight`. */
+    insights: jsonb("insights").notNull().default([]),
+    /** Assinaturas detectadas (a tela de assinaturas e o simulador leem daqui). */
+    assinaturas: jsonb("assinaturas").notNull().default([]),
+    anunciados: text("anunciados")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** Quantidade e ultima mudanca dos lancamentos no calculo: mudou, recalcula. */
+    marca_dos_dados: text("marca_dos_dados").notNull().default(""),
+  },
+  (t) => [
+    uniqueIndex("insights_user_periodo_uq").on(t.user_id, t.periodo),
+    check("insights_periodo_ck", sql`${t.periodo} ~ '^[0-9]{4}-[0-9]{2}$'`),
+  ],
+);
+
+/**
+ * Resposta do usuario a um insight. Dispensado (e "ainda uso") nao volta por
+ * 90 dias, a nao ser que o impacto anual suba mais de 20% sobre `impacto_anual`.
+ */
+export const insight_feedback = finance.table(
+  "insight_feedback",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    insight_id: text("insight_id").notNull(),
+    tipo: text("tipo").notNull(),
+    /** dispensado | ainda_uso | vou_cancelar | ja_cancelei */
+    acao: text("acao").notNull(),
+    impacto_anual: dinheiro("impacto_anual").notNull(),
+    registrado_em: dia("registrado_em").notNull(),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("insight_feedback_user_insight_uq").on(t.user_id, t.insight_id),
+    check(
+      "insight_feedback_acao_ck",
+      sql`${t.acao} in ('dispensado', 'ainda_uso', 'vou_cancelar', 'ja_cancelei')`,
+    ),
+  ],
+);
+
+/** Ajustes dos insights por usuario: limite do efeito formiga e referencia 50/30/20. */
+export const insight_settings = finance.table(
+  "insight_settings",
+  {
+    user_id: text("user_id").primaryKey(),
+    limite_formiga: dinheiro("limite_formiga").notNull().default("50"),
+    ref_essenciais: integer("ref_essenciais").notNull().default(50),
+    ref_nao_essenciais: integer("ref_nao_essenciais").notNull().default(30),
+    ref_poupanca: integer("ref_poupanca").notNull().default(20),
+    atualizado_em: utc("atualizado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    check("insight_settings_limite_ck", sql`${t.limite_formiga} > 0`),
+    check(
+      "insight_settings_referencia_ck",
+      sql`${t.ref_essenciais} + ${t.ref_nao_essenciais} + ${t.ref_poupanca} = 100`,
+    ),
+  ],
+);

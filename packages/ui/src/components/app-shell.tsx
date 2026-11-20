@@ -23,10 +23,12 @@ import {
   Landmark,
   LayoutDashboard,
   LayoutGrid,
+  Lightbulb,
   Layers,
   ListChecks,
   NotebookPen,
   ReceiptText,
+  Repeat,
   Search,
   Tags,
 } from "lucide-react";
@@ -156,6 +158,7 @@ export function navegacaoFinancas(atual: string): NavItem[] {
       icon: <NotebookPen {...ICONE} />,
     },
     { href: "/financas/cartoes", label: "Cartões", icon: <CreditCard {...ICONE} /> },
+    { href: "/financas/insights", label: "Insights", icon: <Lightbulb {...ICONE} /> },
     {
       href: "/financas/fluxo",
       label: "Fluxo de caixa",
@@ -175,6 +178,7 @@ export function navegacaoFinancas(atual: string): NavItem[] {
       label: "Recorrentes",
       icon: <CalendarClock {...ICONE} />,
     },
+    { href: "/financas/assinaturas", label: "Assinaturas", icon: <Repeat {...ICONE} /> },
     { href: "/financas/contas", label: "Contas", icon: <Landmark {...ICONE} /> },
     // Abaixo de 768 px a barra inferior mostra os cinco primeiros; os demais
     // ficam nos atalhos da visao geral.

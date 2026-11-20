@@ -30,4 +30,14 @@ describe("OpenAPI do BFF de financas", () => {
     expect(lista?.parameters?.length).toBeGreaterThanOrEqual(8);
     expect(doc.paths["/api/financas/contas/{id}"]?.patch?.parameters).toHaveLength(1);
   });
+
+  it("rotas de insights com o id no caminho", () => {
+    expect(
+      doc.paths["/api/financas/insights/{id}/feedback"]?.post?.parameters,
+    ).toHaveLength(2);
+    expect(doc.paths["/api/financas/insights/configuracao"]?.put).toBeDefined();
+    expect(
+      doc.paths["/api/financas/assinaturas/{id}/recorrente"]?.post?.parameters,
+    ).toHaveLength(1);
+  });
 });

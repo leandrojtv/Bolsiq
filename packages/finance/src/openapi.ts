@@ -66,6 +66,17 @@ import {
   ResultadoDaSimulacao,
   ValorDaCategoria,
 } from "./contratos-parcelamento.js";
+import {
+  BaseDoSimuladorDoBff,
+  ConfiguracaoDeInsights,
+  DetalheDoInsight,
+  ListaDeAssinaturas,
+  ListaDeInsights,
+  ParametroDeInsights,
+  ParametroDoInsight,
+  PedidoDeFeedback,
+  RespostaDeFeedback,
+} from "./insights/contratos.js";
 
 const tags = ["financas"];
 
@@ -559,6 +570,73 @@ export const ROTAS_DE_FINANCAS: RouteSpec[] = [
     tags,
     query: ParametroDoMes,
     response: RespostaDe(ResultadoDeCopia),
+  },
+  {
+    method: "get",
+    path: "/api/financas/insights",
+    summary:
+      "Insights do mês, ordenados por impacto anual, sem os dispensados; com o CDI da premissa",
+    tags,
+    query: ParametroDeInsights,
+    response: RespostaDe(ListaDeInsights),
+  },
+  {
+    method: "get",
+    path: "/api/financas/insights/configuracao",
+    summary: "Ajustes dos insights: limite do efeito formiga e referência 50/30/20",
+    tags,
+    response: RespostaDe(ListaDeInsights.shape.configuracao),
+  },
+  {
+    method: "put",
+    path: "/api/financas/insights/configuracao",
+    summary: "Salva os ajustes e recalcula os insights",
+    tags,
+    body: ConfiguracaoDeInsights,
+    response: RespostaDe(ListaDeInsights.shape.configuracao),
+  },
+  {
+    method: "get",
+    path: "/api/financas/insights/simulador",
+    summary:
+      "Base do simulador de cortes: assinaturas, categorias, formiga, fluxo e metas",
+    tags,
+    response: RespostaDe(BaseDoSimuladorDoBff),
+  },
+  {
+    method: "get",
+    path: "/api/financas/insights/{id}",
+    summary: "Um insight e os lançamentos que o geraram",
+    tags,
+    params: ParametroDoInsight,
+    query: ParametroDeInsights,
+    response: RespostaDe(DetalheDoInsight),
+  },
+  {
+    method: "post",
+    path: "/api/financas/insights/{id}/feedback",
+    summary: 'Dispensar, "ainda uso", "vou cancelar" ou "já cancelei"',
+    tags,
+    params: ParametroDoInsight,
+    query: ParametroDeInsights,
+    body: PedidoDeFeedback,
+    response: RespostaDe(RespostaDeFeedback),
+  },
+  {
+    method: "get",
+    path: "/api/financas/assinaturas",
+    summary: "Assinaturas detectadas, com total mensal e anual",
+    tags,
+    response: RespostaDe(ListaDeAssinaturas),
+  },
+  {
+    method: "post",
+    path: "/api/financas/assinaturas/{id}/recorrente",
+    summary:
+      "Transforma a assinatura detectada em recorrência (a partir da próxima cobrança)",
+    tags,
+    params: ParametroDoInsight,
+    response: RespostaDe(Recorrencia),
   },
   {
     method: "get",

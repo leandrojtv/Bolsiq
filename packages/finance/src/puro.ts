@@ -16,3 +16,4 @@ export * from "./parcelamento.js";
 export * from "./fluxo.js";
 export * from "./orcamento.js";
 export * from "./contratos-parcelamento.js";
+export * from "./insights/index.js";

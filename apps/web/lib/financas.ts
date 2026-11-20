@@ -1,6 +1,19 @@
 import "server-only";
 import { headers } from "next/headers";
 import {
+  assinaturaParaRecorrencia,
+  baseDoSimulador,
+  detalheDoInsight,
+  JOB_INSIGHTS,
+  lerConfiguracao,
+  listarAssinaturas,
+  listarInsights,
+  registrarFeedback,
+  salvarConfiguracao,
+  somarDias,
+  type AcaoDeFeedback,
+  type ConfiguracaoDeInsights,
+  type TaxaCdi,
   amortizar,
   apagarMeta,
   apagarPlano,
@@ -95,6 +108,8 @@ import {
 import { banco } from "./analytics";
 import { painel as painelDaCarteira } from "./carteira";
 import { env } from "./env";
+import { enfileirar } from "./fila";
+import { buscarV1, VALIDADE } from "./market-data";
 import { hojeEmSp } from "./indicadores-tecnicos";
 
 /**
@@ -243,7 +258,19 @@ export async function mudarLinha(
 
 export async function confirmar(uid: string, id: string) {
   const o = await origem();
-  return como(uid, (tx) => confirmarImportacao(tx, uid, id, o, hojeEmSp()));
+  const r = await como(uid, (tx) => confirmarImportacao(tx, uid, id, o, hojeEmSp()));
+  // Evento finance.importacao.confirmada.v1 gravado: os insights recalculam no
+  // worker. Falhar aqui nao desfaz a importacao; a tela recalcula ao abrir.
+  await enfileirar(
+    JOB_INSIGHTS,
+    { user_id: uid },
+    { retryLimit: 2, retryDelay: 120 },
+  ).catch((e: unknown) =>
+    process.stderr.write(
+      `${JSON.stringify({ level: "warn", modulo: "financas", msg: "fila de insights", erro: String(e) })}\n`,
+    ),
+  );
+  return r;
 }
 
 export async function cancelar(uid: string, id: string) {
@@ -437,4 +464,72 @@ export async function mudarMeta(uid: string, id: string, e: EdicaoDeMeta) {
 export async function removerMeta(uid: string, id: string) {
   const o = await origem();
   return como(uid, (tx) => apagarMeta(tx, uid, id, o));
+}
+
+// Insights (ADR 0035)
+
+/**
+ * Ultimo CDI do /v1/macro/cdi (BCB SGS 12), com a data e a fonte: e a premissa
+ * do custo de oportunidade. Sem o market-data, `null` e a tela avisa.
+ */
+export async function cdiAtual(): Promise<TaxaCdi | null> {
+  try {
+    const r = await buscarV1<{
+      data: { points: { date: string; value: string }[] };
+      meta: { source: string };
+    }>(`macro/cdi?from=${somarDias(hojeEmSp(), -20)}`, VALIDADE.macro);
+    const p = r.status === 200 ? r.corpo.data.points.at(-1) : undefined;
+    return p ? { diaria: p.value, data: p.date, fonte: r.corpo.meta.source } : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function insights(uid: string, mes?: string) {
+  const [lista, cdi] = await Promise.all([
+    como(uid, (tx) => listarInsights(tx, uid, mesOuHoje(mes), hojeEmSp())),
+    cdiAtual(),
+  ]);
+  return { ...lista, cdi };
+}
+
+export const insight = (uid: string, id: string, mes?: string) =>
+  como(uid, (tx) => detalheDoInsight(tx, uid, id, mesOuHoje(mes), hojeEmSp()));
+
+export async function responderInsight(
+  uid: string,
+  id: string,
+  acao: AcaoDeFeedback,
+  mes?: string,
+) {
+  const o = await origem();
+  return como(uid, (tx) =>
+    registrarFeedback(tx, uid, id, acao, mesOuHoje(mes), hojeEmSp(), o),
+  );
+}
+
+export const configuracaoDeInsights = (uid: string) =>
+  como(uid, (tx) => lerConfiguracao(tx, uid));
+
+export async function configurarInsights(uid: string, c: ConfiguracaoDeInsights) {
+  const o = await origem();
+  return como(uid, (tx) => salvarConfiguracao(tx, uid, c, o));
+}
+
+export async function assinaturas(uid: string) {
+  const [lista, cdi] = await Promise.all([
+    como(uid, (tx) => listarAssinaturas(tx, uid, hojeEmSp())),
+    cdiAtual(),
+  ]);
+  return { ...lista, cdi };
+}
+
+export async function assinaturaRecorrente(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => assinaturaParaRecorrencia(tx, uid, id, hojeEmSp(), o));
+}
+
+export async function simulador(uid: string) {
+  const cdi = await cdiAtual();
+  return como(uid, (tx) => baseDoSimulador(tx, uid, hojeEmSp(), cdi, carteiraDe(uid)));
 }

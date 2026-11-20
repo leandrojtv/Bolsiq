@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import type {
+  AcaoDeFeedback,
+  BaseDoSimulador,
+  DetalheDoInsight,
+  ListaDeAssinaturas,
+  ListaDeInsights,
   Comprometido,
   DetalheDoPlano,
   FluxoDeCaixa,
@@ -324,3 +329,48 @@ export const STATUS_ROTULO = {
   realizado: "Realizado",
   conciliado: "Conciliado",
 } as const;
+
+// Insights (ADR 0035)
+
+export const useInsights = (mes: string) =>
+  useQuery({
+    queryKey: [...CHAVE, "insights", mes],
+    queryFn: () =>
+      api<{ data: ListaDeInsights }>(`financas/insights?mes=${mes}`).then((r) => r.data),
+  });
+
+export const useInsight = (id: string | null, mes: string) =>
+  useQuery({
+    queryKey: [...CHAVE, "insight", id, mes],
+    enabled: id !== null,
+    queryFn: () =>
+      api<{ data: DetalheDoInsight }>(`financas/insights/${id}?mes=${mes}`).then(
+        (r) => r.data,
+      ),
+  });
+
+export const responderInsight = (id: string, acao: AcaoDeFeedback, mes: string) =>
+  api<{ data: unknown }>(
+    `financas/insights/${id}/feedback?mes=${mes}`,
+    json("POST", { acao }),
+  );
+
+export const salvarAjustesDosInsights = (c: Record<string, unknown>) =>
+  api<{ data: unknown }>("financas/insights/configuracao", json("PUT", c));
+
+export const useAssinaturas = () =>
+  useQuery({
+    queryKey: [...CHAVE, "assinaturas"],
+    queryFn: () =>
+      api<{ data: ListaDeAssinaturas }>("financas/assinaturas").then((r) => r.data),
+  });
+
+export const transformarEmRecorrente = (id: string) =>
+  api<{ data: Recorrencia }>(`financas/assinaturas/${id}/recorrente`, { method: "POST" });
+
+export const useSimulador = () =>
+  useQuery({
+    queryKey: [...CHAVE, "simulador"],
+    queryFn: () =>
+      api<{ data: BaseDoSimulador }>("financas/insights/simulador").then((r) => r.data),
+  });

@@ -33,6 +33,7 @@ anterior como `substituído por`.
 | [0033](0033-faturas-recorrencias-planejamento.md) | Bolsiq Finanças: faturas, recorrências, painel e planejamento     | aceito       |
 | [0034](0034-parcelamentos-dividas-fluxo-metas.md) | Bolsiq Finanças: parcelamentos, dívidas, orçamento, fluxo e metas | aceito       |
 | [0035](0035-insights-financas.md)                 | Bolsiq Finanças: insights determinísticos de gastos               | aceito       |
+| [0036](0036-agente-financeiro.md)                 | Assistente no Bolsiq Finanças: ferramentas e contexto por módulo  | aceito       |
 
 ## Números reservados
 

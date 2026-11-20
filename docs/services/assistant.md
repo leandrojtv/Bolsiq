@@ -13,21 +13,25 @@ Painel (apps/web) --POST /api/assistente/chat--> BFF
   ferramentas --> Fontes (BFF: /v1, analytics, painel da carteira, perfil)
 ```
 
-| Módulo                  | O que faz                                                        |
-| ----------------------- | ---------------------------------------------------------------- |
-| `src/chaves.ts`         | AES-256-GCM, remoção de segredos, erro seguro                    |
-| `src/provedores.ts`     | modelo do AI SDK por provedor, lista de modelos, teste           |
-| `src/catalogo.ts`       | provedores e classificação (homologado, experimental, bloqueado) |
-| `src/ferramentas.ts`    | as ferramentas, com schema Zod e a interface `Fontes`            |
-| `src/diagnostico.ts`    | `avaliar_carteira`: calculado aqui, não pelo modelo              |
-| `src/aporte.ts`         | `sugerir_aporte`: determinístico                                 |
-| `src/orcamento.ts`      | abaixo de 100 mil tokens por chamada, custo                      |
-| `src/conversa.ts`       | a chamada ao provedor, igual no BFF e no eval                    |
-| `prompts/sistema-v1.ts` | system prompt versionado                                         |
-| `src/importacao/`       | importação com IA ([importacao-ia.md](importacao-ia.md))         |
-| `prompts/importacao-*`  | prompt da importação, gerado do Markdown                         |
-| `homologacao/`          | modelos testados e resultado do eval de cada um                  |
-| `eval/`                 | perguntas, base de teste e medidas                               |
+| Módulo                           | O que faz                                                        |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `src/chaves.ts`                  | AES-256-GCM, remoção de segredos, erro seguro                    |
+| `src/provedores.ts`              | modelo do AI SDK por provedor, lista de modelos, teste           |
+| `src/catalogo.ts`                | provedores e classificação (homologado, experimental, bloqueado) |
+| `src/ferramentas.ts`             | as ferramentas, com schema Zod e a interface `Fontes`            |
+| `src/diagnostico.ts`             | `avaliar_carteira`: calculado aqui, não pelo modelo              |
+| `src/aporte.ts`                  | `sugerir_aporte`: determinístico                                 |
+| `src/orcamento.ts`               | abaixo de 100 mil tokens por chamada, custo                      |
+| `src/conversa.ts`                | a chamada ao provedor, igual no BFF e no eval                    |
+| `prompts/sistema-v1.ts`          | system prompt versionado                                         |
+| `src/financas/`                  | ferramentas do Bolsiq Finanças, `FontesFinanceiras`, relatório   |
+| `src/modulos.ts`                 | ferramentas por módulo da conversa                               |
+| `src/numeros.ts`                 | número sem origem nas ferramentas (eval e relatório)             |
+| `prompts/sistema-financas-v1.ts` | system prompt do Bolsiq Finanças                                 |
+| `src/importacao/`                | importação com IA ([importacao-ia.md](importacao-ia.md))         |
+| `prompts/importacao-*`           | prompt da importação, gerado do Markdown                         |
+| `homologacao/`                   | modelos testados e resultado do eval de cada um                  |
+| `eval/`                          | perguntas, base de teste e medidas                               |
 
 `@bolsiq/assistant/puro` não usa nada de servidor: é o que o navegador importa.
 
@@ -79,6 +83,28 @@ falha, `{ erro: "indisponivel" }`, que o modelo lê como "não tenho o dado".
 
 O `id` de usuário nunca é parâmetro: as `Fontes` são criadas presas ao usuário da sessão.
 
+### Bolsiq Finanças
+
+Só na conversa do módulo Finanças (e no Painel, com as de investimento). Contexto por
+módulo, consentimento, anonimização e relatório mensal: [ADR 0036](../adr/0036-agente-financeiro.md).
+
+| Ferramenta             | Lê de (`FontesFinanceiras`)             | Observação                                                    |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------- |
+| `resumo_mes`           | `painelDoMes`                           | mesmos números do dashboard                                   |
+| `gastos_por_categoria` | lançamentos do período                  | top até 30, o resto em "outras"                               |
+| `comparar_meses`       | lançamentos dos dois meses              | variação por categoria, até 15                                |
+| `listar_lancamentos`   | lançamentos do período (até 1 ano)      | busca e categoria; até 50 linhas, soma de tudo                |
+| `fluxo_projetado`      | `fluxoDeCaixa`                          | até 24 meses                                                  |
+| `parcelas_futuras`     | `listarPlanos`, `comprometidoPorMes`    | planos ativos e total por mês                                 |
+| `assinaturas`          | `listarAssinaturas`                     | sem as canceladas                                             |
+| `insights`             | `listarInsights`                        | até 15, com `essencial`                                       |
+| `sugerir_cortes`       | insights                                | não essenciais primeiro; pontual não entra                    |
+| `simular_compra`       | fluxo e resumo do mês                   | `cabe`, `apertado` ou `nao_cabe`, com os motivos              |
+| `capacidade_aporte`    | lançamentos de 3 meses, parcelas, fluxo | sobra menos compromissos e reserva; liga com `sugerir_aporte` |
+
+Descrição de PIX e transferência sai com `[pessoa]` no lugar do nome antes de ir ao
+modelo.
+
 ### avaliar_carteira
 
 - Concentração por ativo e setor, de `painel.alocacao`, contra os limites do perfil.
@@ -121,14 +147,14 @@ de novo. Não há rotação automática.
 
 ## Dados
 
-| Tabela              | Chave     | Conteúdo                                              |
-| ------------------- | --------- | ----------------------------------------------------- |
-| `settings`          | `user_id` | provedor, modelo, chave cifrada, preço, consentimento |
-| `investor_profiles` | `user_id` | documento validado por `PerfilDoInvestidor`           |
-| `conversations`     | `id`      | título, tokens e custo acumulados                     |
-| `messages`          | `id`      | partes da mensagem, com os passos de ferramenta       |
-| `usage`             | `id`      | uma linha por turno ou importação; append-only        |
-| `extractions`       | `id`      | cache da importação com IA: JSON extraído e relatório |
+| Tabela              | Chave     | Conteúdo                                                                                            |
+| ------------------- | --------- | --------------------------------------------------------------------------------------------------- |
+| `settings`          | `user_id` | provedor, modelo, chave cifrada, preço, consentimentos (investimentos e Finanças), relatório mensal |
+| `investor_profiles` | `user_id` | documento validado por `PerfilDoInvestidor`                                                         |
+| `conversations`     | `id`      | título, módulo, tokens e custo acumulados                                                           |
+| `messages`          | `id`      | partes da mensagem, com os passos de ferramenta                                                     |
+| `usage`             | `id`      | uma linha por turno ou importação; append-only                                                      |
+| `extractions`       | `id`      | cache da importação com IA: JSON extraído e relatório                                               |
 
 RLS forçada em todas, pelo `comoUsuario` do portfolio. Migrations aplicadas pelo
 `portfolio-migrate`. Exportação e exclusão LGPD em `/configuracoes/conta` cobrem o schema;
@@ -160,6 +186,7 @@ a chave cifrada não entra na exportação.
 | `ASSISTANT_PLATFORM_PROVIDER` | `deepseek`                          | provedor da chave da plataforma           |
 | `ASSISTANT_PLATFORM_MODEL`    | `deepseek-flash`                    | modelo da chave da plataforma             |
 | `ASSISTANT_PLATFORM_LIMITS`   | `gratis:20`                         | mensagens por dia por plano               |
+| `ASSISTANT_REPORT_CRON`       | `0 8 1 * *`                         | relatório mensal (portfolio-worker)       |
 
 Ainda não há tabela de planos: todo usuário é `gratis`.
 

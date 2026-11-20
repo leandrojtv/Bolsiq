@@ -8,7 +8,8 @@ importação de extrato. Nome e navegação próprios, mesmo login. Pacote
 [ADR 0033](../adr/0033-faturas-recorrencias-planejamento.md) (faturas, recorrências,
 painel e planejamento) e
 [ADR 0034](../adr/0034-parcelamentos-dividas-fluxo-metas.md) (parcelamentos, dívidas,
-orçamento, fluxo e metas).
+orçamento, fluxo e metas) e
+[ADR 0035](../adr/0035-insights-financas.md) (insights de gastos).
 
 Não lê nem faz join com `portfolio`, `app`, `analytics` ou `market_data`. O Painel
 geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
@@ -36,6 +37,9 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 | Orçamento por categoria com estados (no planejamento; `/financas/orcamento`) | pronto                                         |
 | Fluxo de caixa projetado de 3 a 12 meses (`/financas/fluxo`)                 | pronto                                         |
 | Metas (`/financas/metas`)                                                    | pronto                                         |
+| Insights (`/financas/insights`) e "Onde otimizar" no dashboard               | pronto; determinísticos, com evidências        |
+| Assinaturas detectadas (`/financas/assinaturas`)                             | pronto                                         |
+| Simulador de cortes (`/financas/insights/simulador`)                         | pronto                                         |
 | Importação de CSV, PDF e imagem; sugestão por IA                             | próximas etapas (novo leitor, mesma revisão)   |
 
 ## Modelo de dados
@@ -52,6 +56,9 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 | `categorization_rules` | `id`, único por `(user_id, modo, padrao)`                           |
 | `audit_log`            | `id`, append-only                                                   |
 | `outbox`               | `id`; eventos `finance.*` (publicador entra com o primeiro)         |
+| `insights`             | `id`, único por `(user_id, periodo)`; cache da lista do mês         |
+| `insight_feedback`     | `id`, único por `(user_id, insight_id)`                             |
+| `insight_settings`     | `user_id`; limite do efeito formiga e referência 50/30/20           |
 
 - Valores em `numeric(18,2)`, sempre positivos; o sinal sai do `tipo` e, na
   transferência, de `transferencia_sentido` (`saida` ou `entrada`).
@@ -70,8 +77,8 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
   vencimento.
 
 Exportação e exclusão da conta (LGPD, `/configuracoes/conta`) incluem contas,
-cartões, faturas, categorias, lançamentos, importações (com as linhas), regras e
-auditoria do módulo; a exclusão também apaga do outbox os eventos do usuário.
+cartões, faturas, categorias, lançamentos, importações (com as linhas), regras,
+insights (cache, respostas e ajustes) e auditoria do módulo; a exclusão também apaga do outbox os eventos do usuário.
 
 ## Recorrências, painel e planejamento
 
@@ -104,6 +111,29 @@ auditoria do módulo; a exclusão também apaga do outbox os eventos do usuário
   negativo.
 - **Metas**: por conta, carteira (o web compõe o patrimônio pelo módulo portfolio) ou
   valor guardado; valor mensal necessário até a data.
+
+## Insights
+
+Detectores puros em `packages/finance/src/insights` (regras no
+[ADR 0035](../adr/0035-insights-financas.md)): ranking, assinaturas (reajuste,
+possível duplicidade, nova), tarifas e juros, efeito formiga, fora do padrão,
+essencial x supérfluo, custo de oportunidade ao CDI e simulador de cortes. Cada
+insight traz `evidencias` (ids dos lançamentos) e sai ordenado por impacto anual.
+
+- **Cache** por usuário e mês em `finance.insights`; a leitura recalcula quando a
+  marca dos dados muda (dia, quantidade ou última mudança dos lançamentos).
+- **Job** `finance.insights` no `portfolio-worker`: por usuário, enfileirado pelo BFF
+  ao confirmar uma importação; de todos, pelo cron `FINANCE_INSIGHTS_CRON` (padrão
+  03h40).
+- **Evento** `finance.insight.novo.v1` no outbox (assinatura nova, reajuste, tarifa
+  nova), uma vez por fato; payload com `user_id`, `insight_id`, `motivo`, `chave`,
+  `titulo`, `descricao`, impactos e `periodo`.
+- **Respostas**: dispensado e "ainda uso" somem por 90 dias (voltam se o impacto
+  anual subir mais de 20%); "já cancelei" some até nova cobrança; "vou cancelar"
+  fica visível. "Transformar em recorrente" cria a recorrência a partir da próxima
+  cobrança.
+- **CDI** do `/v1/macro/cdi` (BCB SGS 12), buscado pelo web; a tela mostra a
+  premissa, a data e a fonte.
 
 ## Importação OFX
 
@@ -145,28 +175,35 @@ Todas as rotas exigem a sessão (401 sem ela) e validam com Zod (422). O
 documento OpenAPI sai dos mesmos schemas em `/api/financas/openapi`, e
 `apps/web/lib/financas-bff.test.ts` reprova rota sem entrada nele.
 
-| Rota                                            | Métodos               |
-| ----------------------------------------------- | --------------------- |
-| `/api/financas/contas`                          | GET, POST             |
-| `/api/financas/contas/{id}`                     | PATCH, DELETE         |
-| `/api/financas/categorias`                      | GET, POST             |
-| `/api/financas/categorias/{id}`                 | PATCH, DELETE         |
-| `/api/financas/lancamentos`                     | GET (paginado), POST  |
-| `/api/financas/lancamentos/{id}`                | PATCH, DELETE         |
-| `/api/financas/resumo?mes=YYYY-MM`              | GET                   |
-| `/api/financas/cartoes`                         | GET, POST             |
-| `/api/financas/cartoes/{id}`                    | PATCH, DELETE         |
-| `/api/financas/cartoes/{id}/faturas`            | GET                   |
-| `/api/financas/importacoes/analise`             | POST (multipart)      |
-| `/api/financas/importacoes`                     | GET, POST (multipart) |
-| `/api/financas/importacoes/{id}`                | GET                   |
-| `/api/financas/importacoes/{id}/linhas/{linha}` | PATCH                 |
-| `/api/financas/importacoes/{id}/confirmar`      | POST                  |
-| `/api/financas/importacoes/{id}/cancelar`       | POST                  |
-| `/api/financas/importacoes/{id}/desfazer`       | POST                  |
-| `/api/financas/regras`                          | GET, POST             |
-| `/api/financas/regras/{id}`                     | PATCH, DELETE         |
-| `/api/financas/openapi`                         | GET                   |
+| Rota                                            | Métodos                 |
+| ----------------------------------------------- | ----------------------- |
+| `/api/financas/contas`                          | GET, POST               |
+| `/api/financas/contas/{id}`                     | PATCH, DELETE           |
+| `/api/financas/categorias`                      | GET, POST               |
+| `/api/financas/categorias/{id}`                 | PATCH, DELETE           |
+| `/api/financas/lancamentos`                     | GET (paginado), POST    |
+| `/api/financas/lancamentos/{id}`                | PATCH, DELETE           |
+| `/api/financas/resumo?mes=YYYY-MM`              | GET                     |
+| `/api/financas/cartoes`                         | GET, POST               |
+| `/api/financas/cartoes/{id}`                    | PATCH, DELETE           |
+| `/api/financas/cartoes/{id}/faturas`            | GET                     |
+| `/api/financas/importacoes/analise`             | POST (multipart)        |
+| `/api/financas/importacoes`                     | GET, POST (multipart)   |
+| `/api/financas/importacoes/{id}`                | GET                     |
+| `/api/financas/importacoes/{id}/linhas/{linha}` | PATCH                   |
+| `/api/financas/importacoes/{id}/confirmar`      | POST                    |
+| `/api/financas/importacoes/{id}/cancelar`       | POST                    |
+| `/api/financas/importacoes/{id}/desfazer`       | POST                    |
+| `/api/financas/regras`                          | GET, POST               |
+| `/api/financas/regras/{id}`                     | PATCH, DELETE           |
+| `/api/financas/insights?mes=YYYY-MM`            | GET                     |
+| `/api/financas/insights/{id}?mes=YYYY-MM`       | GET (com as evidências) |
+| `/api/financas/insights/{id}/feedback`          | POST                    |
+| `/api/financas/insights/configuracao`           | GET, PUT                |
+| `/api/financas/insights/simulador`              | GET (base do simulador) |
+| `/api/financas/assinaturas`                     | GET                     |
+| `/api/financas/assinaturas/{id}/recorrente`     | POST                    |
+| `/api/financas/openapi`                         | GET                     |
 
 Filtros da listagem: `de`, `ate`, `conta`, `cartao`, `fatura`, `importacao`,
 `categoria`, `status`, `q` (texto, com e sem acento), `pagina`, `por_pagina` (até
@@ -195,6 +232,14 @@ apaga (409): arquive.
   faturas, parcela importada concilia, parcela sem plano cria o plano, dívida com
   amortização e quitação, fluxo com recorrência, parcela e fatura, orçamento e metas.
 - `apps/web/e2e/financas-parcelamento.spec.ts`: compra em 3x aparece nas 3 faturas.
+- `packages/finance/src/insights/*.test.ts`: cada detector com casos positivos e
+  negativos (conta de luz variável não é assinatura; dois cafés no mesmo dia não são
+  assinatura nem duplicidade), dispensa de 90 dias, simulador e custo de oportunidade.
+- `packages/finance/src/integration/insights.test.ts`: job recalcula e publica cada
+  novidade uma vez, evidências, dispensa, recálculo ao lançar e apagar, ajustes,
+  recorrente, simulador e RLS das tabelas novas.
+- `apps/web/e2e/financas-insights.spec.ts`: lançar uma tarifa, ver em "Onde otimizar",
+  abrir o insight com as evidências e dispensar.
 - `apps/web/e2e/financas-cartao.spec.ts`: criar cartão, comprar, ver na fatura,
   pagar e conferir no painel que a despesa não dobrou.
 - `apps/web/e2e/financas-importacao.spec.ts`: importar um OFX de fixture, revisar,

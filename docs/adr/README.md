@@ -32,6 +32,7 @@ anterior como `substituído por`.
 | [0032](0032-importacao-ofx-financas.md)           | Bolsiq Finanças: importação de extrato e fatura em OFX            | aceito       |
 | [0033](0033-faturas-recorrencias-planejamento.md) | Bolsiq Finanças: faturas, recorrências, painel e planejamento     | aceito       |
 | [0034](0034-parcelamentos-dividas-fluxo-metas.md) | Bolsiq Finanças: parcelamentos, dívidas, orçamento, fluxo e metas | aceito       |
+| [0035](0035-insights-financas.md)                 | Bolsiq Finanças: insights determinísticos de gastos               | aceito       |
 
 ## Números reservados
 

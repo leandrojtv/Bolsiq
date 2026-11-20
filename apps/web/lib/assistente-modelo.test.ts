@@ -5,6 +5,8 @@ import {
   filtroDaUrlDoScreener,
   linkPermitido,
   PedidoDeChat,
+  PedidoDeConsentimento,
+  PedidoDoRelatorio,
   SalvarConfiguracao,
   textoDoPreco,
 } from "./assistente-modelo";
@@ -26,6 +28,31 @@ describe("contexto da tela", () => {
     };
     expect(s.screener.preset).toBe("graham");
     expect(contextoDaTela("/alertas", "")).toEqual({ rota: "/alertas" });
+  });
+
+  it("no Bolsiq Finanças, le o mes da tela", () => {
+    expect(contextoDaTela("/financas", "?mes=2026-10")).toEqual({
+      rota: "/financas",
+      mes: "2026-10",
+    });
+    expect(contextoDaTela("/financas", "?mes=outubro")).toEqual({ rota: "/financas" });
+    expect(contextoDaTela("/ativo", "?mes=2026-10")).toEqual({ rota: "/ativo" });
+  });
+});
+
+describe("consentimento e relatorio", () => {
+  it("escopo do consentimento: padrao investimentos", () => {
+    expect(PedidoDeConsentimento.parse(undefined)).toEqual({ escopo: "investimentos" });
+    expect(PedidoDeConsentimento.parse({ escopo: "financas" })).toEqual({
+      escopo: "financas",
+    });
+    expect(PedidoDeConsentimento.safeParse({ escopo: "outro" }).success).toBe(false);
+    expect(PedidoDeConsentimento.safeParse(null).success).toBe(false);
+  });
+
+  it("relatorio liga e desliga", () => {
+    expect(PedidoDoRelatorio.parse({ ligado: true })).toEqual({ ligado: true });
+    expect(PedidoDoRelatorio.safeParse({ ligado: "sim" }).success).toBe(false);
   });
 });
 

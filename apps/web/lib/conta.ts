@@ -116,6 +116,8 @@ export async function exportarDados(uid: string) {
         provedor: assistente.settings.provedor,
         modelo: assistente.settings.modelo,
         consentimento_em: assistente.settings.consentimento_em,
+        consentimento_financas_em: assistente.settings.consentimento_financas_em,
+        relatorio_mensal: assistente.settings.relatorio_mensal,
       })
       .from(assistente.settings);
     return {

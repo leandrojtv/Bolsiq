@@ -14,6 +14,7 @@ import {
 import { alertRules, deliveries, notifications } from "../db/schema.js";
 import { iniciarWorkerDeAlertas, type WorkerDeAlertas } from "../worker.js";
 import { canalInApp } from "../canais/inapp.js";
+import { avisarNoSino } from "../repositorio.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
 
@@ -237,6 +238,32 @@ describe("worker de alertas", () => {
       .from(notifications)
       .where(and(eq(notifications.user_id, "u1")));
     expect(p?.n).toBeGreaterThan(0);
+  });
+});
+
+describe("aviso do sistema no sino", () => {
+  it("grava notificacao e entrega in-app uma vez por chave", async () => {
+    const aviso = {
+      user_id: "u-relatorio",
+      origem: "assistente.relatorio_mensal",
+      chave: "2026-10",
+      titulo: "Relatório de outubro de 2026",
+      corpo: "Resumo do mês.",
+      dados: { link: "/financas/insights" },
+    };
+    const id = await avisarNoSino(db, aviso);
+    expect(id).toEqual(expect.any(String));
+    expect(await avisarNoSino(db, aviso)).toBeNull();
+    const entregas = await db
+      .select({ canal: deliveries.canal, status: deliveries.status })
+      .from(deliveries)
+      .where(eq(deliveries.notification_id, id as string));
+    expect(entregas).toEqual([{ canal: "inapp", status: "pendente" }]);
+    const [n] = await db
+      .select({ rule_id: notifications.rule_id })
+      .from(notifications)
+      .where(eq(notifications.id, id as string));
+    expect(n?.rule_id).toBe("sistema:assistente.relatorio_mensal");
   });
 });
 

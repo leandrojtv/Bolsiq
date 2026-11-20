@@ -820,6 +820,9 @@ importers:
 
   services/portfolio-worker:
     dependencies:
+      '@bolsiq/alerts':
+        specifier: workspace:*
+        version: link:../../packages/alerts
       '@bolsiq/assistant':
         specifier: workspace:*
         version: link:../../packages/assistant

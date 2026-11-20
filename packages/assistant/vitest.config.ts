@@ -17,6 +17,8 @@ export default defineConfig({
         "src/integration/**",
         // Adaptador do Postgres: coberto em src/integration/importacao.test.ts.
         "src/importacao/postgres.ts",
+        // Coberto em src/integration/financas.test.ts.
+        "src/financas/postgres.ts",
       ],
       thresholds: { lines: 90, functions: 90, statements: 90, branches: 75 },
     },

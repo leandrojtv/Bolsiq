@@ -1,0 +1,14 @@
+import { usuarioLogado } from "@/lib/auth";
+import { naoAutenticado } from "@/lib/respostas";
+import { tratarFinancas } from "@/lib/respostas-financas";
+import { simulador } from "@/lib/financas";
+
+export async function GET() {
+  const u = await usuarioLogado();
+  if (!u) return naoAutenticado();
+  try {
+    return Response.json({ data: await simulador(u.id) });
+  } catch (erro) {
+    return tratarFinancas(erro);
+  }
+}

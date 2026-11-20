@@ -64,6 +64,14 @@ const fin = vi.hoisted(() => ({
   novaMeta: vi.fn(),
   mudarMeta: vi.fn(),
   removerMeta: vi.fn(),
+  insights: vi.fn(),
+  insight: vi.fn(),
+  responderInsight: vi.fn(),
+  configuracaoDeInsights: vi.fn(),
+  configurarInsights: vi.fn(),
+  assinaturas: vi.fn(),
+  assinaturaRecorrente: vi.fn(),
+  simulador: vi.fn(),
   limitesDeImportacao: () => ({ bytes: 1000, linhas: 100, arquivos: 2 }),
 }));
 
@@ -95,6 +103,14 @@ const simularRota = await import("../app/api/financas/dividas/[id]/simular/route
 const fluxoRota = await import("../app/api/financas/fluxo/route");
 const categoriaRota = await import("../app/api/financas/planejamento/categoria/route");
 const metasRota = await import("../app/api/financas/metas/route");
+const insightsRota = await import("../app/api/financas/insights/route");
+const insightRota = await import("../app/api/financas/insights/[id]/route");
+const feedbackRota = await import("../app/api/financas/insights/[id]/feedback/route");
+const configRota = await import("../app/api/financas/insights/configuracao/route");
+const simuladorRota = await import("../app/api/financas/insights/simulador/route");
+const assinaturasRota = await import("../app/api/financas/assinaturas/route");
+const recorrenteRota =
+  await import("../app/api/financas/assinaturas/[id]/recorrente/route");
 
 /** Corpo multipart montado a mao: o FormData do jsdom nao serve ao Request do Node. */
 const multipart = (campos: Record<string, string>, arquivos: [string, string][]) => {
@@ -420,6 +436,76 @@ describe("BFF de parcelamentos, dividas, fluxo, orcamento e metas", () => {
       (await metasRota.POST(post({ nome: "", valor_alvo: "1", data_alvo: "2025-01-01" })))
         .status,
     ).toBe(422);
+  });
+});
+
+describe("BFF de insights e assinaturas", () => {
+  it("lista valida o mes; detalhe valida o id", async () => {
+    fin.insights.mockResolvedValue({ insights: [] });
+    expect((await insightsRota.GET(new Request("http://x/api?mes=11-2026"))).status).toBe(
+      422,
+    );
+    expect((await insightsRota.GET(new Request("http://x/api?mes=2026-11"))).status).toBe(
+      200,
+    );
+    expect(fin.insights).toHaveBeenCalledWith("u1", "2026-11");
+    expect((await insightRota.GET(new Request("http://x/api"), ctx("../x"))).status).toBe(
+      422,
+    );
+    fin.insight.mockRejectedValue(new ErroDeFinancas(404, "Insight não encontrado."));
+    expect(
+      (await insightRota.GET(new Request("http://x/api"), ctx("assinatura-abc"))).status,
+    ).toBe(404);
+  });
+
+  it("feedback so com acao conhecida", async () => {
+    expect(
+      (await feedbackRota.POST(post({ acao: "apagar" }), ctx("tarifas-1"))).status,
+    ).toBe(422);
+    fin.responderInsight.mockResolvedValue({ insight_id: "tarifas-1" });
+    expect(
+      (await feedbackRota.POST(post({ acao: "dispensado" }), ctx("tarifas-1"))).status,
+    ).toBe(200);
+    expect(fin.responderInsight).toHaveBeenCalledWith(
+      "u1",
+      "tarifas-1",
+      "dispensado",
+      undefined,
+    );
+  });
+
+  it("configuracao exige referencia somando 100", async () => {
+    const put = (corpo: unknown) =>
+      new Request("http://x/api", { method: "PUT", body: JSON.stringify(corpo) });
+    const ref = { essenciais: 50, nao_essenciais: 30, poupanca: 30 };
+    expect(
+      (await configRota.PUT(put({ limite_formiga: "50", referencia: ref }))).status,
+    ).toBe(422);
+    fin.configurarInsights.mockResolvedValue({});
+    const ok = await configRota.PUT(
+      put({ limite_formiga: "35,00", referencia: { ...ref, poupanca: 20 } }),
+    );
+    expect(ok.status).toBe(200);
+    expect(fin.configurarInsights).toHaveBeenCalledWith("u1", {
+      limite_formiga: "35.00",
+      referencia: { essenciais: 50, nao_essenciais: 30, poupanca: 20 },
+    });
+    fin.configuracaoDeInsights.mockResolvedValue({ limite_formiga: "50.00" });
+    expect((await configRota.GET()).status).toBe(200);
+  });
+
+  it("assinaturas, recorrente e simulador", async () => {
+    fin.assinaturas.mockResolvedValue({ assinaturas: [] });
+    expect((await assinaturasRota.GET()).status).toBe(200);
+    fin.assinaturaRecorrente.mockResolvedValue({ id: "r" });
+    expect(
+      (await recorrenteRota.POST(new Request("http://x"), ctx("assinatura-abc"))).status,
+    ).toBe(201);
+    fin.simulador.mockResolvedValue({});
+    expect((await simuladorRota.GET()).status).toBe(200);
+    usuario.atual = null;
+    expect((await simuladorRota.GET()).status).toBe(401);
+    expect((await assinaturasRota.GET()).status).toBe(401);
   });
 });
 

@@ -1,7 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import PgBoss from "pg-boss";
 import {
   acessoParaImportar as acessoNoBanco,
   apagarArquivosDoJob,
@@ -27,6 +26,7 @@ import {
   type ResultadoDaValidacao,
   type Verificador,
 } from "@bolsiq/assistant";
+import { enfileirar as enfileirarNaFila } from "./fila";
 import {
   COLUNAS_BOLSIQ,
   COLUNAS_POSICAO,
@@ -152,40 +152,16 @@ export function verificadorDoMarketData(): Verificador {
 // Fila
 // ---------------------------------------------------------------------------
 
-let fila: Promise<PgBoss> | null = null;
-
-/** Cliente do pg-boss so para enfileirar: quem trabalha e o portfolio-worker. */
-function filaDoWeb(): Promise<PgBoss> {
-  fila ??= (async () => {
-    const boss = new PgBoss({
-      connectionString: env.DATABASE_URL,
-      schema: "pgboss",
-      supervise: false,
-      schedule: false,
-    });
-    boss.on("error", (e) =>
-      process.stderr.write(
-        `${JSON.stringify({ level: "error", modulo: "importacao", msg: String(e) })}\n`,
-      ),
-    );
-    await boss.start();
-    await boss.createQueue(FILA_DA_IMPORTACAO, {
-      name: FILA_DA_IMPORTACAO,
-      retryLimit: 0,
-      expireInSeconds: 60 * 60 * 3,
-    });
-    return boss;
-  })();
-  return fila;
-}
-
 async function enfileirar(dados: {
   job_id: string;
   user_id: string;
   modelo?: string;
   reprocessar?: { indice: number; lotes?: number[] };
 }): Promise<void> {
-  await (await filaDoWeb()).send(FILA_DA_IMPORTACAO, dados);
+  await enfileirarNaFila(FILA_DA_IMPORTACAO, dados, {
+    retryLimit: 0,
+    expireInSeconds: 60 * 60 * 3,
+  });
 }
 
 // ---------------------------------------------------------------------------

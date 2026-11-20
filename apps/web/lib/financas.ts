@@ -1,6 +1,24 @@
 import "server-only";
 import { headers } from "next/headers";
 import {
+  apagarItem,
+  apagarRecorrencia,
+  copiarPlanejamento,
+  criarItem,
+  criarRecorrencia,
+  detalheDaFatura,
+  editarItem,
+  editarRecorrencia,
+  listarRecorrencias,
+  obterPlanejamento,
+  pagarFatura,
+  painelDoMes,
+  puxarRecorrencias,
+  type EdicaoDeItemDoPlanejamento,
+  type EdicaoDeRecorrencia,
+  type NovaRecorrencia,
+  type NovoItemDoPlanejamento,
+  type PagamentoDeFatura,
   analisarArquivos,
   apagarCartao,
   apagarRegra,
@@ -231,4 +249,70 @@ export async function mudarRegra(uid: string, id: string, e: EdicaoDeRegra) {
 export async function removerRegra(uid: string, id: string) {
   const o = await origem();
   return como(uid, (tx) => apagarRegra(tx, uid, id, o));
+}
+
+// Fatura
+
+export const fatura = (uid: string, cartao: string, id: string) =>
+  como(uid, (tx) => detalheDaFatura(tx, uid, cartao, id));
+
+export async function pagar(uid: string, cartao: string, id: string, p: PagamentoDeFatura) {
+  const o = await origem();
+  return como(uid, (tx) => pagarFatura(tx, uid, cartao, id, p, o));
+}
+
+// Recorrencias
+
+export const recorrencias = (uid: string) =>
+  como(uid, (tx) => listarRecorrencias(tx, uid, hojeEmSp()));
+
+export async function novaRecorrencia(uid: string, r: NovaRecorrencia) {
+  const o = await origem();
+  return como(uid, (tx) => criarRecorrencia(tx, uid, r, hojeEmSp(), o));
+}
+
+export async function mudarRecorrencia(uid: string, id: string, e: EdicaoDeRecorrencia) {
+  const o = await origem();
+  return como(uid, (tx) => editarRecorrencia(tx, uid, id, e, hojeEmSp(), o));
+}
+
+export async function removerRecorrencia(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarRecorrencia(tx, uid, id, hojeEmSp(), o));
+}
+
+// Painel e planejamento
+
+const mesOuHoje = (mes?: string) => mes ?? hojeEmSp().slice(0, 7);
+
+export function painel(uid: string, mes?: string) {
+  return como(uid, (tx) => painelDoMes(tx, uid, `${mesOuHoje(mes)}-01`, hojeEmSp()));
+}
+
+export const planejamento = (uid: string, mes?: string) =>
+  como(uid, (tx) => obterPlanejamento(tx, uid, mesOuHoje(mes)));
+
+export async function novoItem(uid: string, i: NovoItemDoPlanejamento) {
+  const o = await origem();
+  return como(uid, (tx) => criarItem(tx, uid, i, o));
+}
+
+export async function mudarItem(uid: string, id: string, e: EdicaoDeItemDoPlanejamento) {
+  const o = await origem();
+  return como(uid, (tx) => editarItem(tx, uid, id, e, o));
+}
+
+export async function removerItem(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarItem(tx, uid, id, o));
+}
+
+export async function copiarMes(uid: string, de: string, para: string) {
+  const o = await origem();
+  return como(uid, (tx) => copiarPlanejamento(tx, uid, de, para, o));
+}
+
+export async function puxarFixos(uid: string, mes?: string) {
+  const o = await origem();
+  return como(uid, (tx) => puxarRecorrencias(tx, uid, mesOuHoje(mes), o));
 }

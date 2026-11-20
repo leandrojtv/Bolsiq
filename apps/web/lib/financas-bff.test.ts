@@ -35,6 +35,19 @@ const fin = vi.hoisted(() => ({
   novaRegra: vi.fn(),
   mudarRegra: vi.fn(),
   removerRegra: vi.fn(),
+  fatura: vi.fn(),
+  pagar: vi.fn(),
+  recorrencias: vi.fn(),
+  novaRecorrencia: vi.fn(),
+  mudarRecorrencia: vi.fn(),
+  removerRecorrencia: vi.fn(),
+  painel: vi.fn(),
+  planejamento: vi.fn(),
+  novoItem: vi.fn(),
+  mudarItem: vi.fn(),
+  removerItem: vi.fn(),
+  copiarMes: vi.fn(),
+  puxarFixos: vi.fn(),
   limitesDeImportacao: () => ({ bytes: 1000, linhas: 100, arquivos: 2 }),
 }));
 
@@ -54,6 +67,11 @@ const analise = await import("../app/api/financas/importacoes/analise/route");
 const linha = await import("../app/api/financas/importacoes/[id]/linhas/[linha]/route");
 const confirmar = await import("../app/api/financas/importacoes/[id]/confirmar/route");
 const regras = await import("../app/api/financas/regras/route");
+const pagarRota = await import("../app/api/financas/cartoes/[id]/faturas/[fatura]/pagar/route");
+const recorrenciasRota = await import("../app/api/financas/recorrencias/route");
+const painelRota = await import("../app/api/financas/painel/route");
+const planejamentoRota = await import("../app/api/financas/planejamento/route");
+const copiarRota = await import("../app/api/financas/planejamento/copiar/route");
 
 /** Corpo multipart montado a mao: o FormData do jsdom nao serve ao Request do Node. */
 const multipart = (campos: Record<string, string>, arquivos: [string, string][]) => {
@@ -266,6 +284,41 @@ describe("BFF de cartoes, importacao e regras", () => {
       (await regras.POST(post({ padrao: "(x", modo: "regex", category_id: "k" }))).status,
     ).toBe(422);
     expect(fin.novaRegra).not.toHaveBeenCalled();
+  });
+});
+
+describe("BFF de faturas, recorrencias, painel e planejamento", () => {
+  it("pagar fatura valida a data e mapeia 409", async () => {
+    const ctxFatura = { params: Promise.resolve({ id: "k", fatura: "f" }) };
+    expect((await pagarRota.POST(post({}), ctxFatura)).status).toBe(422);
+    fin.pagar.mockRejectedValue(new ErroDeFinancas(409, "Esta fatura já está paga."));
+    expect((await pagarRota.POST(post({ data: "2024-03-10" }), ctxFatura)).status).toBe(409);
+    expect(fin.pagar).toHaveBeenCalledWith("u1", "k", "f", { data: "2024-03-10" });
+  });
+
+  it("recorrencia: conta ou cartao e dia valido", async () => {
+    const base = { tipo: "despesa", descricao: "Aluguel", valor: "1800", dia: 5, inicio: "2024-01-01" };
+    expect((await recorrenciasRota.POST(post(base))).status).toBe(422);
+    fin.novaRecorrencia.mockResolvedValue({ id: "r" });
+    expect((await recorrenciasRota.POST(post({ ...base, account_id: "a" }))).status).toBe(201);
+    fin.recorrencias.mockResolvedValue({ data: [], totais: {} });
+    expect(await (await recorrenciasRota.GET()).json()).toEqual({ data: [], totais: {} });
+  });
+
+  it("painel e planejamento validam o mes", async () => {
+    fin.painel.mockResolvedValue({});
+    fin.planejamento.mockResolvedValue({});
+    expect((await painelRota.GET(new Request("http://x/api?mes=2024-13x"))).status).toBe(422);
+    expect((await painelRota.GET(new Request("http://x/api?mes=2024-03"))).status).toBe(200);
+    expect(fin.painel).toHaveBeenCalledWith("u1", "2024-03");
+    expect((await planejamentoRota.GET(new Request("http://x/api"))).status).toBe(200);
+    expect(fin.planejamento).toHaveBeenCalledWith("u1", undefined);
+    expect(
+      (await planejamentoRota.POST(post({ mes: "2024-03", category_id: "c", valor: "-1" }))).status,
+    ).toBe(422);
+    fin.copiarMes.mockResolvedValue(3);
+    const copia = await copiarRota.POST(post({ de: "2024-02", para: "2024-03" }));
+    expect(await copia.json()).toEqual({ data: { itens: 3 } });
   });
 });
 

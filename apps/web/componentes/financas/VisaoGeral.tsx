@@ -11,6 +11,7 @@ import { CHAVE, editarLancamento, useContas, usePainel } from "./cliente";
 import { GraficoDeCategorias } from "./GraficoDeCategorias";
 import { LancamentoRapido } from "./Lancamentos";
 import { SeletorDeMes } from "./Mes";
+import { OndeOtimizar } from "./OndeOtimizar";
 
 const pct = (v: number | null) =>
   v === null ? "sem renda no mês" : `${v.toLocaleString("pt-BR")}% da renda`;
@@ -134,6 +135,8 @@ export function VisaoGeral() {
               />
             </Link>
           </section>
+
+          <OndeOtimizar mes={mes} />
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card title="Fixos x variáveis">
@@ -292,6 +295,9 @@ export function VisaoGeral() {
           ["/financas/lancamentos", "Ver todos os lançamentos"],
           ["/financas/planejamento", "Planejamento do mês"],
           ["/financas/recorrentes", "Recorrentes"],
+          ["/financas/insights", "Insights"],
+          ["/financas/insights/simulador", "Simulador de cortes"],
+          ["/financas/assinaturas", "Assinaturas"],
           ["/financas/fluxo", "Fluxo de caixa"],
           ["/financas/parcelamentos", "Parcelamentos"],
           ["/financas/dividas", "Dívidas"],

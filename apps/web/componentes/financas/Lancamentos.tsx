@@ -496,14 +496,19 @@ export function PaginaDeLancamentos() {
     <div className="flex flex-col gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="m-0 text-[26px] font-bold tracking-tight">Lançamentos</h1>
-        <Button
-          variant="primary"
-          onClick={() => setAberto("novo")}
-          disabled={contas.length === 0}
-        >
-          <Plus aria-hidden="true" size={16} />
-          Novo lançamento
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary">
+            <a href="/financas/parcelamentos?nova=1">Compra parcelada</a>
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => setAberto("novo")}
+            disabled={contas.length === 0}
+          >
+            <Plus aria-hidden="true" size={16} />
+            Novo lançamento
+          </Button>
+        </div>
       </header>
 
       {!carregandoContas && contas.length === 0 ? (

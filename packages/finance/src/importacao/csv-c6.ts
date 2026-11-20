@@ -120,7 +120,7 @@ interface Bruta {
   final: string;
   categoria: string;
   descricao: string;
-  parcela: { atual: number; total: number } | null | undefined;
+  parcela: { atual: number; total: number } | null;
   usd: string;
   valor: string;
 }

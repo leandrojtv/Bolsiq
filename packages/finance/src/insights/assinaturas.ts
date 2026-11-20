@@ -211,7 +211,7 @@ export function insightsDeAssinaturas(as: Assinatura[], ctx: Contexto): Insight[
       partes.push(
         ` Possível duplicidade: você também assina ${a.duplicidade.map((id) => nomes.get(id)).join(", ")} (${a.grupo}).`,
       );
-    if (a.nova) partes.push(" Começou nos últimos 60 dias.");
+    if (a.nova) partes.push(" Nova: detectada nos últimos 60 dias.");
     return {
       id: a.id,
       tipo: "assinatura",

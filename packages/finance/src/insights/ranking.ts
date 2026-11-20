@@ -7,6 +7,7 @@ import {
   fimDoMes,
   idDeInsight,
   inicioDoMes,
+  num,
   pct,
   receitaRealizada,
   soma,
@@ -98,9 +99,9 @@ export function rankingDeGastos(ctx: Contexto): Insight[] {
       tipo: "ranking",
       titulo: `${maior.nome} é onde você mais gasta`,
       descricao:
-        `${maior.nome} somou ${brl(maior.valor)} (${maior.pct_do_gasto}% das despesas do mês). ` +
+        `${maior.nome} somou ${brl(maior.valor)} (${num(maior.pct_do_gasto)}% das despesas do mês). ` +
         `${nCat} de ${categorias.length} categorias e ${nEst} de ${estabelecimentos.length} estabelecimentos concentram 80% do gasto` +
-        (daRenda === null ? "." : `, que foi ${daRenda}% da renda.`),
+        (daRenda === null ? "." : `, que foi ${num(daRenda)}% da renda.`),
       impacto_mensal: "0.00",
       impacto_anual: "0.00",
       severidade: "info",

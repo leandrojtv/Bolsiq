@@ -9,6 +9,7 @@ import { useSimulador } from "./cliente";
 import { nomeDoMes } from "./Mes";
 
 const REDUCOES = [0, 10, 20, 30, 50, 100];
+const rotulo = (p: number) => (p === 0 ? "sem corte" : `-${p}%`);
 
 export function PaginaDoSimulador() {
   const { data: base, isPending } = useSimulador();
@@ -95,7 +96,7 @@ export function PaginaDoSimulador() {
                       </span>
                       <select
                         aria-label={`Reduzir ${c.nome}`}
-                        className={cn(CAMPO, "w-24")}
+                        className={cn(CAMPO, "w-28")}
                         value={categorias[c.category_id] ?? 0}
                         onChange={(e) =>
                           setCategorias({
@@ -106,7 +107,7 @@ export function PaginaDoSimulador() {
                       >
                         {REDUCOES.map((p) => (
                           <option key={p} value={p}>
-                            -{p}%
+                            {rotulo(p)}
                           </option>
                         ))}
                       </select>
@@ -126,13 +127,13 @@ export function PaginaDoSimulador() {
                   </span>
                   <select
                     aria-label="Reduzir efeito formiga"
-                    className={cn(CAMPO, "w-24")}
+                    className={cn(CAMPO, "w-28")}
                     value={formiga}
                     onChange={(e) => setFormiga(Number(e.target.value))}
                   >
                     {REDUCOES.map((p) => (
                       <option key={p} value={p}>
-                        -{p}%
+                        {rotulo(p)}
                       </option>
                     ))}
                   </select>

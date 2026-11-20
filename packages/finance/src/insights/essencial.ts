@@ -7,6 +7,7 @@ import {
   fimDoMes,
   idDeInsight,
   inicioDoMes,
+  num,
   pct,
   receitaRealizada,
   soma,
@@ -60,15 +61,16 @@ export function essencialXSuperfluo(ctx: Contexto): Insight[] {
       ? "baixa"
       : "info";
   const p = (x: keyof typeof v) => pct(v[x], renda) ?? 0;
+  const t = (x: keyof typeof v) => num(p(x));
   return [
     {
       id: idDeInsight("essencial_superfluo", ctx.mes),
       tipo: "essencial_superfluo",
       titulo: excesso.gt(0)
-        ? `Não essenciais em ${p("nao_essenciais")}% da renda (referência ${ref.nao_essenciais}%)`
-        : `Divisão da renda: ${p("essenciais")}/${p("nao_essenciais")}/${p("poupanca")}`,
+        ? `Não essenciais em ${t("nao_essenciais")}% da renda (referência ${ref.nao_essenciais}%)`
+        : `Divisão da renda: ${t("essenciais")}% / ${t("nao_essenciais")}% / ${t("poupanca")}%`,
       descricao:
-        `Da renda de ${brl(renda)}: ${p("essenciais")}% em essenciais, ${p("nao_essenciais")}% em não essenciais e ${p("poupanca")}% em poupança e investimentos. ` +
+        `Da renda de ${brl(renda)}: ${t("essenciais")}% em essenciais, ${t("nao_essenciais")}% em não essenciais e ${t("poupanca")}% em poupança e investimentos. ` +
         `A referência é ${ref.essenciais}/${ref.nao_essenciais}/${ref.poupanca}.`,
       impacto_mensal: moeda(impacto),
       impacto_anual: anual(impacto),

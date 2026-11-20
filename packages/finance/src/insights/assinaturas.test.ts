@@ -165,7 +165,7 @@ describe("insightsDeAssinaturas", () => {
     );
     expect(por("Spotify").severidade).toBe("media");
     expect(por("Spotify").descricao).toContain("Subiu de R$ 21,90 para R$ 23,90");
-    expect(por("Globoplay").descricao).toContain("Começou nos últimos 60 dias.");
+    expect(por("Globoplay").descricao).toContain("Nova: detectada nos últimos 60 dias.");
     expect(por("Antivirus").descricao).toContain("Cobrança anual de R$ 99,00");
     expect(por("Jornal")).toMatchObject({
       severidade: "baixa",

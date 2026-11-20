@@ -37,14 +37,24 @@ export function gerarInsights(ctx: Contexto): {
   assinaturas: Assinatura[];
 } {
   const assinaturas = detectarAssinaturas(ctx);
+  // A compra atipica que ja explica uma categoria fora do padrao entra no card
+  // da categoria: o mesmo excesso nao conta duas vezes na economia possivel.
+  const fora = categoriasForaDoPadrao(ctx);
+  const atipicas = transacoesAtipicas(ctx).filter((a) => {
+    const f = fora.find((i) => i.evidencias.includes(a.evidencias[0]!));
+    if (!f) return true;
+    f.descricao += ` ${a.titulo}: ${a.descricao}`;
+    f.dados.atipicas = [...((f.dados.atipicas as string[] | undefined) ?? []), a.id];
+    return false;
+  });
   return {
     assinaturas,
     insights: ordenar([
       ...insightsDeAssinaturas(assinaturas, ctx),
       ...tarifasEJuros(ctx),
       ...efeitoFormiga(ctx, new Set(assinaturas.flatMap((a) => a.evidencias))),
-      ...categoriasForaDoPadrao(ctx),
-      ...transacoesAtipicas(ctx),
+      ...fora,
+      ...atipicas,
       ...essencialXSuperfluo(ctx),
       ...rankingDeGastos(ctx),
     ]),

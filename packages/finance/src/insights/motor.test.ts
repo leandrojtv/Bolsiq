@@ -56,6 +56,36 @@ describe("gerarInsights", () => {
       "ranking",
     ]);
   });
+
+  it("compra atipica que explica a categoria fora do padrao entra no card dela", () => {
+    const meses = ["2026-08-11", "2026-09-11", "2026-10-11"];
+    const ls = [
+      ...serie("Loja Tech", "85.00", meses, { category_id: "Compras" }),
+      lanc({
+        id: "grande",
+        descricao: "Loja Tech",
+        valor: "1290.00",
+        data: "2026-11-11",
+        category_id: "Compras",
+      }),
+      ...serie("Posto Shell", "100.00", meses),
+      lanc({
+        id: "posto",
+        descricao: "Posto Shell",
+        valor: "400.00",
+        data: "2026-11-10",
+      }),
+    ];
+    const { insights } = gerarInsights(contexto(ls));
+    const fora = insights.filter((i) => i.tipo === "fora_do_padrao");
+    const atipicas = insights.filter((i) => i.tipo === "transacao_atipica");
+    expect(fora).toHaveLength(1);
+    expect(fora[0]?.descricao).toContain(
+      "Compra fora do comum em Loja Tech: R$ 1.290,00",
+    );
+    expect(fora[0]?.dados.atipicas).toHaveLength(1);
+    expect(atipicas.map((i) => i.evidencias)).toEqual([["posto"]]);
+  });
 });
 
 describe("ordenar", () => {

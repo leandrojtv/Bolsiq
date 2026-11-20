@@ -288,22 +288,22 @@ function DetalheDoInsight({
       <table aria-label="Lançamentos de evidência" className="w-full text-sm">
         <thead>
           <tr className="text-xs text-text-3">
-            <th className="py-1 text-left font-medium">Data</th>
-            <th className="py-1 text-left font-medium">Descrição</th>
+            <th className="py-1 pr-3 text-left font-medium">Data</th>
+            <th className="py-1 pr-3 text-left font-medium">Descrição</th>
             <th className="py-1 text-right font-medium">Valor</th>
           </tr>
         </thead>
         <tbody>
           {data.evidencias.slice(0, mostrar).map((e) => (
             <tr key={e.id} className="border-t border-border">
-              <td className="py-1.5 whitespace-nowrap">{dataBr(e.data)}</td>
-              <td className="py-1.5">
+              <td className="whitespace-nowrap py-1.5 pr-3">{dataBr(e.data)}</td>
+              <td className="py-1.5 pr-3">
                 {e.descricao}
                 <span className="block text-xs text-text-3">
                   {[e.categoria, e.origem].filter(Boolean).join(" · ")}
                 </span>
               </td>
-              <td className="py-1.5 text-right">
+              <td className="whitespace-nowrap py-1.5 text-right">
                 <Money value={e.valor} />
               </td>
             </tr>

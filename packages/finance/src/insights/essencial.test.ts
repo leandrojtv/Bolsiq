@@ -84,7 +84,7 @@ describe("essencialXSuperfluo", () => {
       impacto_mensal: "0.00",
       acao_sugerida: "Guarde mais R$ 2.000,00 por mês para chegar a 20% da renda.",
     });
-    expect(semPoupar[0]?.titulo).toBe("Divisão da renda: 0/20/0");
+    expect(semPoupar[0]?.titulo).toBe("Divisão da renda: 0% / 20% / 0%");
     const dentro = essencialXSuperfluo(
       contexto([
         renda("10000.00"),

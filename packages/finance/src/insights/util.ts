@@ -61,3 +61,6 @@ export const brl = (v: Decimal | string) =>
 
 export const pct = (parte: Decimal, total: Decimal) =>
   total.isZero() ? null : Number(parte.div(total).times(100).toFixed(1));
+
+/** Percentual no texto, com virgula: 55,1. */
+export const num = (n: number) => n.toLocaleString("pt-BR");

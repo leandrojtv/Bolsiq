@@ -256,7 +256,12 @@ export async function removerRegra(uid: string, id: string) {
 export const fatura = (uid: string, cartao: string, id: string) =>
   como(uid, (tx) => detalheDaFatura(tx, uid, cartao, id));
 
-export async function pagar(uid: string, cartao: string, id: string, p: PagamentoDeFatura) {
+export async function pagar(
+  uid: string,
+  cartao: string,
+  id: string,
+  p: PagamentoDeFatura,
+) {
   const o = await origem();
   return como(uid, (tx) => pagarFatura(tx, uid, cartao, id, p, o));
 }

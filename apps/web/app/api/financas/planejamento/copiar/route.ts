@@ -10,7 +10,9 @@ export async function POST(req: Request) {
   const r = CopiaDoPlanejamento.safeParse(await req.json().catch(() => null));
   if (!r.success) return invalido(r.error);
   try {
-    return Response.json({ data: { itens: await copiarMes(u.id, r.data.de, r.data.para) } });
+    return Response.json({
+      data: { itens: await copiarMes(u.id, r.data.de, r.data.para) },
+    });
   } catch (erro) {
     return tratarFinancas(erro);
   }

@@ -1,8 +1,9 @@
 import type { LanguageModel } from "ai";
 import { conversar } from "../src/conversa.js";
-import { criarFerramentas, type NomeDaFerramenta } from "../src/ferramentas.js";
+import { ferramentasDoModulo } from "../src/modulos.js";
 import { montarSistema } from "../src/prompt.js";
 import { CARTEIRA_ID, carteiraDeConferencia, fontesDeTeste, HOJE } from "./base.js";
+import { fontesFinanceirasDeTeste } from "./base-financas.js";
 import type { Caso } from "./casos.js";
 import {
   extrairNumeros,
@@ -33,10 +34,12 @@ export async function executarCaso(
   caso: Caso,
   modelo: (caso: Caso) => LanguageModel,
 ): Promise<ResultadoDoCaso> {
-  const ferramentas = criarFerramentas(
-    fontesDeTeste(caso.semPerfil ? { semPerfil: true } : {}),
-    { hoje: HOJE, modo: "personal" },
-  );
+  const modulo = caso.modulo ?? "investimentos";
+  const ferramentas = ferramentasDoModulo(modulo, {
+    fontes: fontesDeTeste(caso.semPerfil ? { semPerfil: true } : {}),
+    financas: fontesFinanceirasDeTeste(),
+    opcoes: { hoje: HOJE, modo: "personal" },
+  });
   const chamadas: ResultadoDoCaso["chamadas"] = [];
   const saidas: { nome: string; saida: unknown }[] = [];
   let resposta = "";
@@ -45,7 +48,7 @@ export async function executarCaso(
 
   const r = conversar({
     modelo: modelo(caso),
-    sistema: montarSistema({ modo: "personal", hoje: HOJE }),
+    sistema: montarSistema({ modo: "personal", hoje: HOJE, modulo }),
     mensagens: [{ role: "user", content: caso.pergunta }],
     ferramentas,
     segredos: [],
@@ -62,7 +65,7 @@ export async function executarCaso(
     if (p.type === "tool-result") saidas.push({ nome: p.toolName, saida: p.output });
   }
 
-  const usadas = (nome: NomeDaFerramenta) => chamadas.filter((c) => c.nome === nome);
+  const usadas = (nome: string) => chamadas.filter((c) => c.nome === nome);
   const ferramenta_certa =
     caso.ferramentas.length === 0
       ? chamadas.length === 0

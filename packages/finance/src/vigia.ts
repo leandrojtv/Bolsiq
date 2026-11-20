@@ -24,6 +24,8 @@ export interface Fato {
   evento: string;
   chave: string;
   payload: Record<string, unknown>;
+  /** Chaves que este fato tambem cobre (o limiar menor, cruzado junto). */
+  cobre?: string[];
 }
 
 const dias = (de: string, ate: string) =>
@@ -78,9 +80,9 @@ export interface CategoriaDoOrcamento {
 }
 
 /**
- * Categoria de despesa com planejado e consumo em 80% ou 100%. Um fato por
- * limiar: quem pula direto para 120% recebe os dois de uma vez, e o 100% e o
- * que importa; por isso a ordem e do maior para o menor.
+ * Categoria de despesa com planejado e consumo em 80% ou 100%. Um aviso por
+ * limiar; quem pula direto para 100% recebe so o de 100%, que tambem marca o de
+ * 80% como avisado (dois avisos de uma vez seriam ruido).
  */
 export function limitesDoOrcamento(
   categorias: CategoriaDoOrcamento[],
@@ -90,27 +92,28 @@ export function limitesDoOrcamento(
     if (c.natureza !== "despesa" || d(c.planejado).lte(0)) return [];
     // Compara o valor exato: arredondar antes (79,998% virando 80,0%) avisaria cedo.
     const fracao = d(c.consumo).div(c.planejado).times(100);
-    const percentual = Number(fracao.toFixed(1));
-    return [...LIMIARES_DO_ORCAMENTO]
-      .reverse()
-      .filter((l) => fracao.gte(l))
-      .map((limiar) => {
-        const chave = `orcamento:${mes}:${c.category_id}:${limiar}`;
-        return {
-          evento: EVENTO_ORCAMENTO_LIMITE,
+    const cruzados = LIMIARES_DO_ORCAMENTO.filter((l) => fracao.gte(l));
+    const limiar = cruzados.at(-1);
+    if (limiar === undefined) return [];
+    const chaveDe = (l: number) => `orcamento:${mes}:${c.category_id}:${l}`;
+    const chave = chaveDe(limiar);
+    return [
+      {
+        evento: EVENTO_ORCAMENTO_LIMITE,
+        chave,
+        cobre: cruzados.slice(0, -1).map(chaveDe),
+        payload: {
           chave,
-          payload: {
-            chave,
-            mes,
-            category_id: c.category_id,
-            categoria: c.nome,
-            limiar,
-            planejado: moeda(d(c.planejado)),
-            consumo: moeda(d(c.consumo)),
-            percentual,
-          },
-        };
-      });
+          mes,
+          category_id: c.category_id,
+          categoria: c.nome,
+          limiar,
+          planejado: moeda(d(c.planejado)),
+          consumo: moeda(d(c.consumo)),
+          percentual: Number(fracao.toFixed(1)),
+        },
+      },
+    ];
   });
 }
 

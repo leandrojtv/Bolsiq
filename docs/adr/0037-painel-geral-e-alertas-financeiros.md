@@ -67,13 +67,13 @@ padrão 06h30). Um job por usuário, com `singletonKey`.
 em hora (`FINANCE_VIGIA_CRON`) e, por usuário, depois de lançamento ou importação. Ele
 aplica regras puras (`finance/src/vigia.ts`) e grava no outbox:
 
-| Evento                        | Regra                                                    |
-| ----------------------------- | -------------------------------------------------------- |
-| `finance.fatura.vencendo.v1`  | fatura não paga, com valor a pagar, vence em até 3 dias  |
-| `finance.orcamento.limite.v1` | consumo da categoria em 80% e em 100% do planejado       |
-| `finance.saldo.negativo.v1`   | primeiro dos 3 meses projetados com saldo final negativo |
-| `finance.receita.atrasada.v1` | receita prevista com a data passada (até 31 dias)        |
-| `finance.insight.novo.v1`     | já existia: assinatura nova, reajuste e tarifa nova      |
+| Evento                        | Regra                                                           |
+| ----------------------------- | --------------------------------------------------------------- |
+| `finance.fatura.vencendo.v1`  | fatura não paga, com valor a pagar, vence em até 3 dias         |
+| `finance.orcamento.limite.v1` | consumo da categoria em 80% e em 100% (pulou direto: só o 100%) |
+| `finance.saldo.negativo.v1`   | primeiro dos 3 meses projetados com saldo final negativo        |
+| `finance.receita.atrasada.v1` | receita prevista com a data passada (até 31 dias)               |
+| `finance.insight.novo.v1`     | já existia: assinatura nova, reajuste e tarifa nova             |
 
 **Cada fato é avisado uma vez.** Cada fato tem uma `chave` estável (fatura, mês e
 categoria com o limiar, mês projetado, lançamento com a data).

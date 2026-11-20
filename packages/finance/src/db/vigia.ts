@@ -80,6 +80,11 @@ export async function vigiarUsuario(
       .onConflictDoNothing()
       .returning({ chave: emitted_alerts.chave });
     if (!novo.length) continue;
+    if (f.cobre?.length)
+      await tx
+        .insert(emitted_alerts)
+        .values(f.cobre.map((chave) => ({ user_id: uid, chave, event_name: f.evento })))
+        .onConflictDoNothing();
     await tx.insert(outbox).values({
       id: randomUUID(),
       event_name: f.evento,

@@ -75,12 +75,14 @@ describe("orcamento da categoria em 80% e 100%", () => {
   it("80% avisa uma vez, com chave por mes, categoria e limiar", () => {
     const fatos = validos(limitesDoOrcamento([cat("512.30")], "2026-11"));
     expect(fatos.map((f) => f.chave)).toEqual(["orcamento:2026-11:c1:80"]);
+    expect(fatos[0]?.cobre).toEqual([]);
     expect(fatos[0]?.payload).toMatchObject({ limiar: 80, percentual: 85.4 });
   });
 
-  it("estourado traz os dois limiares, o 100% primeiro", () => {
+  it("estourado de uma vez: so o aviso de 100%, que cobre o de 80%", () => {
     const fatos = validos(limitesDoOrcamento([cat("720.00")], "2026-11"));
-    expect(fatos.map((f) => f.payload.limiar)).toEqual([100, 80]);
+    expect(fatos.map((f) => f.chave)).toEqual(["orcamento:2026-11:c1:100"]);
+    expect(fatos[0]?.cobre).toEqual(["orcamento:2026-11:c1:80"]);
   });
 
   it("receita, categoria sem planejado ou planejado zero nao entram", () => {

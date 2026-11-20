@@ -480,7 +480,9 @@ describe("fluxo projetado, orcamento e metas", () => {
         HOJE,
       ),
     );
-    const metas = await comoA((tx) => listarMetas(tx, A, HOJE, async () => "0"));
+    const metas = await comoA((tx) =>
+      listarMetas(tx, A, HOJE, () => Promise.resolve("0")),
+    );
     expect(metas.find((m) => m.nome === "Viagem")).toMatchObject({
       fonte: "manual",
       valor_atual: "3000.00",

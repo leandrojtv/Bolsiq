@@ -838,6 +838,9 @@ importers:
       '@bolsiq/finance':
         specifier: workspace:*
         version: link:../../packages/finance
+      '@bolsiq/messaging':
+        specifier: workspace:*
+        version: link:../../packages/messaging
       '@bolsiq/portfolio':
         specifier: workspace:*
         version: link:../../packages/portfolio

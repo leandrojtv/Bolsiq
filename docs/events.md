@@ -54,6 +54,12 @@ irrelevante.
 | [`marketdata.asset.listed.v1`](#marketdataassetlistedv1) | `market-data` | `apps/web`, `analytics` |
 | [`marketdata.asset.delisted.v1`](#marketdataassetdelistedv1) | `market-data` | `apps/web`, `analytics`, `portfolio` |
 | [`analytics.indicators.updated.v1`](#analyticsindicatorsupdatedv1) | `analytics` | `alerts` |
+| [`finance.insight.novo.v1`](#financeinsightnovov1) | `finance (portfolio-worker, job finance.insights)` | `alerts` |
+| [`finance.importacao.confirmada.v1`](#financeimportacaoconfirmadav1) | `finance (apps/web)` | `nenhum ainda (auditoria)` |
+| [`finance.fatura.vencendo.v1`](#financefaturavencendov1) | `finance (portfolio-worker, job finance.vigia)` | `alerts` |
+| [`finance.orcamento.limite.v1`](#financeorcamentolimitev1) | `finance (portfolio-worker, job finance.vigia)` | `alerts` |
+| [`finance.saldo.negativo.v1`](#financesaldonegativov1) | `finance (portfolio-worker, job finance.vigia)` | `alerts` |
+| [`finance.receita.atrasada.v1`](#financereceitaatrasadav1) | `finance (portfolio-worker, job finance.vigia)` | `alerts` |
 
 ## marketdata.quote.updated.v1
 
@@ -334,6 +340,258 @@ Indicadores de um ativo foram recalculados. Alimenta os alertas fundamentalistas
     "dy_12m": 0.0989,
     "pl": 13.38,
     "pvp": 1.35
+  }
+}
+```
+
+## finance.insight.novo.v1
+
+Assinatura nova, reajuste de assinatura ou tarifa nova detectados no recalculo dos insights do mes corrente. Um evento por fato.
+
+- **Subject:** `finance.insight.novo.v1`
+- **Produtor:** `finance (portfolio-worker, job finance.insights)`
+- **Consumidores:** `alerts`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `user_id` | string | sim |
+| `chave` | string | sim |
+| `insight_id` | string | sim |
+| `motivo` | `assinatura_nova` \| `reajuste` \| `tarifa_nova` | sim |
+| `tipo` | string | sim |
+| `titulo` | string | sim |
+| `descricao` | string | sim |
+| `impacto_mensal` | string decimal | sim |
+| `impacto_anual` | ? | sim |
+| `periodo` | string | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "finance.insight.novo.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "finance (portfolio-worker, job finance.insights)",
+  "payload": {
+    "user_id": "user-123",
+    "chave": "assinatura_nova:assinatura:netflix",
+    "insight_id": "assinatura:netflix",
+    "motivo": "assinatura_nova",
+    "tipo": "assinatura",
+    "titulo": "Assinatura: NETFLIX",
+    "descricao": "R$ 44,90 por mes desde outubro.",
+    "impacto_mensal": "44.90",
+    "impacto_anual": "538.80",
+    "periodo": "2026-11"
+  }
+}
+```
+
+## finance.importacao.confirmada.v1
+
+Importacao de extrato (OFX, CSV) confirmada pelo usuario: lancamentos gravados e conciliados.
+
+- **Subject:** `finance.importacao.confirmada.v1`
+- **Produtor:** `finance (apps/web)`
+- **Consumidores:** `nenhum ainda (auditoria)`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `import_id` | string | sim |
+| `user_id` | string | sim |
+| `alvo` | string | sim |
+| `account_id` | string | sim |
+| `card_id` | string | sim |
+| `statement_id` | string | sim |
+| `inicio` | string (YYYY-MM-DD) | sim |
+| `fim` | ? | sim |
+| `lancamentos` | integer | sim |
+| `conciliados` | ? | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "finance.importacao.confirmada.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "finance (apps/web)",
+  "payload": {
+    "import_id": "8f7c1a52-1f0e-4f3b-9c55-0e2d0b7a1c11",
+    "user_id": "user-123",
+    "alvo": "conta",
+    "account_id": "c0ffee00-0000-4000-8000-000000000001",
+    "card_id": null,
+    "statement_id": null,
+    "inicio": "2026-10-01",
+    "fim": "2026-10-31",
+    "lancamentos": 42,
+    "conciliados": 3
+  }
+}
+```
+
+## finance.fatura.vencendo.v1
+
+Fatura de cartao vence em ate 3 dias e ainda tem valor a pagar. Um evento por fatura.
+
+- **Subject:** `finance.fatura.vencendo.v1`
+- **Produtor:** `finance (portfolio-worker, job finance.vigia)`
+- **Consumidores:** `alerts`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `user_id` | string | sim |
+| `chave` | string | sim |
+| `statement_id` | string | sim |
+| `card_id` | string | sim |
+| `cartao` | string | sim |
+| `vencimento` | string (YYYY-MM-DD) | sim |
+| `valor` | string decimal | sim |
+| `dias` | integer | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "finance.fatura.vencendo.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "finance (portfolio-worker, job finance.vigia)",
+  "payload": {
+    "user_id": "user-123",
+    "chave": "fatura_vencendo:5b1e0f4e-2a8c-4d7e-9f00-1c2d3e4f5a6b",
+    "statement_id": "5b1e0f4e-2a8c-4d7e-9f00-1c2d3e4f5a6b",
+    "card_id": "c0ffee00-0000-4000-8000-000000000002",
+    "cartao": "Nubank",
+    "vencimento": "2026-11-23",
+    "valor": "1830.45",
+    "dias": 3
+  }
+}
+```
+
+## finance.orcamento.limite.v1
+
+Consumo de uma categoria (realizado + previsto) chegou a 80% ou a 100% do planejado no mes. Um evento por categoria, mes e limiar.
+
+- **Subject:** `finance.orcamento.limite.v1`
+- **Produtor:** `finance (portfolio-worker, job finance.vigia)`
+- **Consumidores:** `alerts`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `user_id` | string | sim |
+| `chave` | string | sim |
+| `mes` | string | sim |
+| `category_id` | string | sim |
+| `categoria` | string | sim |
+| `limiar` | number ou number | sim |
+| `planejado` | string decimal | sim |
+| `consumo` | ? | sim |
+| `percentual` | number | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "finance.orcamento.limite.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "finance (portfolio-worker, job finance.vigia)",
+  "payload": {
+    "user_id": "user-123",
+    "chave": "orcamento:2026-11:c0ffee00-0000-4000-8000-000000000003:80",
+    "mes": "2026-11",
+    "category_id": "c0ffee00-0000-4000-8000-000000000003",
+    "categoria": "Restaurantes e delivery",
+    "limiar": 80,
+    "planejado": "600.00",
+    "consumo": "512.30",
+    "percentual": 85.4
+  }
+}
+```
+
+## finance.saldo.negativo.v1
+
+O fluxo projetado mostra um mes com saldo final negativo nas contas. Um evento por mes projetado.
+
+- **Subject:** `finance.saldo.negativo.v1`
+- **Produtor:** `finance (portfolio-worker, job finance.vigia)`
+- **Consumidores:** `alerts`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `user_id` | string | sim |
+| `chave` | string | sim |
+| `mes` | string | sim |
+| `saldo_final` | string decimal | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "finance.saldo.negativo.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "finance (portfolio-worker, job finance.vigia)",
+  "payload": {
+    "user_id": "user-123",
+    "chave": "saldo_negativo:2026-12",
+    "mes": "2026-12",
+    "saldo_final": "-420.10"
+  }
+}
+```
+
+## finance.receita.atrasada.v1
+
+Receita prevista (salario, por exemplo) passou da data sem ser realizada. Um evento por lancamento previsto e data.
+
+- **Subject:** `finance.receita.atrasada.v1`
+- **Produtor:** `finance (portfolio-worker, job finance.vigia)`
+- **Consumidores:** `alerts`
+
+### Payload
+
+| Campo | Tipo | Obrigatório |
+| --- | --- | --- |
+| `user_id` | string | sim |
+| `chave` | string | sim |
+| `transaction_id` | string | sim |
+| `descricao` | string | sim |
+| `valor` | string decimal | sim |
+| `data` | string (YYYY-MM-DD) | sim |
+| `dias_de_atraso` | integer | sim |
+
+### Exemplo
+
+```json
+{
+  "id": "0193a1f0-4f7c-7000-8000-000000000001",
+  "name": "finance.receita.atrasada.v1",
+  "occurred_at": "2026-10-31T21:05:00.000Z",
+  "producer": "finance (portfolio-worker, job finance.vigia)",
+  "payload": {
+    "user_id": "user-123",
+    "chave": "receita_atrasada:c0ffee00-0000-4000-8000-000000000004:2026-11-05",
+    "transaction_id": "c0ffee00-0000-4000-8000-000000000004",
+    "descricao": "Salario",
+    "valor": "6000.00",
+    "data": "2026-11-05",
+    "dias_de_atraso": 2
   }
 }
 ```

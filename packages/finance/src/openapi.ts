@@ -18,6 +18,7 @@ import {
   Vazio,
 } from "./contratos.js";
 import { z } from "zod";
+import { PainelGeral } from "./patrimonio.js";
 import {
   AnaliseDeImportacao,
   Cartao,
@@ -188,6 +189,14 @@ export const ROTAS_DE_FINANCAS: RouteSpec[] = [
     tags,
     params: ParametroId,
     response: Vazio,
+  },
+  {
+    method: "get",
+    path: "/api/financas/painel-geral",
+    summary:
+      "Painel geral (ADR 0037): patrimonio liquido com as carteiras, evolucao mensal, mes atual, capacidade de aporte e metas",
+    tags,
+    response: RespostaDe(PainelGeral),
   },
   {
     method: "get",

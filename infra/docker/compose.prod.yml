@@ -185,6 +185,9 @@ services:
       FINANCE_ROTINA_CRON: ${FINANCE_ROTINA_CRON:-10 3 * * *}
       FINANCE_INSIGHTS_CRON: ${FINANCE_INSIGHTS_CRON:-40 3 * * *}
       ASSISTANT_REPORT_CRON: ${ASSISTANT_REPORT_CRON:-0 8 1 * *}
+      NATS_URL: nats://nats:4222
+      FINANCE_VIGIA_CRON: ${FINANCE_VIGIA_CRON:-5 * * * *}
+      NET_WORTH_SNAPSHOT_CRON: ${NET_WORTH_SNAPSHOT_CRON:-30 6 1 * *}
       RECALCULO_MS: ${RECALCULO_MS:-2000}
       ASSISTANT_MASTER_KEY: ${ASSISTANT_MASTER_KEY:?}
       ASSISTANT_OLLAMA_URL: ${ASSISTANT_OLLAMA_URL:-http://host.docker.internal:11434}
@@ -198,6 +201,7 @@ services:
       ASSISTANT_IMPORT_CONFIRM_USD: ${ASSISTANT_IMPORT_CONFIRM_USD:-0.50}
     depends_on:
       market-data: { condition: service_healthy }
+      nats: { condition: service_healthy }
     networks: [interna]
 
   # --- web (Next.js + BFF) --------------------------------------------------------

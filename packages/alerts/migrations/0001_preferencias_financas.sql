@@ -1,0 +1,1 @@
+ALTER TABLE "alerts"."user_prefs" ADD COLUMN "financas" jsonb DEFAULT '{}'::jsonb NOT NULL;

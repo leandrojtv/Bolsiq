@@ -11,3 +11,4 @@ export * from "./snapshot.js";
 export * from "./db/sessao.js";
 export * from "./db/carga.js";
 export * as schema from "./db/schema.js";
+export * from "./patrimonio.js";

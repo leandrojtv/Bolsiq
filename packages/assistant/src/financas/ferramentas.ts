@@ -55,6 +55,31 @@ export function mesesAnteriores(hoje: string, n: number): string[] {
   return Array.from({ length: n }, (_, k) => somarMeses(atual, k - n).slice(0, 7));
 }
 
+/**
+ * `capacidade_aporte` fora do modelo: a mesma conta que a ferramenta faz, para
+ * o Painel geral mostrar sem chamar a IA (ADR 0037).
+ */
+export async function capacidadeDoUsuario(fontes: FontesFinanceiras, hoje: string) {
+  const meses = mesesAnteriores(hoje, 3);
+  const de = `${meses[0]}-01`;
+  const ate = intervaloDoMes(meses.at(-1) as string).ate;
+  const [l, p, f] = await Promise.all([
+    fontes.lancamentos(de, ate),
+    fontes.parcelas(),
+    fontes.fluxo(1),
+  ]);
+  return {
+    ...capacidadeDeAporte({
+      meses,
+      lancamentos: l.dados,
+      parcelas_futuras: p.dados.por_mes,
+      saldo_em_conta: f.dados.saldo_inicial,
+    }),
+    link: "/financas/fluxo",
+    proveniencia: l.proveniencia,
+  };
+}
+
 const SEM_PERIODO = {
   erro: "periodo_invalido",
   mensagem: `Informe um período de até ${MAX_DIAS_DO_PERIODO} dias, com o início antes do fim.`,
@@ -290,27 +315,7 @@ export function criarFerramentasFinanceiras(
       description:
         "Quanto dá para investir por mês: sobra média dos 3 meses completos anteriores, menos o aumento das parcelas que vêm e a parte que completa a reserva de emergência (6 meses de essenciais). O valor serve de entrada para sugerir_aporte.",
       inputSchema: z.object({}),
-      execute: () =>
-        seguro(async () => {
-          const meses = mesesAnteriores(hoje, 3);
-          const de = `${meses[0]}-01`;
-          const ate = intervaloDoMes(meses.at(-1) as string).ate;
-          const [l, p, f] = await Promise.all([
-            fontes.lancamentos(de, ate),
-            fontes.parcelas(),
-            fontes.fluxo(1),
-          ]);
-          return {
-            ...capacidadeDeAporte({
-              meses,
-              lancamentos: l.dados,
-              parcelas_futuras: p.dados.por_mes,
-              saldo_em_conta: f.dados.saldo_inicial,
-            }),
-            link: "/financas/fluxo",
-            proveniencia: l.proveniencia,
-          };
-        }),
+      execute: () => seguro(() => capacidadeDoUsuario(fontes, hoje)),
     }),
   } satisfies ToolSet & Record<NomeDaFerramentaFinanceira, unknown>;
 }

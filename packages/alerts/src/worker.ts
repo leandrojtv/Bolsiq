@@ -1,7 +1,9 @@
 import type { Db } from "@bolsiq/db-core";
 import {
   STREAM_ANALYTICS,
+  STREAM_FINANCE,
   STREAM_MARKETDATA,
+  SUBJECT_FINANCE,
   type EventEnvelope,
 } from "@bolsiq/contracts";
 import { assinar, type Assinatura, type Messaging, type Tx } from "@bolsiq/messaging";
@@ -21,6 +23,7 @@ import {
   registrarDisparos,
 } from "./repositorio.js";
 import type { Canal } from "./regras.js";
+import { avisoDoEvento, registrarAvisoFinanceiro } from "./financas.js";
 import type { CanalDeEnvio } from "./canais/canal.js";
 
 export interface OpcoesDoWorker {
@@ -168,6 +171,12 @@ export async function iniciarWorkerDeAlertas(
         }
         break;
       }
+      default: {
+        // Bolsiq Financas (ADR 0037): o evento ja e o fato; sem regra no indice.
+        const aviso = avisoDoEvento(evento.name, p);
+        if (aviso) await registrarAvisoFinanceiro(tx, aviso, agora);
+        break;
+      }
     }
   };
 
@@ -196,6 +205,17 @@ export async function iniciarWorkerDeAlertas(
       db: o.db,
       consumidor: "alerts-analytics",
       stream: STREAM_ANALYTICS,
+      desde: "novas",
+      tabelas,
+      manipular,
+      aoFalhar,
+    }),
+    await assinar({
+      messaging: o.messaging,
+      db: o.db,
+      consumidor: "alerts-finance",
+      stream: STREAM_FINANCE,
+      filtro: SUBJECT_FINANCE,
       desde: "novas",
       tabelas,
       manipular,

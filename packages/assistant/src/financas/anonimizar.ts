@@ -2,9 +2,10 @@
  * Nome de pessoa em descricao de PIX e transferencia nao vai ao provedor.
  *
  * So mexe na descricao que tem marca de transferencia (PIX, TED, DOC, TEF,
- * TRANSF...). Ali, o que nao e palavra do banco, numero ou empresa (LTDA, S/A,
- * ME, EIRELI) vira "[pessoa]". Erra para o lado da privacidade: PIX para uma loja
- * sem sufixo de empresa tambem perde o nome.
+ * TRANSF...). Ali, o que nao e palavra do banco, numero ou sufixo de empresa
+ * (LTDA, S/A, EPP, CIA) vira "[pessoa]", inclusive o nome da empresa: "PIX MARIA
+ * SOUZA PADARIA LTDA" tem nome de pessoa junto. MEI, ME e EIRELI costumam levar o
+ * nome do titular e tambem viram "[pessoa]". Erra para o lado da privacidade.
  */
 
 const MARCA = /\b(PIX|TED|DOC|TEF|TRANSF\w*|TRANSFER\w*)\b/i;
@@ -66,7 +67,8 @@ const DO_BANCO = new Set([
   "INSTITUICAO",
 ]);
 
-const EMPRESA = /\b(LTDA|S\/?A|ME|EPP|EIRELI|MEI|CIA|COMERCIO|SERVICOS|BANCO)\b/i;
+/** Sufixos de empresa que ficam (nao identificam pessoa). */
+const SUFIXO_DE_EMPRESA = new Set(["LTDA", "SA", "EPP", "CIA"]);
 const CPF = /(?<![\d*])[\d*]{3}\.?[\d*]{3}\.?[\d*]{3}-?[\d*]{2}(?![\d*])/g;
 
 const semAcento = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toUpperCase();
@@ -74,13 +76,17 @@ const semAcento = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toUpp
 export function anonimizarDescricao(descricao: string): string {
   if (!MARCA.test(descricao)) return descricao;
   const semCpf = descricao.replace(CPF, "[documento]");
-  if (EMPRESA.test(semAcento(semCpf))) return semCpf;
   const palavras = semCpf
     .split(/\s+/)
     .filter(Boolean)
     .map((parte) => {
       const p = semAcento(parte).replace(/[^A-Z0-9[\]]/g, "");
-      const fica = p === "" || /\d/.test(p) || p.startsWith("[") || DO_BANCO.has(p);
+      const fica =
+        p === "" ||
+        /\d/.test(p) ||
+        p.startsWith("[") ||
+        DO_BANCO.has(p) ||
+        SUFIXO_DE_EMPRESA.has(p);
       return fica ? parte : "[pessoa]";
     });
   // "JOAO DA SILVA" vira um marcador so.

@@ -25,6 +25,7 @@ describe("criarAuth", () => {
     expect(o.emailAndPassword?.minPasswordLength).toBe(10);
     expect(o.plugins?.map((p) => p.id)).toContain("two-factor");
     expect(o.rateLimit?.customRules?.["/sign-in/email"]).toEqual({ window: 60, max: 7 });
+    expect(o.rateLimit?.customRules?.["/get-session"]).toBe(false);
     expect(o.socialProviders).toBeUndefined();
   });
 

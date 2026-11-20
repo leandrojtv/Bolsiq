@@ -104,21 +104,21 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 
 ## Variáveis
 
-| Variável                                   | Para quê                                 |
-| ------------------------------------------ | ---------------------------------------- |
-| `MARKET_DATA_URL`                          | base do `/v1`; com o Kong, o gateway     |
-| `MARKET_DATA_API_KEY`                      | chave interna do BFF; nunca no navegador |
-| `DATABASE_URL`                             | schemas `analytics` e `alerts`           |
-| `NATS_URL`                                 | sino: assinatura de `alerts.inapp.*`     |
-| `VAPID_PUBLIC_KEY`                         | Web Push; vazio deixa Push indisponível  |
-| `FEATURE_TELEGRAM`                         | mostra o canal Telegram (`true`)         |
-| `APP_URL`                                  | base dos links de e-mail e do Google     |
-| `BETTER_AUTH_SECRET`                       | assina sessão; obrigatório em produção   |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some           |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)        |
-| `SMTP_USER`, `SMTP_PASSWORD`               | login SMTP; vazio envia sem autenticação |
-| `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto    |
-| `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)   |
+| Variável                                   | Para quê                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| `MARKET_DATA_URL`                          | base do `/v1`; com o Kong, o gateway                                            |
+| `MARKET_DATA_API_KEY`                      | chave interna do BFF; nunca no navegador                                        |
+| `DATABASE_URL`                             | schemas `analytics` e `alerts`                                                  |
+| `NATS_URL`                                 | sino: assinatura de `alerts.inapp.*`                                            |
+| `VAPID_PUBLIC_KEY`                         | Web Push; vazio deixa Push indisponível                                         |
+| `FEATURE_TELEGRAM`                         | mostra o canal Telegram (`true`)                                                |
+| `APP_URL`                                  | base dos links de e-mail e do Google                                            |
+| `BETTER_AUTH_SECRET`                       | assina sessão; obrigatório em produção                                          |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some                                                  |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)                                               |
+| `SMTP_USER`, `SMTP_PASSWORD`               | login SMTP; vazio envia sem autenticação                                        |
+| `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto; `get-session` fica fora do limite global |
+| `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)                                          |
 
 ## Testes
 

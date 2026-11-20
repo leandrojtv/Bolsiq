@@ -36,5 +36,7 @@ test("Bolsiq Finanças: compra em 3x aparece nas 3 faturas", async ({ page }) =>
   await page.goto("/financas/cartoes");
   await page.getByRole("button", { name: "Ver todas as faturas" }).click();
   const faturas = page.getByRole("table", { name: "Faturas de Roxinho" });
-  await expect(faturas.getByRole("row").filter({ hasText: "R$ 1.000,00" })).toHaveCount(3);
+  await expect(faturas.getByRole("row").filter({ hasText: "R$ 1.000,00" })).toHaveCount(
+    3,
+  );
 });

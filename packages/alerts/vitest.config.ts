@@ -17,6 +17,7 @@ export default defineConfig({
         // integracao com Postgres e NATS reais.
         "src/db/**",
         "src/repositorio.ts",
+        "src/financas.ts",
         "src/worker.ts",
         "src/canais/email.ts",
       ],

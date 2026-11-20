@@ -342,6 +342,10 @@ separada de `SELECT` e `INSERT`. Nem a aplicacao reescreve auditoria.
 - Tambem consome a fila `assistant.importacao`: a importacao com IA em segundo
   plano, com OCR e leitura de PDF na imagem dele ([importacao-ia.md](importacao-ia.md),
   ADR 0027).
+- Roda os jobs do Painel geral e dos alertas do Finanças (ADR 0037): foto mensal do
+  patrimônio (`finance.patrimonio_mensal`, `NET_WORTH_SNAPSHOT_CRON`) e vigia
+  (`finance.vigia`, `FINANCE_VIGIA_CRON`), e publica o outbox do finance no NATS
+  (`NATS_URL`). O valor das carteiras vem de `patrimonioDasCarteiras`, neste pacote.
 
 ## LGPD
 

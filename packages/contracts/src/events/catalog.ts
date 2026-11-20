@@ -95,8 +95,85 @@ export const IndicatorsUpdatedV1 = z.object({
   pvp: z.number().nullable(),
 });
 
+// Bolsiq Financas (ADR 0037). Todo evento traz o `user_id` e uma `chave`
+// estavel do fato: e o que deixa o consumidor gravar o aviso uma vez so.
+
+const UsuarioEChave = {
+  user_id: z.string().min(1),
+  /** Identidade do fato, estavel entre recalculos. */
+  chave: z.string().min(1),
+};
+
+export const FinanceInsightNovoV1 = z.object({
+  ...UsuarioEChave,
+  insight_id: z.string().min(1),
+  motivo: z.enum(["assinatura_nova", "reajuste", "tarifa_nova"]),
+  tipo: z.string().min(1),
+  titulo: z.string().min(1),
+  descricao: z.string(),
+  impacto_mensal: Money,
+  impacto_anual: Money,
+  /** Mes dos insights, `YYYY-MM`. */
+  periodo: z.string().regex(/^\d{4}-\d{2}$/),
+});
+
+export const FinanceImportacaoConfirmadaV1 = z.object({
+  import_id: z.string().min(1),
+  user_id: z.string().min(1),
+  alvo: z.string().min(1),
+  account_id: z.string().nullable(),
+  card_id: z.string().nullable(),
+  statement_id: z.string().nullable(),
+  inicio: IsoDate.nullable(),
+  fim: IsoDate.nullable(),
+  lancamentos: Count,
+  conciliados: Count,
+});
+
+export const FinanceFaturaVencendoV1 = z.object({
+  ...UsuarioEChave,
+  statement_id: z.string().min(1),
+  card_id: z.string().min(1),
+  cartao: z.string().min(1),
+  vencimento: IsoDate,
+  /** Compras menos estornos e pagamentos ja feitos. */
+  valor: Money,
+  dias: z.number().int().nonnegative(),
+});
+
+export const FinanceOrcamentoLimiteV1 = z.object({
+  ...UsuarioEChave,
+  /** Mes do orcamento, `YYYY-MM`. */
+  mes: z.string().regex(/^\d{4}-\d{2}$/),
+  category_id: z.string().min(1),
+  categoria: z.string().min(1),
+  /** 80 ou 100: o limiar cruzado. */
+  limiar: z.union([z.literal(80), z.literal(100)]),
+  planejado: Money,
+  consumo: Money,
+  percentual: z.number(),
+});
+
+export const FinanceSaldoNegativoV1 = z.object({
+  ...UsuarioEChave,
+  /** Primeiro mes projetado com saldo final negativo, `YYYY-MM`. */
+  mes: z.string().regex(/^\d{4}-\d{2}$/),
+  saldo_final: Money,
+});
+
+export const FinanceReceitaAtrasadaV1 = z.object({
+  ...UsuarioEChave,
+  transaction_id: z.string().min(1),
+  descricao: z.string().min(1),
+  valor: Money,
+  /** Data prevista que passou sem a receita virar realizada. */
+  data: IsoDate,
+  dias_de_atraso: z.number().int().positive(),
+});
+
 // ---------------------------------------------------------------------------
 // Catálogo
+
 // ---------------------------------------------------------------------------
 
 export const eventos = {
@@ -210,6 +287,114 @@ export const eventos = {
       pvp: 1.35,
     },
   },
+  "finance.insight.novo.v1": {
+    name: "finance.insight.novo.v1",
+    description:
+      "Assinatura nova, reajuste de assinatura ou tarifa nova detectados no recalculo dos insights do mes corrente. Um evento por fato.",
+    producer: "finance (portfolio-worker, job finance.insights)",
+    consumers: ["alerts"],
+    payload: FinanceInsightNovoV1,
+    example: {
+      user_id: "user-123",
+      chave: "assinatura_nova:assinatura:netflix",
+      insight_id: "assinatura:netflix",
+      motivo: "assinatura_nova",
+      tipo: "assinatura",
+      titulo: "Assinatura: NETFLIX",
+      descricao: "R$ 44,90 por mes desde outubro.",
+      impacto_mensal: "44.90",
+      impacto_anual: "538.80",
+      periodo: "2026-11",
+    },
+  },
+  "finance.importacao.confirmada.v1": {
+    name: "finance.importacao.confirmada.v1",
+    description:
+      "Importacao de extrato (OFX, CSV) confirmada pelo usuario: lancamentos gravados e conciliados.",
+    producer: "finance (apps/web)",
+    consumers: ["nenhum ainda (auditoria)"],
+    payload: FinanceImportacaoConfirmadaV1,
+    example: {
+      import_id: "8f7c1a52-1f0e-4f3b-9c55-0e2d0b7a1c11",
+      user_id: "user-123",
+      alvo: "conta",
+      account_id: "c0ffee00-0000-4000-8000-000000000001",
+      card_id: null,
+      statement_id: null,
+      inicio: "2026-10-01",
+      fim: "2026-10-31",
+      lancamentos: 42,
+      conciliados: 3,
+    },
+  },
+  "finance.fatura.vencendo.v1": {
+    name: "finance.fatura.vencendo.v1",
+    description:
+      "Fatura de cartao vence em ate 3 dias e ainda tem valor a pagar. Um evento por fatura.",
+    producer: "finance (portfolio-worker, job finance.vigia)",
+    consumers: ["alerts"],
+    payload: FinanceFaturaVencendoV1,
+    example: {
+      user_id: "user-123",
+      chave: "fatura_vencendo:5b1e0f4e-2a8c-4d7e-9f00-1c2d3e4f5a6b",
+      statement_id: "5b1e0f4e-2a8c-4d7e-9f00-1c2d3e4f5a6b",
+      card_id: "c0ffee00-0000-4000-8000-000000000002",
+      cartao: "Nubank",
+      vencimento: "2026-11-23",
+      valor: "1830.45",
+      dias: 3,
+    },
+  },
+  "finance.orcamento.limite.v1": {
+    name: "finance.orcamento.limite.v1",
+    description:
+      "Consumo de uma categoria (realizado + previsto) chegou a 80% ou a 100% do planejado no mes. Um evento por categoria, mes e limiar.",
+    producer: "finance (portfolio-worker, job finance.vigia)",
+    consumers: ["alerts"],
+    payload: FinanceOrcamentoLimiteV1,
+    example: {
+      user_id: "user-123",
+      chave: "orcamento:2026-11:c0ffee00-0000-4000-8000-000000000003:80",
+      mes: "2026-11",
+      category_id: "c0ffee00-0000-4000-8000-000000000003",
+      categoria: "Restaurantes e delivery",
+      limiar: 80,
+      planejado: "600.00",
+      consumo: "512.30",
+      percentual: 85.4,
+    },
+  },
+  "finance.saldo.negativo.v1": {
+    name: "finance.saldo.negativo.v1",
+    description:
+      "O fluxo projetado mostra um mes com saldo final negativo nas contas. Um evento por mes projetado.",
+    producer: "finance (portfolio-worker, job finance.vigia)",
+    consumers: ["alerts"],
+    payload: FinanceSaldoNegativoV1,
+    example: {
+      user_id: "user-123",
+      chave: "saldo_negativo:2026-12",
+      mes: "2026-12",
+      saldo_final: "-420.10",
+    },
+  },
+  "finance.receita.atrasada.v1": {
+    name: "finance.receita.atrasada.v1",
+    description:
+      "Receita prevista (salario, por exemplo) passou da data sem ser realizada. Um evento por lancamento previsto e data.",
+    producer: "finance (portfolio-worker, job finance.vigia)",
+    consumers: ["alerts"],
+    payload: FinanceReceitaAtrasadaV1,
+    example: {
+      user_id: "user-123",
+      chave: "receita_atrasada:c0ffee00-0000-4000-8000-000000000004:2026-11-05",
+      transaction_id: "c0ffee00-0000-4000-8000-000000000004",
+      descricao: "Salario",
+      valor: "6000.00",
+      data: "2026-11-05",
+      dias_de_atraso: 2,
+    },
+  },
 } as const satisfies Record<string, EventDefinition>;
 
 export type EventName = keyof typeof eventos;
@@ -225,6 +410,9 @@ export const SUBJECT_MARKETDATA = "marketdata.>";
 export const STREAM_ANALYTICS = "ANALYTICS";
 export const SUBJECT_ANALYTICS = "analytics.>";
 
+export const STREAM_FINANCE = "FINANCE";
+export const SUBJECT_FINANCE = "finance.>";
+
 /**
  * Stream de cada dominio, pelo prefixo do nome do evento.
  *
@@ -234,7 +422,20 @@ export const SUBJECT_ANALYTICS = "analytics.>";
  */
 export const streams = {
   marketdata: { name: STREAM_MARKETDATA, subject: SUBJECT_MARKETDATA },
-  analytics: { name: STREAM_ANALYTICS, subject: SUBJECT_ANALYTICS },
+  // Indicadores mudam por trimestre: poucos MB por mes. 1 GB de teto libera a
+  // reserva do JetStream para o FINANCE dentro do `max_file_store` (nats.conf).
+  analytics: {
+    name: STREAM_ANALYTICS,
+    subject: SUBJECT_ANALYTICS,
+    max_bytes: 1024 * 1024 * 1024,
+  },
+  // Poucos eventos por usuario, consumidos na hora.
+  finance: {
+    name: STREAM_FINANCE,
+    subject: SUBJECT_FINANCE,
+    max_bytes: 1024 * 1024 * 1024,
+    max_msgs: 1_000_000,
+  },
 } as const;
 
 export function streamDoEvento(

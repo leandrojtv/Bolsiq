@@ -105,6 +105,11 @@ export const userPrefs = alerts.table("user_prefs", {
   silencio_fim: text("silencio_fim"),
   fuso: text("fuso").notNull().default("America/Sao_Paulo"),
   telegram_chat_id: text("telegram_chat_id"),
+  /**
+   * Alertas do Bolsiq Financas por tipo (ADR 0037): `{ tipo: { ativo, canais } }`.
+   * Tipo ausente vale o padrao (ligado, so no sino).
+   */
+  financas: jsonb("financas").notNull().default({}),
   atualizado_em: utc("atualizado_em").notNull().defaultNow(),
 });
 

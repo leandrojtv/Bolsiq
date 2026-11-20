@@ -2,17 +2,20 @@ import { randomUUID } from "node:crypto";
 import {
   ContextoDaTela,
   conversar,
-  criarFerramentas,
   criarModelo,
+  ferramentasDoModulo,
   mensagemSegura,
+  moduloDoCaminho,
   montarSistema,
 } from "@bolsiq/assistant";
 import {
   acessoParaConversar,
   encerrarTurno,
   fontesDoUsuario,
+  fontesFinanceirasDoUsuario,
   gravarResposta,
   iniciarTurno,
+  moduloDaConversa,
   modoDeRecomendacao,
   registrarErro,
 } from "@/lib/assistente";
@@ -35,17 +38,26 @@ export async function POST(req: Request) {
   if (!corpo.success) return invalido(corpo.error);
   const contexto = ContextoDaTela.safeParse(corpo.data.contexto ?? {});
 
+  const dadosDaTela = contexto.success ? contexto.data : undefined;
+
   try {
-    const acesso = await acessoParaConversar(u.id);
-    const { conversa, historico } = await iniciarTurno(
+    // O modulo da tela vale para conversa nova; a existente segue com o dela.
+    const daConversa = corpo.data.conversa_id
+      ? await moduloDaConversa(u.id, corpo.data.conversa_id)
+      : null;
+    const acesso = await acessoParaConversar(
+      u.id,
+      daConversa ?? moduloDoCaminho(dadosDaTela?.rota),
+    );
+    const { conversa, modulo, historico } = await iniciarTurno(
       u.id,
       corpo.data.conversa_id,
       corpo.data.texto,
+      daConversa ?? moduloDoCaminho(dadosDaTela?.rota),
     );
     const segredos = acesso.chave ? [acesso.chave] : [];
     const hoje = hojeEmSp();
     const modo = modoDeRecomendacao();
-    const dadosDaTela = contexto.success ? contexto.data : undefined;
 
     let registrado = false;
     const registrar = async (uso: { tokens_entrada: number; tokens_saida: number }) => {
@@ -58,12 +70,12 @@ export async function POST(req: Request) {
 
     const r = conversar({
       modelo: criarModelo(acesso, acesso.modelo),
-      sistema: montarSistema({ modo, contexto: dadosDaTela, hoje }),
+      sistema: montarSistema({ modo, contexto: dadosDaTela, hoje, modulo }),
       mensagens: [...historico, { role: "user", content: corpo.data.texto }],
-      ferramentas: criarFerramentas(fontesDoUsuario(u.id), {
-        hoje,
-        modo,
-        carteiraDaTela: dadosDaTela?.carteira_id,
+      ferramentas: ferramentasDoModulo(modulo, {
+        fontes: fontesDoUsuario(u.id),
+        financas: fontesFinanceirasDoUsuario(u.id),
+        opcoes: { hoje, modo, carteiraDaTela: dadosDaTela?.carteira_id },
       }),
       segredos,
       aoErrar: (m) => {
@@ -80,7 +92,7 @@ export async function POST(req: Request) {
     return r.toUIMessageStreamResponse({
       generateMessageId: randomUUID,
       messageMetadata: ({ part }) =>
-        part.type === "start" ? { conversa_id: conversa } : undefined,
+        part.type === "start" ? { conversa_id: conversa, modulo } : undefined,
       onError: (e) => `Não foi possível responder: ${mensagemSegura(e, segredos)}`,
       onFinish: async ({ responseMessage }) => {
         await gravarResposta(

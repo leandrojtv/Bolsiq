@@ -13,3 +13,5 @@ export * from "./db/parcelamentos.js";
 export * from "./db/metas.js";
 export * from "./db/fluxo.js";
 export * as schema from "./db/schema.js";
+export * from "./db/patrimonio.js";
+export * from "./db/vigia.js";

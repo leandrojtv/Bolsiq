@@ -5,6 +5,7 @@ import {
   baseDoSimulador,
   detalheDoInsight,
   JOB_INSIGHTS,
+  JOB_VIGIA,
   lerConfiguracao,
   listarAssinaturas,
   listarInsights,
@@ -174,14 +175,36 @@ export async function removerCategoria(uid: string, id: string) {
 export const lancamentos = (uid: string, f: FiltroDeLancamentos) =>
   como(uid, (tx) => listarLancamentos(tx, uid, f));
 
+/**
+ * Alertas do financas (ADR 0037): depois de mexer em lancamento, orcamento ou
+ * importacao, o vigia olha o usuario de novo, sem esperar a hora cheia. Um job
+ * por usuario por minuto; falhar aqui nao desfaz a escrita.
+ */
+function vigiar(uid: string) {
+  return enfileirar(
+    JOB_VIGIA,
+    { user_id: uid },
+    { retryLimit: 2, retryDelay: 60 },
+    { singletonKey: uid, singletonSeconds: 60 },
+  ).catch((e: unknown) =>
+    process.stderr.write(
+      `${JSON.stringify({ level: "warn", modulo: "financas", msg: "fila do vigia", erro: String(e) })}\n`,
+    ),
+  );
+}
+
 export async function novoLancamento(uid: string, l: NovoLancamento) {
   const o = await origem();
-  return como(uid, (tx) => criarLancamento(tx, uid, l, o));
+  const r = await como(uid, (tx) => criarLancamento(tx, uid, l, o));
+  await vigiar(uid);
+  return r;
 }
 
 export async function mudarLancamento(uid: string, id: string, e: EdicaoDeLancamento) {
   const o = await origem();
-  return como(uid, (tx) => editarLancamento(tx, uid, id, e, o));
+  const r = await como(uid, (tx) => editarLancamento(tx, uid, id, e, o));
+  await vigiar(uid);
+  return r;
 }
 
 export async function removerLancamento(uid: string, id: string) {
@@ -270,6 +293,7 @@ export async function confirmar(uid: string, id: string) {
       `${JSON.stringify({ level: "warn", modulo: "financas", msg: "fila de insights", erro: String(e) })}\n`,
     ),
   );
+  await vigiar(uid);
   return r;
 }
 

@@ -20,6 +20,9 @@ const ENTRADA_PADRAO: Record<string, Record<string, unknown>> = {
   minha_carteira: {},
   avaliar_carteira: {},
   sugerir_aporte: { valor: 1000 },
+  sugerir_cortes: { meta_mensal: 500 },
+  simular_compra: { valor: 1000 },
+  comparar_meses: { a: "2026-09", b: "2026-10" },
 };
 
 const CARTEIRA_ERRADA = "00000000-0000-4000-8000-000000000000";

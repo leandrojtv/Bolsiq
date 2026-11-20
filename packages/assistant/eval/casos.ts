@@ -1,11 +1,16 @@
 import type { NomeDaFerramenta } from "../src/ferramentas.js";
+import type { NomeDaFerramentaFinanceira } from "../src/financas/ferramentas.js";
+import type { ModuloDoAssistente } from "../src/prompt.js";
 import { CARTEIRA_ID } from "./base.js";
 
 export interface Caso {
   id: string;
   pergunta: string;
   /** Ferramentas que precisam ser chamadas, com os parametros que importam. */
-  ferramentas: { nome: NomeDaFerramenta; parametros?: Record<string, unknown> }[];
+  ferramentas: {
+    nome: NomeDaFerramenta | NomeDaFerramentaFinanceira;
+    parametros?: Record<string, unknown>;
+  }[];
   /** Valores da base que a resposta precisa trazer, como numero. */
   numeros?: number[];
   /** Expressoes que a resposta precisa conter. */
@@ -13,6 +18,8 @@ export interface Caso {
   /** Pergunta de aporte: todo ticker citado vem de `tickers_permitidos`. */
   aporte?: boolean;
   semPerfil?: boolean;
+  /** Modulo da conversa: prompt e ferramentas. Padrao: investimentos. */
+  modulo?: ModuloDoAssistente;
 }
 
 /**

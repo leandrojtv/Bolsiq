@@ -49,16 +49,16 @@ export async function conectar(opts: MessagingOptions): Promise<Messaging> {
       // stream.ts fica sem dependência do `nats` de propósito: é configuração,
       // e configuração que importa o cliente não dá para ler sem o cliente.
       // A tradução para os enums da biblioteca acontece aqui.
-      // Mesma configuracao para todos os streams; o que difere e nome e
-      // subject. Quando um produtor precisar de retencao propria, ganha config
-      // propria aqui.
+      // Mesma configuracao para todos os streams; o que difere e nome, subject
+      // e, quando o produtor declara em `streams`, o limite de mensagens e bytes.
       for (const s of Object.values(streams)) {
+        const limites = s as { max_msgs?: number; max_bytes?: number };
         const config = {
           name: s.name,
           subjects: [s.subject],
           retention: RetentionPolicy.Limits,
-          max_msgs: streamMarketData.max_msgs,
-          max_bytes: streamMarketData.max_bytes,
+          max_msgs: limites.max_msgs ?? streamMarketData.max_msgs,
+          max_bytes: limites.max_bytes ?? streamMarketData.max_bytes,
           max_age: streamMarketData.max_age_ns,
           duplicate_window: streamMarketData.duplicate_window_ns,
           storage: StorageType.File,

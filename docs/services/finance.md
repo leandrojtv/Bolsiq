@@ -135,6 +135,34 @@ insight traz `evidencias` (ids dos lançamentos) e sai ordenado por impacto anua
 - **CDI** do `/v1/macro/cdi` (BCB SGS 12), buscado pelo web; a tela mostra a
   premissa, a data e a fonte.
 
+## Painel geral e alertas
+
+Decisões no [ADR 0037](../adr/0037-painel-geral-e-alertas-financeiros.md).
+
+- **Patrimônio** (`patrimonio.ts`, puro): `comporPatrimonio` soma contas e carteiras e
+  subtrai faturas em aberto e o saldo devedor de empréstimos e financiamentos.
+  `partesDoFinance` dá a parte do finance; a das carteiras vem do `portfolio`
+  (`patrimonioDasCarteiras`), e o BFF junta em `GET /api/financas/painel-geral`.
+- **Foto mensal** em `net_worth_snapshots` (usuário, mês), pelo job
+  `finance.patrimonio_mensal` do `portfolio-worker` no dia 1; idempotente, com os
+  números do portfolio guardados como valor.
+- **Vigia** (`vigia.ts`, regras puras; `db/vigia.ts`): fatura vencendo em 3 dias,
+  orçamento da categoria em 80% e 100%, mês projetado negativo e receita prevista
+  atrasada. Cada fato tem uma `chave`; `emitted_alerts` impede publicar duas vezes.
+  Job `finance.vigia` de hora em hora e depois de lançamento ou importação.
+- **Outbox publicado** no stream `FINANCE` pelo `portfolio-worker`, com dead-letter em
+  `finance.dead_letter`; o `alerts-worker` transforma em aviso.
+  Runbook: [painel-e-alertas-financeiros](../runbooks/painel-e-alertas-financeiros.md).
+
+## Assistente
+
+O "Pergunte ao Bolsiq" aberto em `/financas` usa as ferramentas do Bolsiq Finanças
+(`packages/assistant/src/financas`), que leem deste pacote pela RLS do usuário
+(`fontesFinanceirasDoBanco`): resumo do mês, gastos por categoria, comparação de meses,
+busca de lançamentos, fluxo, parcelas, assinaturas, insights, cortes, compra parcelada e
+capacidade de aporte. O relatório mensal opt-in sai do `portfolio-worker` no dia 1.
+Decisões no [ADR 0036](../adr/0036-agente-financeiro.md).
+
 ## Importação OFX
 
 1. **Envio** (`POST /importacoes/analise`): lê os arquivos sem gravar e sugere o

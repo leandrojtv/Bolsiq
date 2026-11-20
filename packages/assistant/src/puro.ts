@@ -27,3 +27,5 @@ export type {
 } from "./importacao/validacao.js";
 export { POLITICA_DE_PREENCHIMENTO, NUNCA_INVENTAR } from "./importacao/padroes.js";
 export type { Remocoes } from "./importacao/anonimizar.js";
+export { MODULOS_DO_ASSISTENTE, type ModuloDoAssistente } from "./prompt.js";
+export type { LancamentoFinanceiro } from "./financas/tipos.js";

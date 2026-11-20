@@ -11,9 +11,11 @@ import {
   linhaDeOutbox,
   type Messaging,
 } from "@bolsiq/messaging";
-import { alertRules, deliveries, notifications } from "../db/schema.js";
+import { eventos } from "@bolsiq/contracts";
+import { alertRules, deliveries, notifications, userPrefs } from "../db/schema.js";
 import { iniciarWorkerDeAlertas, type WorkerDeAlertas } from "../worker.js";
 import { canalInApp } from "../canais/inapp.js";
+import { avisarNoSino } from "../repositorio.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
 
@@ -237,6 +239,99 @@ describe("worker de alertas", () => {
       .from(notifications)
       .where(and(eq(notifications.user_id, "u1")));
     expect(p?.n).toBeGreaterThan(0);
+  });
+});
+
+describe("aviso do sistema no sino", () => {
+  it("grava notificacao e entrega in-app uma vez por chave", async () => {
+    const aviso = {
+      user_id: "u-relatorio",
+      origem: "assistente.relatorio_mensal",
+      chave: "2026-10",
+      titulo: "Relatório de outubro de 2026",
+      corpo: "Resumo do mês.",
+      dados: { link: "/financas/insights" },
+    };
+    const id = await avisarNoSino(db, aviso);
+    expect(id).toEqual(expect.any(String));
+    expect(await avisarNoSino(db, aviso)).toBeNull();
+    const entregas = await db
+      .select({ canal: deliveries.canal, status: deliveries.status })
+      .from(deliveries)
+      .where(eq(deliveries.notification_id, id as string));
+    expect(entregas).toEqual([{ canal: "inapp", status: "pendente" }]);
+    const [n] = await db
+      .select({ rule_id: notifications.rule_id })
+      .from(notifications)
+      .where(eq(notifications.id, id as string));
+    expect(n?.rule_id).toBe("sistema:assistente.relatorio_mensal");
+  });
+});
+
+describe("alertas do financas (ADR 0037)", () => {
+  const evento = (nome: keyof typeof eventos, extra: Record<string, unknown> = {}) =>
+    envelopeDaLinha(
+      linhaDeOutbox({
+        name: nome,
+        payload: { ...(eventos[nome].example as object), user_id: "u-fin", ...extra },
+        producer: "finance",
+      }),
+    );
+
+  it("avisa pelos canais do tipo, respeita o tipo desligado e nao duplica a chave", async () => {
+    await db.insert(userPrefs).values({
+      user_id: "u-fin",
+      email: "fin@bolsiq.test",
+      canais_habilitados: ["inapp", "email"],
+      financas: {
+        fatura_vencendo: { ativo: true, canais: ["inapp", "email"] },
+        saldo_negativo: { ativo: false, canais: ["inapp"] },
+      },
+    });
+    const w = await iniciar();
+    try {
+      await messaging.publicar(evento("finance.saldo.negativo.v1"));
+      await messaging.publicar(evento("finance.fatura.vencendo.v1"));
+      // Mesmo fato republicado (outro id de envelope): a chave segura.
+      await messaging.publicar(evento("finance.fatura.vencendo.v1"));
+      await messaging.publicar(evento("finance.orcamento.limite.v1"));
+      await esperar(
+        async () => (await notificacoesDa("financas:orcamento_limite")) === 1,
+      );
+      await new Promise((r) => setTimeout(r, 800));
+
+      expect(await notificacoesDa("financas:fatura_vencendo")).toBe(1);
+      expect(await notificacoesDa("financas:saldo_negativo")).toBe(0);
+      const [n] = await db
+        .select()
+        .from(notifications)
+        .where(eq(notifications.rule_id, "financas:fatura_vencendo"));
+      expect(n).toMatchObject({
+        user_id: "u-fin",
+        titulo: "Fatura Nubank vence em 3 dias",
+        dados: {
+          tipo: "fatura_vencendo",
+          link: expect.stringMatching(/^\/financas\/cartoes\//),
+        },
+      });
+      const canais = await db
+        .select({ canal: deliveries.canal })
+        .from(deliveries)
+        .where(eq(deliveries.notification_id, n?.id as string));
+      expect(canais.map((c) => c.canal).sort()).toEqual(["email", "inapp"]);
+      // Orcamento sem preferencia salva: padrao, so o sino.
+      const [o] = await db
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(eq(notifications.rule_id, "financas:orcamento_limite"));
+      const deOrcamento = await db
+        .select({ canal: deliveries.canal })
+        .from(deliveries)
+        .where(eq(deliveries.notification_id, o?.id as string));
+      expect(deOrcamento.map((c) => c.canal)).toEqual(["inapp"]);
+    } finally {
+      await w.parar();
+    }
   });
 });
 

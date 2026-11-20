@@ -70,7 +70,7 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 | `/manifest.webmanifest`, `/icones/*`, `/sw.js`    | PWA                                                          |
 | `/api/assistente/*`                               | assistente: chat, configuração, perfil, conversas, relatório |
 | `/financas/*`, `/api/financas/*`                  | Bolsiq Finanças ([finance.md](finance.md))                   |
-| `/painel`                                         | Painel geral; por enquanto só o estado vazio                 |
+| `/painel`                                         | Painel geral (ADR 0037): patrimônio, mês, aporte e metas     |
 
 ## Página do ativo
 

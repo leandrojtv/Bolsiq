@@ -4,4 +4,8 @@ export * from "./db/sessao.js";
 export * from "./db/operacoes.js";
 export * from "./db/cartoes.js";
 export * from "./db/importacao.js";
+export * from "./db/recorrencias.js";
+export * from "./db/painel.js";
+export * from "./db/planejamento.js";
+export * from "./db/rotina.js";
 export * as schema from "./db/schema.js";

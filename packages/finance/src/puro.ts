@@ -7,3 +7,7 @@ export * from "./categorias-padrao.js";
 export * from "./cartao.js";
 export * from "./contratos-importacao.js";
 export * from "./importacao/index.js";
+export * from "./recorrencia.js";
+export * from "./painel.js";
+export * from "./planejamento.js";
+export * from "./contratos-planejamento.js";

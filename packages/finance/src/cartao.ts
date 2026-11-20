@@ -3,8 +3,8 @@
  * fechamento cai no mesmo mes quando o dia de fechamento e anterior ao de
  * vencimento, senao no mes anterior. Dia 31 num mes de 30 vira o ultimo dia.
  *
- * Compra feita antes do dia do fechamento entra nesta fatura; no dia do
- * fechamento ou depois, na seguinte (o "melhor dia de compra").
+ * Compra feita ate o dia do fechamento (inclusive) entra na fatura do ciclo;
+ * depois do fechamento, na seguinte.
  */
 export interface CicloDoCartao {
   dia_fechamento: number;
@@ -42,11 +42,17 @@ export function faturaDaCompra(c: CicloDoCartao, data: string): Fatura {
   const mes = Number(data.slice(5, 7));
   for (let k = 0; k <= 3; k++) {
     const f = faturaDoMes(c, ano, mes + k);
-    if (data < f.fechamento) return f;
+    if (data <= f.fechamento) return f;
   }
   /* c8 ignore next */
   throw new Error("ciclo de cartao invalido");
 }
+
+/** Primeiro dia do mes do vencimento: a competencia da fatura. */
+export const competenciaDaFatura = (f: Fatura) => `${f.vencimento.slice(0, 7)}-01`;
+
+/** Status pela data: aberta ate o dia do fechamento, fechada depois. Paga vem do banco. */
+export const fechou = (f: Fatura, hoje: string) => hoje > f.fechamento;
 
 /** Faturas de `antes` ciclos atras ate `depois` ciclos a frente da de `hoje`. */
 export function faturasAoRedor(

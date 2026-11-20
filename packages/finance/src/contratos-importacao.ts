@@ -46,6 +46,12 @@ export const NovoCartao = z.object({
       .nullable()
       .optional(),
   ),
+  bandeira: textoOpcional(30),
+  cor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "cor inválida")
+    .nullable()
+    .optional(),
   limite: ValorOpcional,
   dia_fechamento: Dia,
   dia_vencimento: Dia,
@@ -64,6 +70,9 @@ export const ResumoDeFatura = z.object({
   id: Id.nullable(),
   vencimento: Data,
   fechamento: Data,
+  status: z.enum(["aberta", "fechada", "paga"]),
+  /** Total informado pelo banco na importacao. */
+  total_informado: Dinheiro.nullable(),
   /** Compras menos estornos. */
   total: Dinheiro,
   pagamentos: Dinheiro,
@@ -76,13 +85,18 @@ export const Cartao = z.object({
   nome: z.string(),
   instituicao: z.string().nullable(),
   final: z.string().nullable(),
+  bandeira: z.string().nullable(),
+  cor: z.string().nullable(),
   limite: Dinheiro.nullable(),
+  /** Compras ainda nao pagas (todas as faturas). */
+  limite_usado: Dinheiro,
   dia_fechamento: z.number().int(),
   dia_vencimento: z.number().int(),
   account_id: Id.nullable(),
   arquivado: z.boolean(),
   /** A fatura em que entra uma compra feita hoje. */
   fatura_atual: ResumoDeFatura,
+  proxima_fatura: ResumoDeFatura,
 });
 export type Cartao = z.infer<typeof Cartao>;
 

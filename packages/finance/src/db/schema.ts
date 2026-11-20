@@ -105,6 +105,8 @@ export const cards = finance.table(
     instituicao: text("instituicao"),
     /** Ultimos 4 digitos: sugerem o cartao a partir do ACCTID do OFX. */
     final: text("final"),
+    bandeira: text("bandeira"),
+    cor: text("cor"),
     limite: dinheiro("limite"),
     dia_fechamento: integer("dia_fechamento").notNull(),
     dia_vencimento: integer("dia_vencimento").notNull(),
@@ -137,6 +139,14 @@ export const statements = finance.table(
     card_id: text("card_id").notNull(),
     vencimento: dia("vencimento").notNull(),
     fechamento: dia("fechamento").notNull(),
+    /** Primeiro dia do mes do vencimento. */
+    competencia: dia("competencia").notNull(),
+    /** aberta | fechada | paga */
+    status: text("status").notNull().default("aberta"),
+    /** Total que o banco informou (LEDGERBAL da importacao); nulo ate la. */
+    total_informado: dinheiro("total_informado"),
+    /** Lado da conta do pagamento (transferencia), previsto ou realizado. */
+    pagamento_id: text("pagamento_id"),
     criada_em: utc("criada_em").notNull().defaultNow(),
   },
   (t) => [
@@ -151,6 +161,7 @@ export const statements = finance.table(
       foreignColumns: [cards.user_id, cards.id],
     }),
     check("statements_ciclo_ck", sql`${t.fechamento} <= ${t.vencimento}`),
+    check("statements_status_ck", sql`${t.status} in ('aberta', 'fechada', 'paga')`),
   ],
 );
 
@@ -186,6 +197,8 @@ export const transactions = finance.table(
     transferencia_sentido: text("transferencia_sentido"),
     observacao: text("observacao"),
     importacao_id: text("importacao_id"),
+    /** Recorrencia que gerou o previsto. */
+    recurrence_id: text("recurrence_id"),
     /** FITID do OFX: deduplicacao principal, por conta ou cartao. */
     fitid: text("fitid"),
     hash_dedupe: text("hash_dedupe"),
@@ -218,6 +231,10 @@ export const transactions = finance.table(
     index("transactions_card_data_idx").on(t.card_id, t.data),
     index("transactions_statement_idx").on(t.statement_id),
     index("transactions_importacao_idx").on(t.importacao_id),
+    // Idempotencia do job: uma ocorrencia por recorrencia e data.
+    uniqueIndex("transactions_recorrencia_data_uq")
+      .on(t.recurrence_id, t.data)
+      .where(sql`${t.recurrence_id} is not null`),
     uniqueIndex("transactions_account_fitid_uq")
       .on(t.user_id, t.account_id, t.fitid)
       .where(sql`${t.fitid} is not null and ${t.account_id} is not null`),
@@ -249,6 +266,109 @@ export const transactions = finance.table(
     check(
       "transactions_transferencia_ck",
       sql`(${t.tipo} = 'transferencia') = (${t.transferencia_sentido} is not null and ${t.transferencia_par_id} is not null) and (${t.transferencia_sentido} is null or ${t.transferencia_sentido} in ('saida', 'entrada'))`,
+    ),
+  ],
+);
+
+/**
+ * Lancamento recorrente (salario, aluguel, assinatura). O job diario gera os
+ * previstos ate 90 dias a frente.
+ */
+export const recurrences = finance.table(
+  "recurrences",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    /** receita | despesa */
+    tipo: text("tipo").notNull(),
+    descricao: text("descricao").notNull(),
+    valor: dinheiro("valor").notNull(),
+    category_id: text("category_id"),
+    account_id: text("account_id"),
+    card_id: text("card_id"),
+    /** mensal | semanal | anual */
+    frequencia: text("frequencia").notNull(),
+    /** Mensal e anual: dia do mes (1 a 31). Semanal: dia da semana (1 = segunda, 7 = domingo). */
+    dia: integer("dia").notNull(),
+    inicio: dia("inicio").notNull(),
+    /** Nulo: sem fim. */
+    fim: dia("fim"),
+    /** O previsto usa o ultimo valor realizado (conta de luz). */
+    valor_variavel: boolean("valor_variavel").notNull().default(false),
+    ativa: boolean("ativa").notNull().default(true),
+    criada_em: utc("criada_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("recurrences_user_idx").on(t.user_id),
+    unique("recurrences_user_id_uq").on(t.user_id, t.id),
+    foreignKey({
+      name: "recurrences_account_fk",
+      columns: [t.user_id, t.account_id],
+      foreignColumns: [accounts.user_id, accounts.id],
+    }),
+    foreignKey({
+      name: "recurrences_card_fk",
+      columns: [t.user_id, t.card_id],
+      foreignColumns: [cards.user_id, cards.id],
+    }),
+    foreignKey({
+      name: "recurrences_category_fk",
+      columns: [t.user_id, t.category_id],
+      foreignColumns: [categories.user_id, categories.id],
+    }),
+    check("recurrences_tipo_ck", sql`${t.tipo} in ('receita', 'despesa')`),
+    check(
+      "recurrences_frequencia_ck",
+      sql`${t.frequencia} in ('mensal', 'semanal', 'anual')`,
+    ),
+    check(
+      "recurrences_dia_ck",
+      sql`${t.dia} between 1 and (case when ${t.frequencia} = 'semanal' then 7 else 31 end)`,
+    ),
+    check("recurrences_valor_ck", sql`${t.valor} > 0`),
+    check(
+      "recurrences_destino_ck",
+      sql`(${t.account_id} is null) <> (${t.card_id} is null)`,
+    ),
+    check("recurrences_periodo_ck", sql`${t.fim} is null or ${t.fim} >= ${t.inicio}`),
+  ],
+);
+
+/**
+ * Planejamento mensal (orcamento): quanto se pretende receber e gastar por
+ * categoria. Nao cria nem altera lancamento; a tela compara com o realizado.
+ */
+export const budget_items = finance.table(
+  "budget_items",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    /** Primeiro dia do mes planejado. */
+    competencia: dia("competencia").notNull(),
+    category_id: text("category_id").notNull(),
+    descricao: text("descricao"),
+    valor: dinheiro("valor").notNull(),
+    fixo: boolean("fixo").notNull().default(false),
+    /** Item puxado de uma recorrencia: copiar de novo nao duplica. */
+    recurrence_id: text("recurrence_id"),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("budget_items_user_mes_idx").on(t.user_id, t.competencia),
+    // FK composta; a categoria apagada leva o item junto.
+    foreignKey({
+      name: "budget_items_category_fk",
+      columns: [t.user_id, t.category_id],
+      foreignColumns: [categories.user_id, categories.id],
+    }).onDelete("cascade"),
+    // Copiar o mes anterior de novo nao duplica: mesma categoria e descricao.
+    unique("budget_items_mes_item_uq")
+      .on(t.user_id, t.competencia, t.category_id, t.descricao)
+      .nullsNotDistinct(),
+    check("budget_items_valor_ck", sql`${t.valor} >= 0`),
+    check(
+      "budget_items_competencia_ck",
+      sql`${t.competencia} = date_trunc('month', ${t.competencia})::date`,
     ),
   ],
 );

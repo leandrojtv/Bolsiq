@@ -34,7 +34,12 @@ import {
   normalizarDescricao,
   totaisDoMes,
 } from "../dominio.js";
-import { faturaDaCompra, faturaDoMes, type CicloDoCartao } from "../cartao.js";
+import {
+  competenciaDaFatura,
+  faturaDaCompra,
+  faturaDoMes,
+  type CicloDoCartao,
+} from "../cartao.js";
 import type { TransacaoDoUsuario } from "./sessao.js";
 import {
   accounts,
@@ -520,7 +525,13 @@ export async function obterFatura(
   );
   await tx
     .insert(statements)
-    .values({ id: randomUUID(), user_id: uid, card_id: cardId, ...f })
+    .values({
+      id: randomUUID(),
+      user_id: uid,
+      card_id: cardId,
+      ...f,
+      competencia: competenciaDaFatura(f),
+    })
     .onConflictDoNothing();
   const [s] = await tx
     .select({ id: statements.id })

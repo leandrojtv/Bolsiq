@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, Repeat, Trash } from "lucide-react";
+import { Copy, Repeat, Sparkles, Trash } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { NovoItemDoPlanejamento, type Planejamento } from "@bolsiq/finance/puro";
 import { Button, Card, EmptyState, Money, Skeleton, StatTile, cn } from "@bolsiq/ui";
@@ -11,6 +11,8 @@ import {
   apagarItem,
   CHAVE,
   copiarPlanejamento,
+  definirValorDaCategoria,
+  sugerirOrcamento,
   criarItem,
   editarItem,
   puxarRecorrencias,
@@ -124,6 +126,54 @@ function NovoItem({ mes, onSalvo }: { mes: string; onSalvo: (p: Planejamento) =>
   );
 }
 
+const ESTADO = { ok: "ok", atencao: "atenção", estourado: "estourado" } as const;
+
+/** Valor da categoria editavel no lugar: clique, digite, Enter salva, Esc cancela. */
+function ValorInline({
+  valor,
+  rotulo,
+  onSalvar,
+}: {
+  valor: string;
+  rotulo: string;
+  onSalvar: (v: string) => Promise<unknown>;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState("");
+  if (!editando)
+    return (
+      <button
+        type="button"
+        aria-label={`${rotulo}: editar`}
+        className="cursor-pointer border-0 border-b border-dashed border-border-strong bg-transparent p-0 text-text"
+        onClick={() => {
+          setTexto(valor.replace(".", ","));
+          setEditando(true);
+        }}
+      >
+        <Money value={valor} />
+      </button>
+    );
+  return (
+    <input
+      autoFocus
+      aria-label={rotulo}
+      className={cn(CAMPO, "h-8 w-28 py-0 text-right font-mono")}
+      inputMode="decimal"
+      value={texto}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={() => setEditando(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setEditando(false);
+        if (e.key === "Enter") {
+          e.preventDefault();
+          void onSalvar(texto).then(() => setEditando(false));
+        }
+      }}
+    />
+  );
+}
+
 /**
  * Planejamento do mes (orcamento): o que se pretende receber e gastar por
  * categoria, fixo ou variavel, contra o que aconteceu. Nao cria lancamento.
@@ -234,6 +284,23 @@ export function PaginaDePlanejamento() {
           <Repeat aria-hidden="true" size={16} />
           Puxar recorrentes
         </Button>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            void agir(async () => {
+              const r = await sugerirOrcamento(mes);
+              setAviso(
+                r.data.itens > 0
+                  ? `${r.data.itens} categorias sugeridas pela média dos últimos 3 meses.`
+                  : "Nada a sugerir: as categorias com gasto já têm planejamento.",
+              );
+              recarregar();
+            })
+          }
+        >
+          <Sparkles aria-hidden="true" size={16} />
+          Sugerir pela média
+        </Button>
       </div>
       {aviso && (
         <p role="status" className="m-0 text-sm text-text-2">
@@ -286,6 +353,16 @@ export function PaginaDePlanejamento() {
                       <span className="block text-xs text-text-3">
                         {c.natureza === "receita" ? "receita" : "despesa"}
                         {Number(c.fixo) > 0 ? " · tem fixo" : ""}
+                        {c.natureza === "despesa" && c.estado !== "ok" && (
+                          <span
+                            className={cn(
+                              "ml-1.5 font-semibold",
+                              c.estado === "estourado" ? "text-down" : "text-warn",
+                            )}
+                          >
+                            · {ESTADO[c.estado]}
+                          </span>
+                        )}
                       </span>
                       <span className="mt-1 block md:hidden">
                         <span className="text-xs text-text-3">
@@ -301,7 +378,15 @@ export function PaginaDePlanejamento() {
                       </span>
                     </td>
                     <td className="py-2.5 text-right">
-                      <Money value={c.planejado} />
+                      <ValorInline
+                        valor={c.planejado}
+                        rotulo={`Planejado para ${c.nome}`}
+                        onSalvar={(v) =>
+                          agir(async () =>
+                            guardar(await definirValorDaCategoria(mes, c.category_id, v)),
+                          )
+                        }
+                      />
                     </td>
                     <td className="hidden py-2.5 text-right md:table-cell">
                       <Money value={c.realizado} />

@@ -11,3 +11,8 @@ export * from "./recorrencia.js";
 export * from "./painel.js";
 export * from "./planejamento.js";
 export * from "./contratos-planejamento.js";
+export * from "./emprestimo.js";
+export * from "./parcelamento.js";
+export * from "./fluxo.js";
+export * from "./orcamento.js";
+export * from "./contratos-parcelamento.js";

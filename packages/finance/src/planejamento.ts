@@ -1,4 +1,5 @@
 import { d, moeda } from "./decimal.js";
+import { estadoDoOrcamento, type EstadoDoOrcamento } from "./orcamento.js";
 
 /**
  * Planejamento mensal: o que se pretende receber e gastar por categoria,
@@ -26,6 +27,8 @@ export interface CategoriaPlanejada {
   previsto: string;
   /** Planejado menos realizado e previsto: quanto ainda cabe (negativo: estourou). */
   restante: string;
+  consumo: string;
+  estado: EstadoDoOrcamento;
 }
 
 export interface TotaisDoPlanejamento {
@@ -99,6 +102,11 @@ export function compararPlanejamento(
       realizado: moeda(l.realizado),
       previsto: moeda(l.previsto),
       restante: moeda(l.planejado.minus(l.realizado).minus(l.previsto)),
+      consumo: moeda(l.realizado.plus(l.previsto)),
+      estado:
+        cat.natureza === "despesa"
+          ? estadoDoOrcamento(moeda(l.planejado), moeda(l.realizado.plus(l.previsto)))
+          : "ok",
     });
   }
   resultado.sort(

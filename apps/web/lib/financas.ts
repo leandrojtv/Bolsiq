@@ -1,6 +1,29 @@
 import "server-only";
 import { headers } from "next/headers";
 import {
+  amortizar,
+  apagarMeta,
+  apagarPlano,
+  comprometidoPorMes,
+  criarEmprestimo,
+  criarMeta,
+  criarParcelamentoNoCartao,
+  definirValorDaCategoria,
+  detalheDoPlano,
+  editarMeta,
+  fluxoDeCaixa,
+  listarMetas,
+  listarPlanos,
+  quitar,
+  simular,
+  sugerirPelaMedia,
+  type EdicaoDeMeta,
+  type ModoDeAmortizacao,
+  type NovaMeta,
+  type NovoEmprestimo,
+  type NovoParcelamentoNoCartao,
+  type PedidoDeAmortizacao,
+  type ValorDaCarteira,
   apagarItem,
   apagarRecorrencia,
   copiarPlanejamento,
@@ -70,6 +93,7 @@ import {
   type Tx,
 } from "@bolsiq/finance";
 import { banco } from "./analytics";
+import { painel as painelDaCarteira } from "./carteira";
 import { env } from "./env";
 import { hojeEmSp } from "./indicadores-tecnicos";
 
@@ -219,7 +243,7 @@ export async function mudarLinha(
 
 export async function confirmar(uid: string, id: string) {
   const o = await origem();
-  return como(uid, (tx) => confirmarImportacao(tx, uid, id, o));
+  return como(uid, (tx) => confirmarImportacao(tx, uid, id, o, hojeEmSp()));
 }
 
 export async function cancelar(uid: string, id: string) {
@@ -320,4 +344,97 @@ export async function copiarMes(uid: string, de: string, para: string) {
 export async function puxarFixos(uid: string, mes?: string) {
   const o = await origem();
   return como(uid, (tx) => puxarRecorrencias(tx, uid, mesOuHoje(mes), o));
+}
+
+// Parcelamentos e dividas
+
+export const planos = (uid: string) => como(uid, (tx) => listarPlanos(tx, uid));
+export const plano = (uid: string, id: string) =>
+  como(uid, (tx) => detalheDoPlano(tx, uid, id));
+export const comprometido = (uid: string) =>
+  como(uid, (tx) => comprometidoPorMes(tx, uid, hojeEmSp()));
+
+export async function novoParcelamento(uid: string, p: NovoParcelamentoNoCartao) {
+  const o = await origem();
+  return como(uid, (tx) => criarParcelamentoNoCartao(tx, uid, p, hojeEmSp(), o));
+}
+
+export async function novaDivida(uid: string, e: NovoEmprestimo) {
+  const o = await origem();
+  return como(uid, (tx) => criarEmprestimo(tx, uid, e, hojeEmSp(), o));
+}
+
+export const simularDivida = (
+  uid: string,
+  id: string,
+  extra: string,
+  modo: ModoDeAmortizacao,
+) => como(uid, (tx) => simular(tx, uid, id, extra, modo));
+
+export async function amortizarDivida(uid: string, id: string, a: PedidoDeAmortizacao) {
+  const o = await origem();
+  return como(uid, (tx) => amortizar(tx, uid, id, a, hojeEmSp(), o));
+}
+
+export async function quitarPlano(uid: string, id: string, data: string) {
+  const o = await origem();
+  return como(uid, (tx) => quitar(tx, uid, id, data, hojeEmSp(), o));
+}
+
+export async function removerPlano(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarPlano(tx, uid, id, o));
+}
+
+// Fluxo, orcamento e metas
+
+export const fluxo = (uid: string, meses: number) =>
+  como(uid, (tx) => fluxoDeCaixa(tx, uid, hojeEmSp(), meses));
+
+export async function valorDaCategoria(
+  uid: string,
+  mes: string,
+  categoria: string,
+  valor: string,
+) {
+  const o = await origem();
+  return como(uid, (tx) => definirValorDaCategoria(tx, uid, mes, categoria, valor, o));
+}
+
+export async function sugerirOrcamento(uid: string, mes?: string) {
+  const o = await origem();
+  return como(uid, (tx) => sugerirPelaMedia(tx, uid, mesOuHoje(mes), o));
+}
+
+/**
+ * Valor da carteira para a meta: o finance nao le o schema portfolio
+ * (ADR 0031); o web compoe pelo modulo dono. Sem cotacao, a meta cai para o
+ * valor guardado.
+ */
+const carteiraDe =
+  (uid: string): ValorDaCarteira =>
+  async (id) => {
+    try {
+      return (await painelDaCarteira(uid, id)).resumo.patrimonio;
+    } catch {
+      return null;
+    }
+  };
+
+export const metas = (uid: string) =>
+  como(uid, (tx) => listarMetas(tx, uid, hojeEmSp(), carteiraDe(uid)));
+
+export async function novaMeta(uid: string, m: NovaMeta) {
+  const o = await origem();
+  return como(uid, (tx) => criarMeta(tx, uid, m, hojeEmSp(), carteiraDe(uid), o));
+}
+
+export async function mudarMeta(uid: string, id: string, e: EdicaoDeMeta) {
+  const o = await origem();
+  return como(uid, (tx) => editarMeta(tx, uid, id, e, hojeEmSp(), carteiraDe(uid), o));
+}
+
+export async function removerMeta(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarMeta(tx, uid, id, o));
 }

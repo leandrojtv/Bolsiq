@@ -48,6 +48,22 @@ const fin = vi.hoisted(() => ({
   removerItem: vi.fn(),
   copiarMes: vi.fn(),
   puxarFixos: vi.fn(),
+  planos: vi.fn(),
+  plano: vi.fn(),
+  comprometido: vi.fn(),
+  novoParcelamento: vi.fn(),
+  novaDivida: vi.fn(),
+  simularDivida: vi.fn(),
+  amortizarDivida: vi.fn(),
+  quitarPlano: vi.fn(),
+  removerPlano: vi.fn(),
+  fluxo: vi.fn(),
+  valorDaCategoria: vi.fn(),
+  sugerirOrcamento: vi.fn(),
+  metas: vi.fn(),
+  novaMeta: vi.fn(),
+  mudarMeta: vi.fn(),
+  removerMeta: vi.fn(),
   limitesDeImportacao: () => ({ bytes: 1000, linhas: 100, arquivos: 2 }),
 }));
 
@@ -73,6 +89,12 @@ const recorrenciasRota = await import("../app/api/financas/recorrencias/route");
 const painelRota = await import("../app/api/financas/painel/route");
 const planejamentoRota = await import("../app/api/financas/planejamento/route");
 const copiarRota = await import("../app/api/financas/planejamento/copiar/route");
+const parcelamentosRota = await import("../app/api/financas/parcelamentos/route");
+const dividasRota = await import("../app/api/financas/dividas/route");
+const simularRota = await import("../app/api/financas/dividas/[id]/simular/route");
+const fluxoRota = await import("../app/api/financas/fluxo/route");
+const categoriaRota = await import("../app/api/financas/planejamento/categoria/route");
+const metasRota = await import("../app/api/financas/metas/route");
 
 /** Corpo multipart montado a mao: o FormData do jsdom nao serve ao Request do Node. */
 const multipart = (campos: Record<string, string>, arquivos: [string, string][]) => {
@@ -338,6 +360,66 @@ describe("BFF de faturas, recorrencias, painel e planejamento", () => {
     fin.copiarMes.mockResolvedValue(3);
     const copia = await copiarRota.POST(post({ de: "2024-02", para: "2024-03" }));
     expect(await copia.json()).toEqual({ data: { itens: 3 } });
+  });
+});
+
+describe("BFF de parcelamentos, dividas, fluxo, orcamento e metas", () => {
+  const put = (corpo: unknown) =>
+    new Request("http://x/api", { method: "PUT", body: JSON.stringify(corpo) });
+
+  it("parcelamento no cartao exige parcela ou total", async () => {
+    const base = { card_id: "k", descricao: "TV", data: "2024-11-20", n_parcelas: 10 };
+    expect((await parcelamentosRota.POST(post(base))).status).toBe(422);
+    fin.novoParcelamento.mockResolvedValue({ id: "p" });
+    expect(
+      (await parcelamentosRota.POST(post({ ...base, valor_parcela: "120" }))).status,
+    ).toBe(201);
+  });
+
+  it("divida converte a taxa e simula", async () => {
+    fin.novaDivida.mockResolvedValue({ id: "d" });
+    const r = await dividasRota.POST(
+      post({
+        origem: "emprestimo",
+        account_id: "a",
+        descricao: "Pessoal",
+        valor_financiado: "10000",
+        taxa_mensal: "1,5",
+        n_parcelas: 12,
+        sistema: "price",
+        primeira_data: "2025-01-10",
+      }),
+    );
+    expect(r.status).toBe(201);
+    expect(fin.novaDivida).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ taxa_mensal: "0.015" }),
+    );
+    fin.simularDivida.mockRejectedValue(new ErroDeFinancas(409, "quitada"));
+    expect(
+      (await simularRota.POST(post({ extra: "100", modo: "reduzir_prazo" }), ctx("d")))
+        .status,
+    ).toBe(409);
+  });
+
+  it("fluxo de 3 a 12 meses, orcamento inline e meta", async () => {
+    fin.fluxo.mockResolvedValue({});
+    expect((await fluxoRota.GET(new Request("http://x/api?meses=24"))).status).toBe(422);
+    expect((await fluxoRota.GET(new Request("http://x/api"))).status).toBe(200);
+    expect(fin.fluxo).toHaveBeenCalledWith("u1", 6);
+    fin.valorDaCategoria.mockResolvedValue({});
+    expect(
+      (
+        await categoriaRota.PUT(
+          put({ mes: "2024-11", category_id: "c", valor: "350,00" }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(fin.valorDaCategoria).toHaveBeenCalledWith("u1", "2024-11", "c", "350.00");
+    expect(
+      (await metasRota.POST(post({ nome: "", valor_alvo: "1", data_alvo: "2025-01-01" })))
+        .status,
+    ).toBe(422);
   });
 });
 

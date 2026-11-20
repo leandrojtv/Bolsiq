@@ -154,6 +154,15 @@ export const PainelDoMes = z.object({
   top_categorias: z.array(
     z.object({ category_id: Id.nullable(), nome: z.string(), valor: Dinheiro }),
   ),
+  /** Orcamento de despesas do mes: planejado e consumido (realizado + previsto). */
+  orcamento: z.object({
+    planejado: Dinheiro,
+    consumo: Dinheiro,
+    percentual: z.number().nullable(),
+    estado: z.enum(["ok", "atencao", "estourado"]),
+  }),
+  /** Parcelas (cartao, emprestimo, financiamento) que caem no mes. */
+  comprometido_parcelas: Dinheiro,
   /** Previstos de saida nas contas ate 7 dias a frente (e os atrasados). */
   a_pagar: z.array(
     z.object({
@@ -211,6 +220,10 @@ export const Planejamento = z.object({
       realizado: Dinheiro,
       previsto: Dinheiro,
       restante: Dinheiro,
+      /** Realizado + previsto. */
+      consumo: Dinheiro,
+      /** So para despesa: ok, atencao (>= 80%), estourado (> 100%). */
+      estado: z.enum(["ok", "atencao", "estourado"]),
     }),
   ),
   totais: z.object({

@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import type {
+  Comprometido,
+  DetalheDoPlano,
+  FluxoDeCaixa,
+  Meta,
+  Plano,
   DetalheDaFatura,
   ListaDeRecorrencias,
   PainelDoMes,
@@ -197,6 +202,87 @@ export const puxarRecorrencias = (mes: string) =>
   api<{ data: { itens: number } }>(`financas/planejamento/recorrencias?mes=${mes}`, {
     method: "POST",
   });
+
+export const usePlanos = () =>
+  useQuery({
+    queryKey: [...CHAVE, "planos"],
+    queryFn: () => api<{ data: Plano[] }>("financas/parcelamentos").then((r) => r.data),
+  });
+
+export const usePlano = (id: string | null) =>
+  useQuery({
+    queryKey: [...CHAVE, "plano", id],
+    enabled: id !== null,
+    queryFn: () =>
+      api<{ data: DetalheDoPlano }>(`financas/parcelamentos/${id}`).then((r) => r.data),
+  });
+
+export const useComprometido = () =>
+  useQuery({
+    queryKey: [...CHAVE, "comprometido"],
+    queryFn: () =>
+      api<{ data: Comprometido }>("financas/parcelamentos/comprometido").then(
+        (r) => r.data,
+      ),
+  });
+
+export const useFluxo = (meses: number) =>
+  useQuery({
+    queryKey: [...CHAVE, "fluxo", meses],
+    queryFn: () =>
+      api<{ data: FluxoDeCaixa }>(`financas/fluxo?meses=${meses}`).then((r) => r.data),
+  });
+
+export const useMetas = () =>
+  useQuery({
+    queryKey: [...CHAVE, "metas"],
+    queryFn: () => api<{ data: Meta[] }>("financas/metas").then((r) => r.data),
+  });
+
+export const criarParcelamento = (p: Record<string, unknown>) =>
+  api<{ data: Plano }>("financas/parcelamentos", json("POST", p)).then((r) => r.data);
+export const criarDivida = (p: Record<string, unknown>) =>
+  api<{ data: Plano }>("financas/dividas", json("POST", p)).then((r) => r.data);
+export const simularDivida = (id: string, p: Record<string, unknown>) =>
+  api<{
+    data: {
+      antes: { parcelas: number; primeira_parcela: string; juros: string };
+      depois: { parcelas: number; primeira_parcela: string; juros: string };
+      juros_economizados: string;
+    };
+  }>(`financas/dividas/${id}/simular`, json("POST", p)).then((r) => r.data);
+export const amortizarDivida = (id: string, p: Record<string, unknown>) =>
+  api<{ data: DetalheDoPlano }>(`financas/dividas/${id}/amortizar`, json("POST", p)).then(
+    (r) => r.data,
+  );
+export const quitarPlano = (id: string, data: string) =>
+  api<{ data: DetalheDoPlano }>(
+    `financas/parcelamentos/${id}/quitar`,
+    json("POST", { data }),
+  ).then((r) => r.data);
+export const apagarPlano = (id: string) =>
+  api<null>(`financas/parcelamentos/${id}`, { method: "DELETE" });
+
+export const definirValorDaCategoria = (
+  mes: string,
+  category_id: string,
+  valor: string,
+) =>
+  api<{ data: Planejamento }>(
+    "financas/planejamento/categoria",
+    json("PUT", { mes, category_id, valor }),
+  ).then((r) => r.data);
+export const sugerirOrcamento = (mes: string) =>
+  api<{ data: { itens: number } }>(`financas/planejamento/sugerir?mes=${mes}`, {
+    method: "POST",
+  });
+
+export const criarMeta = (m: Record<string, unknown>) =>
+  api<{ data: Meta }>("financas/metas", json("POST", m)).then((r) => r.data);
+export const editarMeta = (id: string, m: Record<string, unknown>) =>
+  api<{ data: Meta }>(`financas/metas/${id}`, json("PATCH", m)).then((r) => r.data);
+export const apagarMeta = (id: string) =>
+  api<null>(`financas/metas/${id}`, { method: "DELETE" });
 
 export const criarConta = (c: Record<string, unknown>) =>
   api<{ data: Conta }>("financas/contas", json("POST", c)).then((r) => r.data);

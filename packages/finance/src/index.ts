@@ -8,4 +8,7 @@ export * from "./db/recorrencias.js";
 export * from "./db/painel.js";
 export * from "./db/planejamento.js";
 export * from "./db/rotina.js";
+export * from "./db/parcelamentos.js";
+export * from "./db/metas.js";
+export * from "./db/fluxo.js";
 export * as schema from "./db/schema.js";

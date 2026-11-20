@@ -199,6 +199,9 @@ export const transactions = finance.table(
     importacao_id: text("importacao_id"),
     /** Recorrencia que gerou o previsto. */
     recurrence_id: text("recurrence_id"),
+    /** Plano de parcelamento (cartao, emprestimo, financiamento) e o numero da parcela. */
+    installment_plan_id: text("installment_plan_id"),
+    parcela_numero: integer("parcela_numero"),
     /** FITID do OFX: deduplicacao principal, por conta ou cartao. */
     fitid: text("fitid"),
     hash_dedupe: text("hash_dedupe"),
@@ -231,6 +234,10 @@ export const transactions = finance.table(
     index("transactions_card_data_idx").on(t.card_id, t.data),
     index("transactions_statement_idx").on(t.statement_id),
     index("transactions_importacao_idx").on(t.importacao_id),
+    // Uma parcela de cada numero por plano.
+    uniqueIndex("transactions_plano_parcela_uq")
+      .on(t.installment_plan_id, t.parcela_numero)
+      .where(sql`${t.installment_plan_id} is not null`),
     // Idempotencia do job: uma ocorrencia por recorrencia e data.
     uniqueIndex("transactions_recorrencia_data_uq")
       .on(t.recurrence_id, t.data)
@@ -331,6 +338,108 @@ export const recurrences = finance.table(
       sql`(${t.account_id} is null) <> (${t.card_id} is null)`,
     ),
     check("recurrences_periodo_ck", sql`${t.fim} is null or ${t.fim} >= ${t.inicio}`),
+  ],
+);
+
+/**
+ * Plano de parcelamento: compra parcelada no cartao (sem juros), emprestimo ou
+ * financiamento (Price ou SAC) numa conta. As parcelas sao lancamentos com
+ * `installment_plan_id` e `parcela_numero`.
+ */
+export const installment_plans = finance.table(
+  "installment_plans",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    /** cartao | emprestimo | financiamento */
+    origem: text("origem").notNull(),
+    descricao: text("descricao").notNull(),
+    descricao_normalizada: text("descricao_normalizada").notNull(),
+    category_id: text("category_id"),
+    card_id: text("card_id"),
+    account_id: text("account_id"),
+    /** Soma das parcelas (com juros, no emprestimo). */
+    valor_total: dinheiro("valor_total").notNull(),
+    n_parcelas: integer("n_parcelas").notNull(),
+    /** sem_juros | price | sac */
+    sistema: text("sistema").notNull().default("sem_juros"),
+    /** Fracao ao mes: 0.0150 e 1,5% a.m. */
+    taxa_mensal: numeric("taxa_mensal", { precision: 12, scale: 8 })
+      .notNull()
+      .default("0"),
+    /** Data da compra (cartao) ou do primeiro vencimento (emprestimo). */
+    primeira_data: dia("primeira_data").notNull(),
+    /** Principal do emprestimo; no cartao, igual ao total. */
+    valor_financiado: dinheiro("valor_financiado").notNull(),
+    ativo: boolean("ativo").notNull().default(true),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("installment_plans_user_idx").on(t.user_id, t.ativo),
+    unique("installment_plans_user_id_uq").on(t.user_id, t.id),
+    foreignKey({
+      name: "installment_plans_card_fk",
+      columns: [t.user_id, t.card_id],
+      foreignColumns: [cards.user_id, cards.id],
+    }),
+    foreignKey({
+      name: "installment_plans_account_fk",
+      columns: [t.user_id, t.account_id],
+      foreignColumns: [accounts.user_id, accounts.id],
+    }),
+    foreignKey({
+      name: "installment_plans_category_fk",
+      columns: [t.user_id, t.category_id],
+      foreignColumns: [categories.user_id, categories.id],
+    }),
+    check(
+      "installment_plans_origem_ck",
+      sql`${t.origem} in ('cartao', 'emprestimo', 'financiamento')`,
+    ),
+    check(
+      "installment_plans_sistema_ck",
+      sql`${t.sistema} in ('sem_juros', 'price', 'sac')`,
+    ),
+    check(
+      "installment_plans_destino_ck",
+      sql`(${t.origem} = 'cartao') = (${t.card_id} is not null) and (${t.card_id} is null) <> (${t.account_id} is null)`,
+    ),
+    check("installment_plans_parcelas_ck", sql`${t.n_parcelas} between 1 and 600`),
+    check(
+      "installment_plans_valor_ck",
+      sql`${t.valor_total} > 0 and ${t.valor_financiado} > 0`,
+    ),
+    check("installment_plans_taxa_ck", sql`${t.taxa_mensal} >= 0`),
+  ],
+);
+
+/**
+ * Meta de poupanca. A conta e a carteira sao opcionais; a carteira e referencia
+ * logica ao schema `portfolio` (sem FK entre schemas, ADR 0031): o web compoe o
+ * valor pelo BFF. Sem nenhuma das duas, vale o `valor_guardado` informado.
+ */
+export const goals = finance.table(
+  "goals",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    nome: text("nome").notNull(),
+    valor_alvo: dinheiro("valor_alvo").notNull(),
+    data_alvo: dia("data_alvo").notNull(),
+    account_id: text("account_id"),
+    portfolio_id: text("portfolio_id"),
+    valor_guardado: dinheiro("valor_guardado").notNull().default("0"),
+    ativa: boolean("ativa").notNull().default(true),
+    criada_em: utc("criada_em").notNull().defaultNow(),
+  },
+  (t) => [
+    index("goals_user_idx").on(t.user_id),
+    foreignKey({
+      name: "goals_account_fk",
+      columns: [t.user_id, t.account_id],
+      foreignColumns: [accounts.user_id, accounts.id],
+    }),
+    check("goals_valor_ck", sql`${t.valor_alvo} > 0 and ${t.valor_guardado} >= 0`),
   ],
 );
 

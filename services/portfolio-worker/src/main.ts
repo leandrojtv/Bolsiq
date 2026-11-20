@@ -16,6 +16,7 @@ import {
 } from "@bolsiq/finance";
 import { carregarEnv } from "./config.js";
 import { iniciarImportacao } from "./importacao.js";
+import { iniciarRelatorio } from "./relatorio.js";
 import {
   clienteDePrecos,
   desmarcar,
@@ -86,6 +87,9 @@ await boss.work<{ user_id?: string }>(JOB_INSIGHTS, async ([trabalho]) => {
   log("info", "insights do financas", { ...r });
   return r;
 });
+
+// Relatorio mensal do assistente (ADR 0036): opt-in, com a chave do usuario.
+await iniciarRelatorio(boss, db, env, hojeEmSp, log);
 
 let ultimoCiclo = Date.now();
 let parado = false;

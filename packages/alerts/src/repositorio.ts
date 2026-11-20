@@ -259,3 +259,45 @@ export async function naoLidas(db: Db, userId: string): Promise<number> {
     .where(and(eq(notifications.user_id, userId), sql`${notifications.lida_em} IS NULL`));
   return r?.n ?? 0;
 }
+
+export interface AvisoDoSistema {
+  user_id: string;
+  /** Quem avisa, como `assistente.relatorio_mensal`: vira o `rule_id` do aviso. */
+  origem: string;
+  /** Com a origem, impede o mesmo aviso duas vezes (o mes do relatorio, por exemplo). */
+  chave: string;
+  titulo: string;
+  corpo: string;
+  dados?: Record<string, unknown>;
+}
+
+/**
+ * Aviso no sino que nao vem de regra (relatorio mensal do assistente). Grava a
+ * notificacao e a entrega in-app na mesma transacao; o alerts-worker envia, como
+ * as demais. Devolve nulo se o aviso ja existia.
+ */
+export async function avisarNoSino(db: Db, a: AvisoDoSistema): Promise<string | null> {
+  return db.transaction(async (tx) => {
+    const [n] = await tx
+      .insert(notifications)
+      .values({
+        id: randomUUID(),
+        user_id: a.user_id,
+        rule_id: `sistema:${a.origem}`,
+        event_id: `${a.user_id}:${a.chave}`,
+        titulo: a.titulo,
+        corpo: a.corpo,
+        dados: a.dados ?? null,
+      })
+      .onConflictDoNothing({ target: [notifications.rule_id, notifications.event_id] })
+      .returning({ id: notifications.id });
+    if (!n) return null;
+    await tx.insert(deliveries).values({
+      id: randomUUID(),
+      notification_id: n.id,
+      user_id: a.user_id,
+      canal: "inapp",
+    });
+    return n.id;
+  });
+}

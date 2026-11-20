@@ -46,6 +46,32 @@ export function rotuloDoPasso(
       return `Gerando candidatos de aporte na ${daCarteira}`;
     case "criar_alerta":
       return `Preparando alerta de ${texto(e.ticker)}`;
+    case "resumo_mes":
+      return e.competencia
+        ? `Lendo o resumo de ${texto(e.competencia)}`
+        : "Lendo o resumo do mês";
+    case "gastos_por_categoria":
+      return "Somando gastos por categoria";
+    case "comparar_meses":
+      return `Comparando ${texto(e.a)} e ${texto(e.b)}`;
+    case "listar_lancamentos":
+      return e.busca
+        ? `Buscando lançamentos de "${texto(e.busca)}"`
+        : "Buscando lançamentos";
+    case "fluxo_projetado":
+      return "Projetando o fluxo de caixa";
+    case "parcelas_futuras":
+      return "Consultando parcelas e dívidas";
+    case "assinaturas":
+      return "Consultando assinaturas";
+    case "insights":
+      return "Lendo os insights do mês";
+    case "sugerir_cortes":
+      return "Escolhendo cortes nos insights";
+    case "simular_compra":
+      return "Simulando a compra no fluxo e no orçamento";
+    case "capacidade_aporte":
+      return "Calculando quanto dá para investir";
     default:
       return `Consultando ${nome}`;
   }

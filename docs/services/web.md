@@ -54,23 +54,23 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 
 ## Rotas
 
-| Rota                                              | O que é                                                   |
-| ------------------------------------------------- | --------------------------------------------------------- |
-| `/ativo`                                          | aba Ativos: busca no topo e atalhos da watchlist          |
-| `/ativo/[ticker]`                                 | página do ativo; 404 próprio para ticker fora do universo |
-| `/api/v1/...`                                     | BFF do `/v1`, só leitura, com a chave interna             |
-| `/api/indicadores/[ticker]`                       | últimos indicadores do analytics                          |
-| `/api/stream?t=PETR4`                             | cotação ao vivo por SSE, ponte para o `/v1/stream`        |
-| `/api/health`                                     | health da imagem e do compose                             |
-| `/api/alertas/regras`, `/api/alertas/regras/[id]` | listar, criar, ligar e desligar, remover regra            |
-| `/api/notificacoes`, `/api/notificacoes/lidas`    | central e marcar como lida                                |
-| `/api/notificacoes/stream`                        | sino por SSE, ponte para `alerts.inapp.<user_id>`         |
-| `/api/preferencias`                               | canais, e-mail e silêncio do usuário                      |
-| `/api/push`                                       | chave VAPID pública e inscrição de Web Push               |
-| `/manifest.webmanifest`, `/icones/*`, `/sw.js`    | PWA                                                       |
-| `/api/assistente/*`                               | assistente: chat, configuração, perfil e conversas        |
-| `/financas/*`, `/api/financas/*`                  | Bolsiq Finanças ([finance.md](finance.md))                |
-| `/painel`                                         | Painel geral; por enquanto só o estado vazio              |
+| Rota                                              | O que é                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| `/ativo`                                          | aba Ativos: busca no topo e atalhos da watchlist             |
+| `/ativo/[ticker]`                                 | página do ativo; 404 próprio para ticker fora do universo    |
+| `/api/v1/...`                                     | BFF do `/v1`, só leitura, com a chave interna                |
+| `/api/indicadores/[ticker]`                       | últimos indicadores do analytics                             |
+| `/api/stream?t=PETR4`                             | cotação ao vivo por SSE, ponte para o `/v1/stream`           |
+| `/api/health`                                     | health da imagem e do compose                                |
+| `/api/alertas/regras`, `/api/alertas/regras/[id]` | listar, criar, ligar e desligar, remover regra               |
+| `/api/notificacoes`, `/api/notificacoes/lidas`    | central e marcar como lida                                   |
+| `/api/notificacoes/stream`                        | sino por SSE, ponte para `alerts.inapp.<user_id>`            |
+| `/api/preferencias`                               | canais, e-mail e silêncio do usuário                         |
+| `/api/push`                                       | chave VAPID pública e inscrição de Web Push                  |
+| `/manifest.webmanifest`, `/icones/*`, `/sw.js`    | PWA                                                          |
+| `/api/assistente/*`                               | assistente: chat, configuração, perfil, conversas, relatório |
+| `/financas/*`, `/api/financas/*`                  | Bolsiq Finanças ([finance.md](finance.md))                   |
+| `/painel`                                         | Painel geral; por enquanto só o estado vazio                 |
 
 ## Página do ativo
 
@@ -104,21 +104,21 @@ Não carregue `infra/docker/seed-e2e.sql` nesse ambiente: os preços dele são s
 
 ## Variáveis
 
-| Variável                                   | Para quê                                 |
-| ------------------------------------------ | ---------------------------------------- |
-| `MARKET_DATA_URL`                          | base do `/v1`; com o Kong, o gateway     |
-| `MARKET_DATA_API_KEY`                      | chave interna do BFF; nunca no navegador |
-| `DATABASE_URL`                             | schemas `analytics` e `alerts`           |
-| `NATS_URL`                                 | sino: assinatura de `alerts.inapp.*`     |
-| `VAPID_PUBLIC_KEY`                         | Web Push; vazio deixa Push indisponível  |
-| `FEATURE_TELEGRAM`                         | mostra o canal Telegram (`true`)         |
-| `APP_URL`                                  | base dos links de e-mail e do Google     |
-| `BETTER_AUTH_SECRET`                       | assina sessão; obrigatório em produção   |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some           |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)        |
-| `SMTP_USER`, `SMTP_PASSWORD`               | login SMTP; vazio envia sem autenticação |
-| `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto    |
-| `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)   |
+| Variável                                   | Para quê                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------- |
+| `MARKET_DATA_URL`                          | base do `/v1`; com o Kong, o gateway                                            |
+| `MARKET_DATA_API_KEY`                      | chave interna do BFF; nunca no navegador                                        |
+| `DATABASE_URL`                             | schemas `analytics` e `alerts`                                                  |
+| `NATS_URL`                                 | sino: assinatura de `alerts.inapp.*`                                            |
+| `VAPID_PUBLIC_KEY`                         | Web Push; vazio deixa Push indisponível                                         |
+| `FEATURE_TELEGRAM`                         | mostra o canal Telegram (`true`)                                                |
+| `APP_URL`                                  | base dos links de e-mail e do Google                                            |
+| `BETTER_AUTH_SECRET`                       | assina sessão; obrigatório em produção                                          |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | botão do Google; sem eles some                                                  |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`      | e-mails de conta (Mailpit em dev)                                               |
+| `SMTP_USER`, `SMTP_PASSWORD`               | login SMTP; vazio envia sem autenticação                                        |
+| `AUTH_RATE_LIMIT`                          | tentativas de login por IP por minuto; `get-session` fica fora do limite global |
+| `ASSISTANT_*`                              | [assistant.md](assistant.md#variáveis)                                          |
 
 ## Testes
 

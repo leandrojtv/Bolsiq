@@ -135,6 +135,15 @@ insight traz `evidencias` (ids dos lançamentos) e sai ordenado por impacto anua
 - **CDI** do `/v1/macro/cdi` (BCB SGS 12), buscado pelo web; a tela mostra a
   premissa, a data e a fonte.
 
+## Assistente
+
+O "Pergunte ao Bolsiq" aberto em `/financas` usa as ferramentas do Bolsiq Finanças
+(`packages/assistant/src/financas`), que leem deste pacote pela RLS do usuário
+(`fontesFinanceirasDoBanco`): resumo do mês, gastos por categoria, comparação de meses,
+busca de lançamentos, fluxo, parcelas, assinaturas, insights, cortes, compra parcelada e
+capacidade de aporte. O relatório mensal opt-in sai do `portfolio-worker` no dia 1.
+Decisões no [ADR 0036](../adr/0036-agente-financeiro.md).
+
 ## Importação OFX
 
 1. **Envio** (`POST /importacoes/analise`): lê os arquivos sem gravar e sugere o

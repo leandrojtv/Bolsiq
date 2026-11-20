@@ -1,4 +1,4 @@
-import type { PerfilDoInvestidor } from "@bolsiq/assistant/puro";
+import type { ModuloDoAssistente, PerfilDoInvestidor } from "@bolsiq/assistant/puro";
 import { api } from "@/lib/api";
 import type {
   EstadoDoAssistente,
@@ -37,8 +37,14 @@ export const testarConexao = (t: TestarConexao) =>
     (r) => r.data,
   );
 
-export const consentir = () =>
-  api<{ data: EstadoDoAssistente }>("assistente/consentimento", json("POST")).then(
+export const consentir = (escopo: "investimentos" | "financas" = "investimentos") =>
+  api<{ data: EstadoDoAssistente }>(
+    "assistente/consentimento",
+    json("POST", { escopo }),
+  ).then((r) => r.data);
+
+export const configurarRelatorio = (ligado: boolean) =>
+  api<{ data: EstadoDoAssistente }>("assistente/relatorio", json("PUT", { ligado })).then(
     (r) => r.data,
   );
 
@@ -53,11 +59,14 @@ export const salvarPerfil = (p: unknown) =>
 export interface ConversaNaLista {
   id: string;
   titulo: string;
+  modulo: ModuloDoAssistente;
   atualizada_em: string;
 }
 
-export const listarConversas = () =>
-  api<{ data: ConversaNaLista[] }>("assistente/conversas").then((r) => r.data);
+export const listarConversas = (modulo: ModuloDoAssistente) =>
+  api<{ data: ConversaNaLista[] }>(`assistente/conversas?modulo=${modulo}`).then(
+    (r) => r.data,
+  );
 
 export const lerConversa = (id: string) =>
   api<{

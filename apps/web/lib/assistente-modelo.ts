@@ -31,6 +31,12 @@ export const PedidoDeChat = z.object({
   contexto: z.unknown().optional(),
 });
 
+export const PedidoDeConsentimento = z
+  .object({ escopo: z.enum(["investimentos", "financas"]).default("investimentos") })
+  .default({ escopo: "investimentos" });
+
+export const PedidoDoRelatorio = z.object({ ligado: z.boolean() });
+
 export interface EstadoDoAssistente {
   provedor: string | null;
   modelo: string | null;
@@ -41,6 +47,14 @@ export interface EstadoDoAssistente {
   status_modelo: ModeloClassificado["status"] | null;
   aviso_modelo: string | null;
   consentiu: boolean;
+  /** Consentimento do Bolsiq Financas (ADR 0036), separado do de investimentos. */
+  consentiu_financas: boolean;
+  /** Relatorio mensal no sino: opt-in, com o custo estimado por mes em dolares. */
+  relatorio_mensal: {
+    ligado: boolean;
+    disponivel: boolean;
+    custo_estimado: string | null;
+  };
   configurado: boolean;
   plataforma: boolean;
   modo: "personal" | "educational";
@@ -68,6 +82,8 @@ export function contextoDaTela(caminho: string, busca: string) {
   if (ativo) ctx.ticker = ativo.toUpperCase();
   const carteira = /^\/carteiras\/([0-9a-f-]{36})$/.exec(caminho)?.[1];
   if (carteira) ctx.carteira_id = carteira;
+  const mes = p.get("mes");
+  if (caminho.startsWith("/financas") && mes && /^\d{4}-\d{2}$/.test(mes)) ctx.mes = mes;
   if (caminho === "/comparar" && p.get("t"))
     ctx.comparando = (p.get("t") ?? "").split(",").filter(Boolean).slice(0, 6);
   if (caminho === "/screener") {

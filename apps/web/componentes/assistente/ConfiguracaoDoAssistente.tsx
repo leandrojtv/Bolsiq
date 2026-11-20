@@ -9,10 +9,12 @@ import {
   type Provedor,
 } from "@bolsiq/assistant/puro";
 import { Button, Card, Skeleton, StatTile } from "@bolsiq/ui";
-import { textoDoPreco } from "@/lib/assistente-modelo";
+import { textoDoPreco, type EstadoDoAssistente } from "@/lib/assistente-modelo";
 import { CAMPO, Campo, Mensagem } from "../conta/campos";
 import {
   CHAVES_DO_ASSISTENTE as CHAVES,
+  configurarRelatorio,
+  consentir,
   lerEstado,
   removerConfiguracao,
   salvarConfiguracao,
@@ -243,6 +245,61 @@ export function ConfiguracaoDoAssistente() {
           estimado a partir do preço do modelo; a cobrança real é do provedor.
         </p>
       </section>
+
+      <RelatorioMensal estado={estado} />
     </div>
+  );
+}
+
+/**
+ * Relatorio mensal no sino (ADR 0036). Opt-in: gasta tokens da chave do
+ * usuario, por isso a tela mostra a estimativa antes de ligar.
+ */
+function RelatorioMensal({ estado }: { estado: EstadoDoAssistente }) {
+  const cliente = useQueryClient();
+  const r = estado.relatorio_mensal;
+  const [erro, setErro] = useState<string | null>(null);
+  const mudar = useMutation({
+    mutationFn: async (ligado: boolean) => {
+      if (ligado && !estado.consentiu_financas) await consentir("financas");
+      return configurarRelatorio(ligado);
+    },
+    onSuccess: (e) => {
+      setErro(null);
+      cliente.setQueryData(CHAVES.estado, e);
+    },
+    onError: (e: Error) => setErro(e.message),
+  });
+  const custo =
+    r.custo_estimado === null
+      ? "o custo depende do preço do modelo, que o provedor não informa"
+      : `cerca de US$ ${Number(r.custo_estimado).toFixed(4)} por mês na sua chave`;
+  return (
+    <section aria-label="Relatório mensal" className="flex flex-col gap-3">
+      <h2 className="m-0 text-lg font-semibold">Relatório mensal</h2>
+      <p className="m-0 max-w-[70ch] text-sm text-text-2">
+        No dia 1 de cada mês, o assistente resume o mês anterior do Bolsiq Finanças com 3
+        cortes sugeridos e a economia estimada, e avisa no sino. Gasta tokens: {custo}.
+        {!estado.consentiu_financas &&
+          " Ao ligar, você concorda em enviar ao provedor os dados do Bolsiq Finanças (lançamentos, resumo do mês, parcelas, assinaturas e insights), com nomes de pessoas em PIX e transferências trocados por [pessoa]."}
+      </p>
+      {r.disponivel ? (
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={r.ligado}
+            disabled={mudar.isPending}
+            onChange={(e) => mudar.mutate(e.target.checked)}
+          />
+          Gerar o relatório mensal
+        </label>
+      ) : (
+        <p className="m-0 text-sm text-text-3">
+          O relatório usa a sua chave: configure um provedor e um modelo acima para ligar.
+        </p>
+      )}
+      {erro && <Mensagem erro>{erro}</Mensagem>}
+    </section>
   );
 }

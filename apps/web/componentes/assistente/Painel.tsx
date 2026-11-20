@@ -7,8 +7,8 @@ import { History, Plus, Send, Square, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { AVISO_EDUCACIONAL } from "@bolsiq/assistant/puro";
-import { Button, Sheet, Skeleton } from "@bolsiq/ui";
+import { AVISO_EDUCACIONAL, type ModuloDoAssistente } from "@bolsiq/assistant/puro";
+import { Button, moduloDaRota, Sheet, Skeleton } from "@bolsiq/ui";
 import { contextoDaTela } from "@/lib/assistente-modelo";
 import { useConta } from "../conta/Conta";
 import {
@@ -21,14 +21,33 @@ import {
 } from "./cliente";
 import { Mensagem } from "./Mensagem";
 
-const SUGESTOES = [
-  "Avalie minha carteira",
-  "Onde aportar R$ 1.000 este mês?",
-  "Compare PETR4 e PRIO3",
-  "Quais ações passam no critério de Graham hoje?",
-];
+const SUGESTOES: Record<ModuloDoAssistente, string[]> = {
+  investimentos: [
+    "Avalie minha carteira",
+    "Onde aportar R$ 1.000 este mês?",
+    "Compare PETR4 e PRIO3",
+    "Quais ações passam no critério de Graham hoje?",
+  ],
+  financas: [
+    "Como está o meu mês?",
+    "Onde corto R$ 500 por mês?",
+    "Posso comprar algo de R$ 3.000 em 10x?",
+    "Quanto posso investir por mês?",
+  ],
+  painel: [
+    "Quanto posso investir este mês e onde?",
+    "Como está o meu mês?",
+    "Avalie minha carteira",
+  ],
+};
 
-type MensagemDoChat = UIMessage<{ conversa_id?: string }>;
+const DICA: Record<ModuloDoAssistente, string> = {
+  investimentos: "Pergunte sobre um ativo ou a sua carteira",
+  financas: "Pergunte sobre seus gastos, parcelas ou orçamento",
+  painel: "Pergunte sobre suas finanças ou a sua carteira",
+};
+
+type MensagemDoChat = UIMessage<{ conversa_id?: string; modulo?: ModuloDoAssistente }>;
 
 /** Erro do BFF chega como texto JSON; o que interessa e a mensagem. */
 function textoDoErro(e: Error): string {
@@ -40,23 +59,39 @@ function textoDoErro(e: Error): string {
   }
 }
 
-function Consentimento({ provedor }: { provedor: string | null }) {
+function Consentimento({
+  provedor,
+  escopo,
+}: {
+  provedor: string | null;
+  escopo: "investimentos" | "financas";
+}) {
   const cliente = useQueryClient();
   const aceitar = useMutation({
-    mutationFn: consentir,
+    mutationFn: () => consentir(escopo),
     onSuccess: (e) => cliente.setQueryData(CHAVES.estado, e),
   });
+  const para = provedor ? ` (${provedor})` : "";
   return (
     <section
       aria-label="Consentimento"
       className="flex flex-col gap-3 text-sm text-text-2"
     >
-      <p className="m-0">
-        Para responder, o assistente envia ao provedor escolhido
-        {provedor ? ` (${provedor})` : ""} sua pergunta e os dados que consulta, o que
-        inclui a sua carteira: posições, preço médio, resultado e o seu perfil de
-        investidor.
-      </p>
+      {escopo === "financas" ? (
+        <p className="m-0">
+          No Bolsiq Finanças, o assistente envia ao provedor escolhido{para} sua pergunta
+          e os dados financeiros que consulta: lançamentos (data, descrição, valor,
+          categoria e conta ou cartão), resumo do mês, orçamento, saldos e fluxo
+          projetado, parcelas, assinaturas e insights. Nomes de pessoas em PIX e
+          transferências saem como [pessoa] antes do envio.
+        </p>
+      ) : (
+        <p className="m-0">
+          Para responder, o assistente envia ao provedor escolhido{para} sua pergunta e os
+          dados que consulta, o que inclui a sua carteira: posições, preço médio,
+          resultado e o seu perfil de investidor.
+        </p>
+      )}
       <p className="m-0">
         O tratamento desses dados pelo provedor segue a política dele. O Bolsiq não vende
         nem compartilha com mais ninguém.
@@ -73,14 +108,19 @@ function Consentimento({ provedor }: { provedor: string | null }) {
 }
 
 function Historico({
+  modulo,
   aoAbrir,
   aoApagar,
 }: {
+  modulo: ModuloDoAssistente;
   aoAbrir: (id: string) => void;
   aoApagar: (id: string) => void;
 }) {
   const cliente = useQueryClient();
-  const { data } = useQuery({ queryKey: CHAVES.conversas, queryFn: listarConversas });
+  const { data } = useQuery({
+    queryKey: [...CHAVES.conversas, modulo],
+    queryFn: () => listarConversas(modulo),
+  });
   const apagar = useMutation({
     mutationFn: apagarConversa,
     onSuccess: (_r, id) => {
@@ -128,9 +168,12 @@ export default function PainelDoAssistente({
   aoMudar: (aberto: boolean) => void;
 }) {
   const caminho = usePathname();
+  const modulo = moduloDaRota(caminho);
   const { uid } = useConta();
   const cliente = useQueryClient();
   const conversa = useRef<string | undefined>(undefined);
+  // Cada conversa fica no modulo em que comecou (ADR 0036).
+  const moduloDaConversa = useRef<ModuloDoAssistente>(modulo);
   const caminhoAtual = useRef(caminho);
   caminhoAtual.current = caminho;
   const fim = useRef<HTMLDivElement>(null);
@@ -183,14 +226,22 @@ export default function PainelDoAssistente({
 
   const novaConversa = () => {
     conversa.current = undefined;
+    moduloDaConversa.current = modulo;
     setMessages([]);
     clearError();
     setVendoHistorico(false);
   };
 
+  // Trocou de modulo com uma conversa aberta: a proxima pergunta abre outra,
+  // com o prompt e as ferramentas do modulo novo.
+  useEffect(() => {
+    if (moduloDaConversa.current !== modulo && !ocupado) novaConversa();
+  }, [modulo]);
+
   const abrirConversa = async (id: string) => {
     const c = await lerConversa(id);
     conversa.current = id;
+    moduloDaConversa.current = modulo;
     setMessages(c.mensagens as MensagemDoChat[]);
     clearError();
     setVendoHistorico(false);
@@ -214,8 +265,18 @@ export default function PainelDoAssistente({
     if (window.matchMedia("(max-width: 767px)").matches) aoMudar(false);
   };
 
+  const precisa: ("investimentos" | "financas")[] = estado
+    ? [
+        ...(modulo !== "financas" && !estado.consentiu
+          ? (["investimentos"] as const)
+          : []),
+        ...(modulo !== "investimentos" && !estado.consentiu_financas
+          ? (["financas"] as const)
+          : []),
+      ]
+    : [];
   const conversaLiberada =
-    estado && estado.consentiu && (estado.configurado || estado.plataforma);
+    estado && precisa.length === 0 && (estado.configurado || estado.plataforma);
 
   return (
     <Sheet
@@ -241,8 +302,8 @@ export default function PainelDoAssistente({
           </Link>{" "}
           para começar.
         </p>
-      ) : !estado.consentiu ? (
-        <Consentimento provedor={estado.provedor} />
+      ) : precisa[0] ? (
+        <Consentimento provedor={estado.provedor} escopo={precisa[0]} />
       ) : null}
 
       {conversaLiberada && (
@@ -283,6 +344,7 @@ export default function PainelDoAssistente({
 
           {vendoHistorico ? (
             <Historico
+              modulo={modulo}
               aoAbrir={(id) => void abrirConversa(id)}
               aoApagar={(id) => {
                 if (conversa.current === id) novaConversa();
@@ -296,7 +358,7 @@ export default function PainelDoAssistente({
             >
               {messages.length === 0 && (
                 <>
-                  {!estado.perfil_preenchido && (
+                  {modulo !== "financas" && !estado.perfil_preenchido && (
                     <p className="m-0 text-[13px] text-text-3">
                       Para avaliar a carteira e sugerir aportes, preencha o{" "}
                       <Link href="/configuracoes/perfil" onClick={() => aoMudar(false)}>
@@ -309,7 +371,7 @@ export default function PainelDoAssistente({
                     aria-label="Sugestões"
                     className="m-0 flex list-none flex-col gap-2 p-0"
                   >
-                    {SUGESTOES.map((s) => (
+                    {SUGESTOES[modulo].map((s) => (
                       <li key={s}>
                         <Button
                           className="h-auto min-h-touch w-full justify-start py-2 text-left"
@@ -320,9 +382,11 @@ export default function PainelDoAssistente({
                       </li>
                     ))}
                   </ul>
-                  <p className="m-0 text-xs text-text-3">
-                    Sem acesso a notícias nem a fatos relevantes.
-                  </p>
+                  {modulo !== "financas" && (
+                    <p className="m-0 text-xs text-text-3">
+                      Sem acesso a notícias nem a fatos relevantes.
+                    </p>
+                  )}
                 </>
               )}
               {messages.map((m) => (
@@ -356,7 +420,7 @@ export default function PainelDoAssistente({
                   enviar(texto);
                 }
               }}
-              placeholder="Pergunte sobre um ativo ou a sua carteira"
+              placeholder={DICA[modulo]}
               className="min-w-0 flex-1 resize-none rounded-control border border-border-strong bg-sidebar px-3 py-2 text-sm text-text placeholder:text-text-3"
             />
             {ocupado ? (

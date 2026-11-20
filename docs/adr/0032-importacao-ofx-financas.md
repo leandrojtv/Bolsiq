@@ -34,7 +34,9 @@ cartão, ficam em `packages/finance/src/importacao/fixtures`.
 
 **Cartões e faturas mínimos.** `cards` com dia de fechamento e de vencimento, e
 `statements` identificadas pelo vencimento, criadas sob demanda. Compra antes do
-dia do fechamento entra na fatura seguinte; no dia ou depois, na próxima.
+dia do fechamento entra na fatura seguinte; no dia ou depois, na próxima
+(corrigido pelo [ADR 0033](0033-faturas-recorrencias-planejamento.md): o dia do
+fechamento entra no ciclo).
 Lançamento pertence a uma conta **ou** a um cartão (check no banco), e o de
 cartão leva a fatura. Pagamento de fatura é transferência da conta (saída) para o
 cartão (entrada). A FK da fatura no lançamento é `(user_id, card_id,

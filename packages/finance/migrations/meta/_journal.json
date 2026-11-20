@@ -29,6 +29,20 @@
       "when": 1795129957196,
       "tag": "0003_rls_importacao",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795132921649,
+      "tag": "0004_cartoes_recorrencias_planejamento",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795132935411,
+      "tag": "0005_rls_recorrencias_planejamento",
+      "breakpoints": true
     }
   ]
 }

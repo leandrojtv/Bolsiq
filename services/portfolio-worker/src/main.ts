@@ -8,6 +8,7 @@
 import { createServer } from "node:http";
 import PgBoss from "pg-boss";
 import { criarDb, criarPool } from "@bolsiq/db-core";
+import { JOB_ROTINA_DIARIA, rotinaDiaria } from "@bolsiq/finance";
 import { carregarEnv } from "./config.js";
 import { iniciarImportacao } from "./importacao.js";
 import {
@@ -45,6 +46,25 @@ await boss.work(JOB, async () => {
   return { total };
 });
 await iniciarImportacao(boss, db, env, log);
+
+// Bolsiq Financas (ADR 0033): previstos das recorrencias e fechamento de fatura.
+const hojeEmSp = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+await boss.createQueue(JOB_ROTINA_DIARIA, {
+  name: JOB_ROTINA_DIARIA,
+  retryLimit: 3,
+  retryDelay: 300,
+});
+await boss.schedule(JOB_ROTINA_DIARIA, env.FINANCE_ROTINA_CRON, undefined, {
+  tz: "America/Sao_Paulo",
+});
+await boss.work(JOB_ROTINA_DIARIA, async () => {
+  const r = await rotinaDiaria(db, hojeEmSp());
+  log("info", "rotina diaria do financas", { ...r });
+  return r;
+});
+// Ao subir tambem: um deploy depois do horario nao deixa o dia sem previstos.
+await boss.send(JOB_ROTINA_DIARIA, {}, { singletonKey: hojeEmSp() });
 
 let ultimoCiclo = Date.now();
 let parado = false;

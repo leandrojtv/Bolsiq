@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import type {
+  DetalheDaFatura,
+  ListaDeRecorrencias,
+  PainelDoMes,
+  Planejamento,
+  Recorrencia,
   Cartao,
   Importacao,
   ImportacaoComLinhas,
@@ -124,6 +129,74 @@ export const destinoDoSeletor = (v: string) =>
   v.startsWith(PREFIXO_CARTAO)
     ? { card_id: v.slice(PREFIXO_CARTAO.length) }
     : { account_id: v };
+
+export const usePainel = (mes: string) =>
+  useQuery({
+    queryKey: [...CHAVE, "painel", mes],
+    queryFn: () =>
+      api<{ data: PainelDoMes }>(`financas/painel?mes=${mes}`).then((r) => r.data),
+  });
+
+export const useFatura = (cartao: string, fatura: string) =>
+  useQuery({
+    queryKey: [...CHAVE, "fatura", cartao, fatura],
+    queryFn: () =>
+      api<{ data: DetalheDaFatura }>(`financas/cartoes/${cartao}/faturas/${fatura}`).then(
+        (r) => r.data,
+      ),
+  });
+
+export const useRecorrencias = () =>
+  useQuery({
+    queryKey: [...CHAVE, "recorrencias"],
+    queryFn: () => api<ListaDeRecorrencias>("financas/recorrencias"),
+  });
+
+export const usePlanejamento = (mes: string) =>
+  useQuery({
+    queryKey: [...CHAVE, "planejamento", mes],
+    queryFn: () =>
+      api<{ data: Planejamento }>(`financas/planejamento?mes=${mes}`).then((r) => r.data),
+  });
+
+export const pagarFatura = (cartao: string, fatura: string, p: Record<string, unknown>) =>
+  api<{ data: DetalheDaFatura }>(
+    `financas/cartoes/${cartao}/faturas/${fatura}/pagar`,
+    json("POST", p),
+  ).then((r) => r.data);
+
+export const criarRecorrencia = (r: Record<string, unknown>) =>
+  api<{ data: Recorrencia }>("financas/recorrencias", json("POST", r)).then(
+    (x) => x.data,
+  );
+export const editarRecorrencia = (id: string, r: Record<string, unknown>) =>
+  api<{ data: Recorrencia }>(`financas/recorrencias/${id}`, json("PATCH", r)).then(
+    (x) => x.data,
+  );
+export const apagarRecorrencia = (id: string) =>
+  api<null>(`financas/recorrencias/${id}`, { method: "DELETE" });
+
+export const criarItem = (i: Record<string, unknown>) =>
+  api<{ data: Planejamento }>("financas/planejamento", json("POST", i)).then(
+    (r) => r.data,
+  );
+export const editarItem = (id: string, i: Record<string, unknown>) =>
+  api<{ data: Planejamento }>(`financas/planejamento/${id}`, json("PATCH", i)).then(
+    (r) => r.data,
+  );
+export const apagarItem = (id: string) =>
+  api<{ data: Planejamento }>(`financas/planejamento/${id}`, { method: "DELETE" }).then(
+    (r) => r.data,
+  );
+export const copiarPlanejamento = (de: string, para: string) =>
+  api<{ data: { itens: number } }>(
+    "financas/planejamento/copiar",
+    json("POST", { de, para }),
+  );
+export const puxarRecorrencias = (mes: string) =>
+  api<{ data: { itens: number } }>(`financas/planejamento/recorrencias?mes=${mes}`, {
+    method: "POST",
+  });
 
 export const criarConta = (c: Record<string, unknown>) =>
   api<{ data: Conta }>("financas/contas", json("POST", c)).then((r) => r.data);

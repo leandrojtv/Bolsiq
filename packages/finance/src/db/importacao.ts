@@ -459,6 +459,12 @@ export async function criarImportacao(
     saldo_informado: lidos.length === 1 ? (primeiro.saldo?.valor ?? null) : null,
     saldo_data: lidos.length === 1 ? (primeiro.saldo?.data ?? null) : null,
   });
+  // Fatura: o LEDGERBAL do cartao (negativo) e o total que o banco cobra.
+  if (dest.statement_id && lidos.length === 1 && primeiro.saldo)
+    await tx
+      .update(statements)
+      .set({ total_informado: moeda(d(primeiro.saldo.valor).abs()) })
+      .where(and(eq(statements.user_id, uid), eq(statements.id, dest.statement_id)));
 
   const noLote = new Set<string>();
   const linhas = propostas.map((p, ordem) => {

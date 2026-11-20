@@ -4,27 +4,33 @@ Módulo de finanças pessoais do Bolsiq: contas, cartões, categorias, lançamen
 importação de extrato. Nome e navegação próprios, mesmo login. Pacote
 `packages/finance`, schema `finance` no banco. Decisões em
 [ADR 0031](../adr/0031-bolsiq-financas.md) e
-[ADR 0032](../adr/0032-importacao-ofx-financas.md) (importação OFX).
+[ADR 0032](../adr/0032-importacao-ofx-financas.md) (importação OFX) e
+[ADR 0033](../adr/0033-faturas-recorrencias-planejamento.md) (faturas, recorrências,
+painel e planejamento).
 
 Não lê nem faz join com `portfolio`, `app`, `analytics` ou `market_data`. O Painel
 geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 
 ## Estado atual
 
-| Parte                                                        | Estado                                         |
-| ------------------------------------------------------------ | ---------------------------------------------- |
-| Contas, categorias e lançamentos (CRUD)                      | pronto, BFF em `/api/financas/*` com OpenAPI   |
-| Transferência entre contas (par de lançamentos)              | pronto; não conta como receita nem despesa     |
-| Categorias padrão semeadas no primeiro acesso                | pronto, idempotente                            |
-| Schema com RLS forçada e FKs compostas pelo dono             | pronto, testes contra Postgres real            |
-| Telas `/financas`, `/contas`, `/lancamentos`, `/categorias`  | prontas, com lançamento rápido (Enter salva)   |
-| Seletor de módulo e entrada pelo último módulo usado         | pronto (cookie `bolsiq_modulo`)                |
-| `/painel`                                                    | só a rota, com estado vazio                    |
-| Cartões e faturas pelo ciclo (`/financas/cartoes`)           | pronto (cadastro, fatura atual, pagamento)     |
-| Importação de extrato e fatura em OFX (`/financas/importar`) | pronto: revisão, dedupe, conciliação, desfazer |
-| Regras de categorização (`/financas/regras`)                 | pronto; correções viram regras aprendidas      |
-| Recorrências, plano de parcelas, dashboard do mês            | próximas etapas                                |
-| Importação de CSV, PDF e imagem; sugestão por IA             | próximas etapas (novo leitor, mesma revisão)   |
+| Parte                                                          | Estado                                         |
+| -------------------------------------------------------------- | ---------------------------------------------- |
+| Contas, categorias e lançamentos (CRUD)                        | pronto, BFF em `/api/financas/*` com OpenAPI   |
+| Transferência entre contas (par de lançamentos)                | pronto; não conta como receita nem despesa     |
+| Categorias padrão semeadas no primeiro acesso                  | pronto, idempotente                            |
+| Schema com RLS forçada e FKs compostas pelo dono               | pronto, testes contra Postgres real            |
+| Telas `/financas`, `/contas`, `/lancamentos`, `/categorias`    | prontas, com lançamento rápido (Enter salva)   |
+| Seletor de módulo e entrada pelo último módulo usado           | pronto (cookie `bolsiq_modulo`)                |
+| `/painel`                                                      | só a rota, com estado vazio                    |
+| Cartões e faturas pelo ciclo (`/financas/cartoes`)             | pronto (cadastro, fatura atual, pagamento)     |
+| Importação de extrato e fatura em OFX (`/financas/importar`)   | pronto: revisão, dedupe, conciliação, desfazer |
+| Regras de categorização (`/financas/regras`)                   | pronto; correções viram regras aprendidas      |
+| Fatura: fechamento, pagamento previsto e pagar (transferência) | pronto                                         |
+| Recorrências (`/financas/recorrentes`) e job diário            | pronto; previstos até 90 dias, idempotente     |
+| Dashboard do mês (`/financas`, com seletor de mês)             | pronto                                         |
+| Planejamento mensal por categoria (`/financas/planejamento`)   | pronto; não cria lançamento                    |
+| Plano de parcelas                                              | próxima etapa                                  |
+| Importação de CSV, PDF e imagem; sugestão por IA               | próximas etapas (novo leitor, mesma revisão)   |
 
 ## Modelo de dados
 
@@ -52,13 +58,29 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 - Categorias `sistema` (Tarifas bancárias, Juros e encargos, IOF) não se apagam
   nem trocam de natureza.
 - Lançamento pertence a uma conta **ou** a um cartão; o de cartão leva a fatura
-  (`statement_id`). Compra antes do dia do fechamento entra na fatura seguinte; no
-  dia do fechamento ou depois, na próxima. Pagamento de fatura é transferência da
-  conta para o cartão.
+  (`statement_id`). Compra até o dia do fechamento (inclusive) entra na fatura do ciclo; depois, na seguinte.
+  Pagamento de fatura é transferência da conta para o cartão, nunca despesa: o gasto
+  conta na compra. Fatura fechada gera o pagamento previsto na conta pagadora, no
+  vencimento.
 
 Exportação e exclusão da conta (LGPD, `/configuracoes/conta`) incluem contas,
 cartões, faturas, categorias, lançamentos, importações (com as linhas), regras e
 auditoria do módulo; a exclusão também apaga do outbox os eventos do usuário.
+
+## Recorrências, painel e planejamento
+
+- **Recorrências**: mensal (dia do mês; 31 vira o último dia), semanal (1 = segunda
+  a 7 = domingo) ou anual (no mês do início). O job `finance.rotina-diaria` no
+  `portfolio-worker` (cron `FINANCE_ROTINA_CRON`, padrão 03h10, e uma vez ao subir)
+  gera os previstos até 90 dias e fecha as faturas. Editar muda só os previstos
+  futuros; valor variável usa o último realizado.
+- **Painel** (`/api/financas/painel?mes=YYYY-MM`): renda prevista x recebida,
+  despesas pagas x a pagar, saldo previsto do fim do mês, fixos x variáveis (pelo
+  `tipo_custo` da categoria) e em % da renda, saldo por conta, faturas não pagas,
+  top 5 categorias e o que vence em 7 dias.
+- **Planejamento**: itens por mês e categoria (descrição, valor, fixo). Compara com o
+  realizado e o previsto da categoria, mostra a sobra planejada, copia o mês anterior
+  e puxa as recorrências. Não cria lançamento.
 
 ## Importação OFX
 
@@ -141,5 +163,10 @@ apaga (409): arquive.
   e RLS das tabelas novas.
 - `apps/web/e2e/financas.spec.ts`: criar conta, lançar despesa, ver na lista e
   voltar para Finanças depois do login.
+- `packages/finance/src/integration/recorrencias.test.ts`: fatura fecha e gera o
+  previsto uma vez, pagar não dobra a despesa, rotina diária duas vezes não duplica,
+  edição de recorrência só nos futuros, valor variável e planejamento.
+- `apps/web/e2e/financas-cartao.spec.ts`: criar cartão, comprar, ver na fatura,
+  pagar e conferir no painel que a despesa não dobrou.
 - `apps/web/e2e/financas-importacao.spec.ts`: importar um OFX de fixture, revisar,
   confirmar, reimportar sem duplicar e desfazer.

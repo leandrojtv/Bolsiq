@@ -15,7 +15,7 @@ const l = (o: Partial<LancamentoFinanceiro>): LancamentoFinanceiro => ({
   tipo_custo: null,
   aporte: false,
   origem: "Corrente",
-  parcela: null,
+  parcela: false,
   ...o,
 });
 

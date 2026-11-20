@@ -13,6 +13,7 @@ import {
   Briefcase,
   ChartLine,
   Columns2,
+  CalendarClock,
   CreditCard,
   FileUp,
   Funnel,
@@ -20,6 +21,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   ListChecks,
+  NotebookPen,
   ReceiptText,
   Search,
   Tags,
@@ -143,10 +145,21 @@ export function navegacaoFinancas(atual: string): NavItem[] {
       label: "Lançamentos",
       icon: <ReceiptText {...ICONE} />,
     },
-    { href: "/financas/importar", label: "Importar", icon: <FileUp {...ICONE} /> },
+    {
+      href: "/financas/planejamento",
+      label: "Planejamento",
+      shortLabel: "Planejar",
+      icon: <NotebookPen {...ICONE} />,
+    },
     { href: "/financas/cartoes", label: "Cartões", icon: <CreditCard {...ICONE} /> },
+    { href: "/financas/importar", label: "Importar", icon: <FileUp {...ICONE} /> },
+    {
+      href: "/financas/recorrentes",
+      label: "Recorrentes",
+      icon: <CalendarClock {...ICONE} />,
+    },
     { href: "/financas/contas", label: "Contas", icon: <Landmark {...ICONE} /> },
-    // Abaixo de 768 px a barra inferior mostra os cinco primeiros; estes dois
+    // Abaixo de 768 px a barra inferior mostra os cinco primeiros; os demais
     // ficam nos atalhos da visao geral.
     { href: "/financas/categorias", label: "Categorias", icon: <Tags {...ICONE} /> },
     { href: "/financas/regras", label: "Regras", icon: <ListChecks {...ICONE} /> },

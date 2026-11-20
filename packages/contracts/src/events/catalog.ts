@@ -423,12 +423,14 @@ export const SUBJECT_FINANCE = "finance.>";
 export const streams = {
   marketdata: { name: STREAM_MARKETDATA, subject: SUBJECT_MARKETDATA },
   analytics: { name: STREAM_ANALYTICS, subject: SUBJECT_ANALYTICS },
-  // Poucos eventos por usuario, consumidos na hora: limite proprio, para os tres
-  // streams caberem no `max_file_store` do nats.conf (16 GB; os outros 8 GB cada).
+  // Poucos eventos por usuario, consumidos na hora. Sem reserva de bytes (-1):
+  // MARKETDATA e ANALYTICS ja reservam os 16 GB do `max_file_store` do
+  // nats.conf, e qualquer reserva a mais e recusada. O teto e por mensagens e
+  // pela idade (30 dias, a mesma dos outros).
   finance: {
     name: STREAM_FINANCE,
     subject: SUBJECT_FINANCE,
-    max_bytes: 1024 * 1024 * 1024,
+    max_bytes: -1,
     max_msgs: 1_000_000,
   },
 } as const;

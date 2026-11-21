@@ -8,7 +8,7 @@ export async function arquivosDoForm(
   // FormDataEntryValue e string ou File; `typeof` nao depende de qual File global.
   const lista =
     form?.getAll("arquivos").filter((a): a is File => typeof a !== "string") ?? [];
-  if (lista.length === 0) return "Envie pelo menos um arquivo .ofx.";
+  if (lista.length === 0) return "Envie pelo menos um arquivo .ofx ou .csv.";
   const limites = limitesDeImportacao();
   if (lista.length > limites.arquivos)
     return `Envie no máximo ${limites.arquivos} arquivos por vez.`;

@@ -12,7 +12,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { faturaDaCompra } from "../cartao.js";
+import { faturaDaCompra, faturaDoMes } from "../cartao.js";
 import type {
   AnaliseDeImportacao,
   EdicaoDeLinha,
@@ -210,8 +210,12 @@ export async function analisarArquivos(
       })
       .from(cards)
       .where(and(eq(cards.user_id, uid), eq(cards.arquivado, false)));
-    const final = primeiro.conta?.replace(/\D/g, "").slice(-4) ?? "";
-    const peloFinal = cartoes.filter((c) => c.final && c.final === final);
+    // O CSV do C6 traz varios finais (adicional, virtual) separados por virgula.
+    const finais = (primeiro.conta ?? "")
+      .split(",")
+      .map((f) => f.replace(/\D/g, "").slice(-4))
+      .filter(Boolean);
+    const peloFinal = cartoes.filter((c) => c.final && finais.includes(c.final));
     const doBanco = cartoes.filter((c) => daInstituicao(c.instituicao, palavras));
     const escolhido =
       cartoes.find((c) => c.id === anterior?.card_id) ??
@@ -223,12 +227,22 @@ export async function analisarArquivos(
             ? cartoes[0]
             : undefined);
     card_id = escolhido?.id ?? null;
-    // A fatura que fecha depois da ultima compra do arquivo.
+    // A fatura que o arquivo diz (nome do CSV do C6), no dia de vencimento do
+    // cartao; sem isso, a que fecha depois da ultima compra do arquivo.
     const ultima = lidos
       .flatMap((l) => l.extrato.linhas.map((x) => x.data))
       .sort()
       .at(-1);
-    if (escolhido && ultima) vencimento = faturaDaCompra(escolhido, ultima).vencimento;
+    const informado = primeiro.vencimento ?? null;
+    if (escolhido && informado)
+      vencimento = faturaDoMes(
+        escolhido,
+        Number(informado.slice(0, 4)),
+        Number(informado.slice(5, 7)),
+      ).vencimento;
+    else if (escolhido && ultima)
+      vencimento = faturaDaCompra(escolhido, ultima).vencimento;
+    else vencimento = informado;
   }
 
   return {
@@ -275,12 +289,53 @@ async function regrasDoUsuario(tx: Tx, uid: string): Promise<RegraParaAplicar[]>
 
 async function naturezas(tx: Tx, uid: string) {
   const linhas = await tx
-    .select({ id: categories.id, natureza: categories.natureza })
+    .select({ id: categories.id, nome: categories.nome, natureza: categories.natureza })
     .from(categories)
     .where(eq(categories.user_id, uid));
   const mapa = new Map(linhas.map((c) => [c.id, c.natureza]));
-  return (id: string) => mapa.get(id);
+  const porNome = new Map(linhas.map((c) => [`${c.natureza}|${c.nome}`, c.id]));
+  return {
+    naturezaDe: (id: string) => mapa.get(id),
+    /** Categoria do usuario com o nome padrao sugerido pelo banco. */
+    peloNome: (natureza: string, nome: string | null | undefined) =>
+      nome ? (porNome.get(`${natureza}|${nome}`) ?? null) : null,
+  };
 }
+
+/**
+ * Conta de onde sai o pagamento da fatura: a conta de pagamento do cartao ou,
+ * se nao houver, a unica conta ativa do mesmo banco.
+ */
+async function contaQuePagaOCartao(
+  tx: Tx,
+  uid: string,
+  cardId: string,
+  banco: string | null,
+): Promise<string | null> {
+  const [cartao] = await tx
+    .select({ account_id: cards.account_id })
+    .from(cards)
+    .where(and(eq(cards.user_id, uid), eq(cards.id, cardId)));
+  if (cartao?.account_id) return cartao.account_id;
+  const palavras = palavrasDoBanco(banco);
+  if (palavras.length === 0) return null;
+  const doBanco = (
+    await tx
+      .select({ id: accounts.id, instituicao: accounts.instituicao })
+      .from(accounts)
+      .where(and(eq(accounts.user_id, uid), eq(accounts.arquivada, false)))
+  ).filter((c) => daInstituicao(c.instituicao, palavras));
+  return doBanco.length === 1 ? doBanco[0]!.id : null;
+}
+
+/** Credito do cartao que quita fatura: nunca e receita. */
+const ehPagamentoDeFatura = (
+  alvo: string,
+  l: { tipo: string; descricao_normalizada: string },
+) =>
+  alvo === "cartao" &&
+  l.tipo === "receita" &&
+  pareceTransferencia(l.descricao_normalizada);
 
 /**
  * Categoria mais recente que o usuario deu a cada descricao, pela normalizacao
@@ -443,11 +498,14 @@ export async function criarImportacao(
       }
 
   const regras = await regrasDoUsuario(tx, uid);
-  const natureza = await naturezas(tx, uid);
+  const cats = await naturezas(tx, uid);
   const hist = await historico(tx, uid);
 
   const id = randomUUID();
   const primeiro = lidos[0]!.extrato;
+  const pagadora = dest.card_id
+    ? await contaQuePagaOCartao(tx, uid, dest.card_id, primeiro.banco)
+    : null;
   await tx.insert(imports).values({
     id,
     user_id: uid,
@@ -500,8 +558,31 @@ export async function criarImportacao(
     const manual = repetida ? undefined : daParcela ? { id: daParcela } : parecido(p);
     if (manual) usados.add(manual.id);
     const situacao = repetida ? "ja_importada" : manual ? "possivel_duplicata" : "nova";
-    const cat = categorizar(p.descricao_normalizada, p.tipo, regras, hist, natureza);
-    const acao = repetida ? "ignorar" : manual ? "conciliar" : "importar";
+    const pagamento = ehPagamentoDeFatura(pedido.alvo, p);
+    const regra = categorizar(
+      p.descricao_normalizada,
+      p.tipo,
+      regras,
+      hist,
+      cats.naturezaDe,
+    );
+    // Sem regra nem historico, a categoria que o banco informou.
+    const doBanco = cats.peloNome(p.tipo, p.categoria_sugerida);
+    const cat = pagamento
+      ? { category_id: null, origem: "nenhuma" as const, regra_id: null }
+      : regra.origem === "nenhuma" && doBanco
+        ? { category_id: doBanco, origem: "banco" as const, regra_id: null }
+        : regra;
+    // Pagamento sem a transferencia ja lancada: vira transferencia da conta que
+    // paga o cartao; sem saber a conta, fica desmarcado ate o usuario escolher.
+    const acao = repetida
+      ? "ignorar"
+      : manual
+        ? "conciliar"
+        : pagamento && !pagadora
+          ? "ignorar"
+          : "importar";
+    const transferenciaDe = pagamento && acao === "importar" ? pagadora : null;
     return {
       id: randomUUID(),
       user_id: uid,
@@ -526,6 +607,7 @@ export async function criarImportacao(
       selecionada: acao !== "ignorar",
       acao,
       category_id: cat.category_id,
+      transferencia_conta_id: transferenciaDe,
     };
   });
   for (let i = 0; i < linhas.length; i += 500)
@@ -951,6 +1033,15 @@ export async function confirmarImportacao(
   }
   const imp = await linhaDaImportacao(tx, uid, id);
   const linhas = await linhasDaImportacao(tx, uid, id);
+  const pagamentoSemConta = linhas.find(
+    (l) =>
+      l.acao === "importar" && !ehTransferencia(l) && ehPagamentoDeFatura(imp.alvo, l),
+  );
+  if (pagamentoSemConta)
+    throw new ErroDeFinancas(
+      422,
+      `"${pagamentoSemConta.descricao_original}" paga a fatura: escolha a conta de onde saiu o pagamento ou desmarque a linha.`,
+    );
   const destino = {
     account_id: imp.account_id,
     card_id: imp.card_id,

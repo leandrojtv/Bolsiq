@@ -9,38 +9,40 @@ importação de extrato. Nome e navegação próprios, mesmo login. Pacote
 painel e planejamento) e
 [ADR 0034](../adr/0034-parcelamentos-dividas-fluxo-metas.md) (parcelamentos, dívidas,
 orçamento, fluxo e metas) e
-[ADR 0035](../adr/0035-insights-financas.md) (insights de gastos).
+[ADR 0035](../adr/0035-insights-financas.md) (insights de gastos) e
+[ADR 0038](../adr/0038-importacao-csv-c6.md) (fatura do C6 em CSV).
 
 Não lê nem faz join com `portfolio`, `app`, `analytics` ou `market_data`. O Painel
 geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 
 ## Estado atual
 
-| Parte                                                                        | Estado                                         |
-| ---------------------------------------------------------------------------- | ---------------------------------------------- |
-| Contas, categorias e lançamentos (CRUD)                                      | pronto, BFF em `/api/financas/*` com OpenAPI   |
-| Transferência entre contas (par de lançamentos)                              | pronto; não conta como receita nem despesa     |
-| Categorias padrão semeadas no primeiro acesso                                | pronto, idempotente                            |
-| Schema com RLS forçada e FKs compostas pelo dono                             | pronto, testes contra Postgres real            |
-| Telas `/financas`, `/contas`, `/lancamentos`, `/categorias`                  | prontas, com lançamento rápido (Enter salva)   |
-| Seletor de módulo e entrada pelo último módulo usado                         | pronto (cookie `bolsiq_modulo`)                |
-| `/painel`                                                                    | só a rota, com estado vazio                    |
-| Cartões e faturas pelo ciclo (`/financas/cartoes`)                           | pronto (cadastro, fatura atual, pagamento)     |
-| Importação de extrato e fatura em OFX (`/financas/importar`)                 | pronto: revisão, dedupe, conciliação, desfazer |
-| Regras de categorização (`/financas/regras`)                                 | pronto; correções viram regras aprendidas      |
-| Fatura: fechamento, pagamento previsto e pagar (transferência)               | pronto                                         |
-| Recorrências (`/financas/recorrentes`) e job diário                          | pronto; previstos até 90 dias, idempotente     |
-| Dashboard do mês (`/financas`, com seletor de mês)                           | pronto                                         |
-| Planejamento mensal por categoria (`/financas/planejamento`)                 | pronto; não cria lançamento                    |
-| Compra parcelada no cartão e parcela importada (`/financas/parcelamentos`)   | pronto                                         |
-| Empréstimo e financiamento Price/SAC com simulador (`/financas/dividas`)     | pronto                                         |
-| Orçamento por categoria com estados (no planejamento; `/financas/orcamento`) | pronto                                         |
-| Fluxo de caixa projetado de 3 a 12 meses (`/financas/fluxo`)                 | pronto                                         |
-| Metas (`/financas/metas`)                                                    | pronto                                         |
-| Insights (`/financas/insights`) e "Onde otimizar" no dashboard               | pronto; determinísticos, com evidências        |
-| Assinaturas detectadas (`/financas/assinaturas`)                             | pronto                                         |
-| Simulador de cortes (`/financas/insights/simulador`)                         | pronto                                         |
-| Importação de CSV, PDF e imagem; sugestão por IA                             | próximas etapas (novo leitor, mesma revisão)   |
+| Parte                                                                        | Estado                                          |
+| ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| Contas, categorias e lançamentos (CRUD)                                      | pronto, BFF em `/api/financas/*` com OpenAPI    |
+| Transferência entre contas (par de lançamentos)                              | pronto; não conta como receita nem despesa      |
+| Categorias padrão semeadas no primeiro acesso                                | pronto, idempotente                             |
+| Schema com RLS forçada e FKs compostas pelo dono                             | pronto, testes contra Postgres real             |
+| Telas `/financas`, `/contas`, `/lancamentos`, `/categorias`                  | prontas, com lançamento rápido (Enter salva)    |
+| Seletor de módulo e entrada pelo último módulo usado                         | pronto (cookie `bolsiq_modulo`)                 |
+| `/painel`                                                                    | só a rota, com estado vazio                     |
+| Cartões e faturas pelo ciclo (`/financas/cartoes`)                           | pronto (cadastro, fatura atual, pagamento)      |
+| Importação de extrato e fatura em OFX (`/financas/importar`)                 | pronto: revisão, dedupe, conciliação, desfazer  |
+| Fatura do C6 em CSV (`/financas/importar`)                                   | pronto: parcelas, pagamento, IOF, vários finais |
+| Regras de categorização (`/financas/regras`)                                 | pronto; correções viram regras aprendidas       |
+| Fatura: fechamento, pagamento previsto e pagar (transferência)               | pronto                                          |
+| Recorrências (`/financas/recorrentes`) e job diário                          | pronto; previstos até 90 dias, idempotente      |
+| Dashboard do mês (`/financas`, com seletor de mês)                           | pronto                                          |
+| Planejamento mensal por categoria (`/financas/planejamento`)                 | pronto; não cria lançamento                     |
+| Compra parcelada no cartão e parcela importada (`/financas/parcelamentos`)   | pronto                                          |
+| Empréstimo e financiamento Price/SAC com simulador (`/financas/dividas`)     | pronto                                          |
+| Orçamento por categoria com estados (no planejamento; `/financas/orcamento`) | pronto                                          |
+| Fluxo de caixa projetado de 3 a 12 meses (`/financas/fluxo`)                 | pronto                                          |
+| Metas (`/financas/metas`)                                                    | pronto                                          |
+| Insights (`/financas/insights`) e "Onde otimizar" no dashboard               | pronto; determinísticos, com evidências         |
+| Assinaturas detectadas (`/financas/assinaturas`)                             | pronto                                          |
+| Simulador de cortes (`/financas/insights/simulador`)                         | pronto                                          |
+| Importação de CSV de outros bancos, PDF e imagem; sugestão por IA            | próximas etapas (novo leitor, mesma revisão)    |
 
 ## Modelo de dados
 
@@ -135,7 +137,7 @@ insight traz `evidencias` (ids dos lançamentos) e sai ordenado por impacto anua
 - **CDI** do `/v1/macro/cdi` (BCB SGS 12), buscado pelo web; a tela mostra a
   premissa, a data e a fonte.
 
-## Importação OFX
+## Importação OFX e CSV
 
 1. **Envio** (`POST /importacoes/analise`): lê os arquivos sem gravar e sugere o
    destino: importação anterior da mesma conta externa, banco do `BANKID`/`ORG`
@@ -165,6 +167,31 @@ Limites: `FINANCE_IMPORT_MAX_MB` (5), `FINANCE_IMPORT_MAX_ROWS` (5000) e
 
 Formato novo: um `LeitorDeExtrato` em `packages/finance/src/importacao` e uma
 entrada em `LEITORES`, com fixtures. A revisão não muda.
+
+Pagamento de fatura num cartão (crédito com descrição de pagamento) nunca vira
+receita: concilia com a transferência já lançada; senão, vira transferência da
+conta que paga o cartão (ou da única conta do mesmo banco); senão, chega
+desmarcado, e confirmar com ele marcado e sem conta é recusado.
+
+## Fatura do C6 em CSV
+
+O C6 só exporta a fatura em CSV (`Fatura_AAAA-MM-DD.csv`, separador `;`). O
+leitor `csv-c6` reconhece o arquivo pelo cabeçalho ([ADR 0038](../adr/0038-importacao-csv-c6.md)):
+
+- vencimento sugerido pelo nome do arquivo, no dia de vencimento do cartão;
+- cartão sugerido por qualquer um dos finais (principal, adicional, virtual);
+  tudo entra na fatura escolhida, e a análise avisa quantos finais há;
+- parcela `n/N` da coluna `Parcela`, com a data da compra levada para o mês da
+  parcela (a anuidade, que já vem com a data do mês, fica como está); cria ou
+  concilia o plano como a parcela do OFX;
+- `Inclusao de Pagamento` (negativo) é o pagamento da fatura (regra acima);
+- IOF de compra internacional (linha em reais com o mesmo nome e data de uma
+  compra em dólar) ganha o prefixo `IOF` e a categoria IOF;
+- categoria do banco mapeada para a padrão (`origem_categoria = "banco"`) quando
+  nenhuma regra nem o histórico casam; anuidade vai para Tarifas bancárias.
+
+O arquivo não traz o total da fatura: a revisão mostra compras e créditos para
+conferir com o app do banco.
 
 As migrations são aplicadas pelo passo de migrate do `portfolio-worker`, journal
 `drizzle_finance`.
@@ -244,3 +271,12 @@ apaga (409): arquive.
   pagar e conferir no painel que a despesa não dobrou.
 - `apps/web/e2e/financas-importacao.spec.ts`: importar um OFX de fixture, revisar,
   confirmar, reimportar sem duplicar e desfazer.
+- `packages/finance/src/importacao/csv-c6.test.ts`: fatura do C6 anonimizada
+  (`fixtures/c6-Fatura_2026-11-10.csv`) com totais, pagamento, parcelas, IOF,
+  categoria do banco e casos de borda.
+- `packages/finance/src/integration/importacao.test.ts` (fatura do C6): sugestão
+  pelo final e pelo nome, pagamento desmarcado sem conta, transferência da conta
+  do C6, conciliação com o pagamento lançado, 20 planos criados, totais da fatura,
+  reimportação e parcela seguinte conciliando com o plano.
+- `apps/web/e2e/financas-importacao-c6.spec.ts`: upload da fatura do C6, compras e
+  créditos batendo com o arquivo, pagamento como transferência e confirmação.

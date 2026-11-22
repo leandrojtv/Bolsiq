@@ -63,7 +63,8 @@ export function ordenarRegras<T extends RegraParaAplicar>(regras: T[]): T[] {
   );
 }
 
-export type OrigemDaCategoria = "regra" | "historico" | "nenhuma";
+/** banco: a categoria informada pelo banco no arquivo (CSV do C6). */
+export type OrigemDaCategoria = "regra" | "historico" | "banco" | "nenhuma";
 
 export interface Categorizacao {
   category_id: string | null;

@@ -35,6 +35,14 @@ const STATUS = {
 const comSinal = (l: Pick<LinhaDeImportacao, "tipo" | "valor">) =>
   l.tipo === "despesa" ? `-${l.valor}` : l.valor;
 
+/** Soma em centavos das linhas marcadas de um tipo, para conferir com a fatura. */
+const somaMarcadas = (linhas: LinhaDeImportacao[], tipo: LinhaDeImportacao["tipo"]) =>
+  (
+    linhas
+      .filter((l) => l.acao !== "ignorar" && l.tipo === tipo)
+      .reduce((s, l) => s + Math.round(Number(l.valor) * 100), 0) / 100
+  ).toFixed(2);
+
 function Categorias({
   categorias,
   natureza,
@@ -133,10 +141,10 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
     <Card title="Importar extrato ou fatura">
       <form onSubmit={(e) => void revisar(e)} className="flex flex-col gap-4" noValidate>
         <label className={ROTULO}>
-          Arquivos OFX
+          Arquivos OFX ou CSV
           <input
             type="file"
-            accept=".ofx,.qfx"
+            accept=".ofx,.qfx,.csv"
             multiple
             className={cn(CAMPO, "py-1.5")}
             onChange={(e) => void ler(Array.from(e.target.files ?? []))}
@@ -144,7 +152,8 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
         </label>
         <p className="m-0 text-xs text-text-3">
           No app ou no internet banking, exporte o extrato da conta ou a fatura do cartão
-          em OFX (às vezes chamado de Money). Dá para enviar vários de uma vez.
+          em OFX (às vezes chamado de Money). Do C6, a fatura em CSV também serve. Dá para
+          enviar vários de uma vez.
         </p>
         {analise && (
           <ul
@@ -432,7 +441,18 @@ function Revisao({
           value={t.linhas}
           subtitle={`${t.selecionadas} ${t.selecionadas === 1 ? "marcada" : "marcadas"}`}
         />
-        <StatTile label="Total a gravar" value={<Money value={t.total} />} />
+        <StatTile
+          label="Total a gravar"
+          value={<Money value={t.total} />}
+          subtitle={
+            imp.alvo === "cartao" ? (
+              <>
+                compras <Money value={somaMarcadas(imp.linhas, "despesa")} /> · créditos{" "}
+                <Money value={somaMarcadas(imp.linhas, "receita")} />
+              </>
+            ) : undefined
+          }
+        />
         <StatTile label="Já importadas" value={t.duplicadas} />
         <StatTile label="Possíveis duplicatas" value={t.possiveis_duplicatas} />
         <StatTile label="Sem categoria" value={t.sem_categoria} />
@@ -559,6 +579,21 @@ function Revisao({
                         !transferencia &&
                         l.acao === "importar" && (
                           <span className="text-text-3">parece transferência</span>
+                        )}
+                      {imp.alvo === "cartao" &&
+                        l.tipo === "receita" &&
+                        l.sugere_transferencia &&
+                        l.situacao === "nova" &&
+                        l.acao === "ignorar" &&
+                        emRevisao && (
+                          <span className="text-warn">
+                            pagamento da fatura: marque e escolha a conta de onde saiu
+                          </span>
+                        )}
+                      {l.origem_categoria === "banco" &&
+                        l.category_id === l.categoria_detectada &&
+                        !transferencia && (
+                          <span className="text-text-3">categoria do banco</span>
                         )}
                     </span>
                   </td>

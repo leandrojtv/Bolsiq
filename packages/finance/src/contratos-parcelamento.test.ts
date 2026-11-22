@@ -4,6 +4,7 @@ import {
   NovoEmprestimo,
   NovoParcelamentoNoCartao,
   ParametroDoFluxo,
+  ResultadoDaExclusao,
 } from "./contratos-parcelamento.js";
 
 describe("contratos de parcelamento, divida, meta e fluxo", () => {
@@ -54,5 +55,23 @@ describe("contratos de parcelamento, divida, meta e fluxo", () => {
     ).toMatchObject({ valor_alvo: "100000", account_id: null, ativa: true });
     expect(ParametroDoFluxo.parse({})).toEqual({ meses: 6 });
     expect(ParametroDoFluxo.safeParse({ meses: "13" }).success).toBe(false);
+  });
+
+  it("resultado da exclusao: contagens inteiras e nao negativas", () => {
+    expect(
+      ResultadoDaExclusao.parse({ previstas_apagadas: 10, realizados_desvinculados: 2 }),
+    ).toEqual({ previstas_apagadas: 10, realizados_desvinculados: 2 });
+    expect(
+      ResultadoDaExclusao.safeParse({
+        previstas_apagadas: -1,
+        realizados_desvinculados: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      ResultadoDaExclusao.safeParse({
+        previstas_apagadas: 1.5,
+        realizados_desvinculados: 0,
+      }).success,
+    ).toBe(false);
   });
 });

@@ -63,6 +63,7 @@ import {
   PedidoDeQuitacao,
   PedidoDeSimulacao,
   Plano,
+  ResultadoDaExclusao,
   ResultadoDaSimulacao,
   ValorDaCategoria,
 } from "./contratos-parcelamento.js";
@@ -496,6 +497,15 @@ export const ROTAS_DE_FINANCAS: RouteSpec[] = [
     tags,
     body: NovoEmprestimo,
     response: RespostaDe(Plano),
+  },
+  {
+    method: "delete",
+    path: "/api/financas/dividas/{id}",
+    summary:
+      "Exclui empréstimo ou financiamento: apaga as parcelas previstas e mantém, sem o vínculo, os lançamentos realizados",
+    tags,
+    params: ParametroId,
+    response: RespostaDe(ResultadoDaExclusao),
   },
   {
     method: "post",

@@ -8,6 +8,7 @@ import type {
   NovoParcelamentoNoCartao,
   PedidoDeAmortizacao,
   Plano,
+  ResultadoDaExclusao,
 } from "../contratos-parcelamento.js";
 import { d, moeda } from "../decimal.js";
 import { competenciaDe } from "../dominio.js";
@@ -497,26 +498,76 @@ export async function quitar(
   return detalheDoPlano(tx, uid, id);
 }
 
-/** Apaga o plano e as parcelas previstas; as realizadas ficam, soltas do plano. */
-export async function apagarPlano(tx: Tx, uid: string, id: string, origem?: Origem) {
-  await linhaDoPlano(tx, uid, id);
-  await tx
+/**
+ * Apaga o plano e as parcelas previstas; os lancamentos realizados (parcelas
+ * pagas e amortizacoes extras) ficam no historico, soltos do plano (ADR 0039).
+ */
+async function excluirPlano(
+  tx: Tx,
+  uid: string,
+  p: LinhaDoPlano,
+  acao: string,
+  origem?: Origem,
+): Promise<ResultadoDaExclusao> {
+  const apagadas = await tx
     .delete(transactions)
     .where(
       and(
         eq(transactions.user_id, uid),
-        eq(transactions.installment_plan_id, id),
+        eq(transactions.installment_plan_id, p.id),
         eq(transactions.status, "previsto"),
       ),
-    );
-  await tx
+    )
+    .returning({ id: transactions.id });
+  const soltos = await tx
     .update(transactions)
-    .set({ installment_plan_id: null, parcela_numero: null })
-    .where(and(eq(transactions.user_id, uid), eq(transactions.installment_plan_id, id)));
+    .set({ installment_plan_id: null, parcela_numero: null, atualizada_em: sql`now()` })
+    .where(and(eq(transactions.user_id, uid), eq(transactions.installment_plan_id, p.id)))
+    .returning({ id: transactions.id });
   await tx
     .delete(installment_plans)
-    .where(and(eq(installment_plans.user_id, uid), eq(installment_plans.id, id)));
-  await auditar(tx, uid, "parcelamento.apagado", "installment_plan", id, origem);
+    .where(and(eq(installment_plans.user_id, uid), eq(installment_plans.id, p.id)));
+  const r = {
+    previstas_apagadas: apagadas.length,
+    realizados_desvinculados: soltos.length,
+  };
+  await auditar(
+    tx,
+    uid,
+    acao,
+    "installment_plan",
+    p.id,
+    origem,
+    `${p.descricao}: ${r.previstas_apagadas} previstas apagadas, ${r.realizados_desvinculados} realizados mantidos`,
+  );
+  return r;
+}
+
+/** Qualquer plano (compra parcelada no cartao ou divida). */
+export async function apagarPlano(
+  tx: Tx,
+  uid: string,
+  id: string,
+  origem?: Origem,
+): Promise<ResultadoDaExclusao> {
+  const p = await linhaDoPlano(tx, uid, id);
+  return excluirPlano(tx, uid, p, "parcelamento.apagado", origem);
+}
+
+/** So emprestimo ou financiamento; compra parcelada no cartao recusa com 422. */
+export async function apagarDivida(
+  tx: Tx,
+  uid: string,
+  id: string,
+  origem?: Origem,
+): Promise<ResultadoDaExclusao> {
+  const p = await linhaDoPlano(tx, uid, id);
+  if (p.origem === "cartao")
+    throw new ErroDeFinancas(
+      422,
+      "Compra parcelada no cartão se exclui em Parcelamentos.",
+    );
+  return excluirPlano(tx, uid, p, "divida.apagada", origem);
 }
 
 /**

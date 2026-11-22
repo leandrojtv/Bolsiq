@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { comoUsuario } from "../db/sessao.js";
 import {
+  apagarLancamento,
   criarConta,
   criarLancamento,
   editarLancamento,
@@ -23,6 +24,8 @@ import {
 } from "../db/importacao.js";
 import {
   amortizar,
+  apagarDivida,
+  apagarPlano,
   comprometidoPorMes,
   criarEmprestimo,
   criarParcelamentoNoCartao,
@@ -303,6 +306,112 @@ describe("emprestimo e financiamento", () => {
       parcelas_restantes: 0,
       ativo: false,
       saldo_devedor: "0.00",
+    });
+  });
+});
+
+describe("excluir divida", () => {
+  it("apaga as previstas, mantem os realizados sem vinculo e respeita o dono", async () => {
+    const p = await comoA((tx) =>
+      criarEmprestimo(
+        tx,
+        A,
+        NovoEmprestimo.parse({
+          origem: "financiamento",
+          account_id: conta,
+          descricao: "Financiamento da moto",
+          valor_financiado: "6.000,00",
+          taxa_mensal: "1",
+          n_parcelas: 6,
+          sistema: "sac",
+          primeira_data: "2024-09-10",
+        }),
+        HOJE,
+      ),
+    );
+    // Set, out e nov pagas; amortizacao extra hoje vira mais um realizado.
+    expect(p).toMatchObject({ parcelas_pagas: 3, parcelas_restantes: 3 });
+    await comoA((tx) =>
+      amortizar(tx, A, p.id, { extra: "500", modo: "reduzir_parcela", data: HOJE }, HOJE),
+    );
+    const linhas = async () =>
+      (
+        await dono.query<{
+          status: string;
+          installment_plan_id: string | null;
+          parcela_numero: number | null;
+        }>(
+          `select status, installment_plan_id, parcela_numero from finance.transactions
+            where user_id = $1 and descricao like '%Financiamento da moto%'
+            order by data, descricao`,
+          [A],
+        )
+      ).rows;
+    expect((await linhas()).filter((l) => l.status === "previsto")).toHaveLength(3);
+    const totalAntes = (await lancamentos({ conta })).meta.total;
+
+    // Outro usuario nao enxerga o plano (RLS e filtro por dono): 404, nada muda.
+    await expect(como(C, (tx) => apagarDivida(tx, A, p.id))).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(como(C, (tx) => apagarDivida(tx, C, p.id))).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(await linhas()).toHaveLength(7);
+
+    // Compra parcelada no cartao nao sai por aqui.
+    const tv = await comoA((tx) =>
+      criarParcelamentoNoCartao(
+        tx,
+        A,
+        NovoParcelamentoNoCartao.parse({
+          card_id: cartao,
+          descricao: "Geladeira",
+          data: HOJE,
+          n_parcelas: 3,
+          valor_parcela: "300",
+        }),
+        HOJE,
+      ),
+    );
+    await expect(comoA((tx) => apagarDivida(tx, A, tv.id))).rejects.toMatchObject({
+      status: 422,
+    });
+
+    const r = await comoA((tx) => apagarDivida(tx, A, p.id));
+    expect(r).toEqual({ previstas_apagadas: 3, realizados_desvinculados: 4 });
+    const depois = await linhas();
+    expect(depois).toHaveLength(4);
+    expect(
+      depois.every(
+        (l) =>
+          l.status !== "previsto" &&
+          l.installment_plan_id === null &&
+          l.parcela_numero === null,
+      ),
+    ).toBe(true);
+    expect((await lancamentos({ conta })).meta.total).toBe(totalAntes - 3);
+    const planos = await comoA((tx) => listarPlanos(tx, A));
+    expect(planos.map((x) => x.id)).not.toContain(p.id);
+    expect(planos.map((x) => x.id)).toContain(tv.id);
+    const auditoria = await dono.query<{ acao: string }>(
+      "select acao from finance.audit_log where user_id = $1 and recurso_id = $2",
+      [A, p.id],
+    );
+    expect(auditoria.rows.map((x) => x.acao)).toContain("divida.apagada");
+    await expect(comoA((tx) => apagarDivida(tx, A, p.id))).rejects.toMatchObject({
+      status: 404,
+    });
+
+    // A compra no cartao sai pela rota de parcelamentos, com a mesma regra.
+    expect(await comoA((tx) => apagarPlano(tx, A, tv.id))).toEqual({
+      previstas_apagadas: 2,
+      realizados_desvinculados: 1,
+    });
+    await comoA((tx) =>
+      listarLancamentos(tx, A, FiltroDeLancamentos.parse({ q: "Geladeira" })),
+    ).then(async (r) => {
+      for (const l of r.data) await comoA((tx) => apagarLancamento(tx, A, l.id));
     });
   });
 });

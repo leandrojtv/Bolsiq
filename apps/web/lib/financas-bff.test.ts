@@ -57,6 +57,7 @@ const fin = vi.hoisted(() => ({
   amortizarDivida: vi.fn(),
   quitarPlano: vi.fn(),
   removerPlano: vi.fn(),
+  removerDivida: vi.fn(),
   fluxo: vi.fn(),
   valorDaCategoria: vi.fn(),
   sugerirOrcamento: vi.fn(),
@@ -100,6 +101,7 @@ const copiarRota = await import("../app/api/financas/planejamento/copiar/route")
 const parcelamentosRota = await import("../app/api/financas/parcelamentos/route");
 const dividasRota = await import("../app/api/financas/dividas/route");
 const simularRota = await import("../app/api/financas/dividas/[id]/simular/route");
+const dividaRota = await import("../app/api/financas/dividas/[id]/route");
 const fluxoRota = await import("../app/api/financas/fluxo/route");
 const categoriaRota = await import("../app/api/financas/planejamento/categoria/route");
 const metasRota = await import("../app/api/financas/metas/route");
@@ -416,6 +418,29 @@ describe("BFF de parcelamentos, dividas, fluxo, orcamento e metas", () => {
       (await simularRota.POST(post({ extra: "100", modo: "reduzir_prazo" }), ctx("d")))
         .status,
     ).toBe(409);
+  });
+
+  it("excluir divida: valida o id, devolve as contagens e repassa os erros", async () => {
+    const del = new Request("http://x/api", { method: "DELETE" });
+    usuario.atual = null;
+    expect((await dividaRota.DELETE(del, ctx("d"))).status).toBe(401);
+    usuario.atual = { id: "u1" };
+    expect((await dividaRota.DELETE(del, ctx(""))).status).toBe(422);
+    expect(fin.removerDivida).not.toHaveBeenCalled();
+    fin.removerDivida.mockResolvedValue({
+      previstas_apagadas: 10,
+      realizados_desvinculados: 2,
+    });
+    const r = await dividaRota.DELETE(del, ctx("d"));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({
+      data: { previstas_apagadas: 10, realizados_desvinculados: 2 },
+    });
+    expect(fin.removerDivida).toHaveBeenCalledWith("u1", "d");
+    fin.removerDivida.mockRejectedValue(new ErroDeFinancas(404, "não encontrado"));
+    expect((await dividaRota.DELETE(del, ctx("outro"))).status).toBe(404);
+    fin.removerDivida.mockRejectedValue(new ErroDeFinancas(422, "cartão"));
+    expect((await dividaRota.DELETE(del, ctx("cartao"))).status).toBe(422);
   });
 
   it("fluxo de 3 a 12 meses, orcamento inline e meta", async () => {

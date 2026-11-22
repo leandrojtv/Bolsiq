@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Trash } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { NovoEmprestimo } from "@bolsiq/finance/puro";
 import {
@@ -21,6 +21,7 @@ import {
   amortizarDivida,
   CHAVE,
   criarDivida,
+  excluirDivida,
   quitarPlano,
   simularDivida,
   useCategorias,
@@ -29,6 +30,98 @@ import {
   usePlanos,
 } from "./cliente";
 import { ROTULO } from "./Contas";
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+
+/**
+ * Confirmacao da exclusao com a regra do ADR 0039: previstas somem, os
+ * realizados ficam na conta sem o vinculo com a divida.
+ */
+function ConfirmarExclusao({
+  plano,
+  onExcluida,
+}: {
+  plano: {
+    id: string;
+    descricao: string;
+    parcelas_pagas: number;
+    parcelas_restantes: number;
+  };
+  onExcluida: (r: Awaited<ReturnType<typeof excluirDivida>>) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function excluir() {
+    setErro(null);
+    setEnviando(true);
+    try {
+      const r = await excluirDivida(plano.id);
+      setAberto(false);
+      onExcluida(r);
+    } catch (falha) {
+      setErro((falha as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        className="self-start text-down hover:text-down"
+        onClick={() => {
+          setErro(null);
+          setAberto(true);
+        }}
+      >
+        <Trash aria-hidden="true" size={16} />
+        Excluir dívida
+      </Button>
+      <Sheet
+        open={aberto}
+        onOpenChange={setAberto}
+        title={`Excluir ${plano.descricao}?`}
+        description="Não dá para desfazer."
+      >
+        <div className="flex flex-col gap-4">
+          <ul className="m-0 flex flex-col gap-2 pl-5 text-sm">
+            <li>
+              {plano.parcelas_restantes > 0
+                ? `${plural(plano.parcelas_restantes, "parcela prevista será apagada", "parcelas previstas serão apagadas")} da conta.`
+                : "Não há parcelas previstas para apagar."}
+            </li>
+            <li>
+              {plano.parcelas_pagas > 0
+                ? `${plural(plano.parcelas_pagas, "parcela paga continua", "parcelas pagas continuam")} nos lançamentos, assim como as amortizações extras, sem o vínculo com a dívida.`
+                : "Amortizações extras já pagas continuam nos lançamentos, sem o vínculo com a dívida."}
+            </li>
+          </ul>
+          {erro && (
+            <p role="alert" className="m-0 text-sm text-down">
+              {erro}
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button onClick={() => setAberto(false)} disabled={enviando}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              className="bg-down text-on-down hover:bg-down-strong"
+              onClick={() => void excluir()}
+              disabled={enviando}
+            >
+              {enviando ? "Excluindo..." : "Excluir dívida"}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+    </>
+  );
+}
 
 const pct = (taxa: string) =>
   `${(Number(taxa) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 4 })}% a.m.`;
@@ -199,7 +292,15 @@ function FormularioDeDivida({ onSalva }: { onSalva: () => void }) {
   );
 }
 
-function DetalheDaDivida({ id, onMudou }: { id: string; onMudou: () => void }) {
+function DetalheDaDivida({
+  id,
+  onMudou,
+  onExcluida,
+}: {
+  id: string;
+  onMudou: () => void;
+  onExcluida: (r: Awaited<ReturnType<typeof excluirDivida>>) => void;
+}) {
   const { data, isPending } = usePlano(id);
   const [extra, setExtra] = useState("");
   const [modo, setModo] = useState<"reduzir_prazo" | "reduzir_parcela">("reduzir_prazo");
@@ -358,6 +459,7 @@ function DetalheDaDivida({ id, onMudou }: { id: string; onMudou: () => void }) {
           </table>
         </div>
       </Card>
+      <ConfirmarExclusao plano={data} onExcluida={onExcluida} />
     </div>
   );
 }
@@ -367,6 +469,7 @@ export function PaginaDeDividas() {
   const { data: planos, isPending } = usePlanos();
   const [aberto, setAberto] = useState(false);
   const [escolhida, setEscolhida] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const atualizar = () => void cliente.invalidateQueries({ queryKey: CHAVE });
   const dividas = (planos ?? []).filter((p) => p.origem !== "cartao");
   const saldo = dividas.reduce((s, p) => s + Number(p.saldo_devedor), 0).toFixed(2);
@@ -384,6 +487,11 @@ export function PaginaDeDividas() {
           Empréstimo ou financiamento
         </Button>
       </header>
+      {aviso && (
+        <p role="status" className="m-0 rounded-control bg-surface-2 px-3 py-2 text-sm">
+          {aviso}
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <StatTile label="Saldo devedor" value={<Money value={saldo} />} />
         <StatTile label="Próximas parcelas somadas" value={<Money value={mensal} />} />
@@ -425,7 +533,17 @@ export function PaginaDeDividas() {
                 </button>
                 {escolhida === p.id && (
                   <div className="mt-3">
-                    <DetalheDaDivida id={p.id} onMudou={atualizar} />
+                    <DetalheDaDivida
+                      id={p.id}
+                      onMudou={atualizar}
+                      onExcluida={(r) => {
+                        setEscolhida(null);
+                        setAviso(
+                          `${p.descricao} excluída: ${plural(r.previstas_apagadas, "parcela prevista apagada", "parcelas previstas apagadas")} e ${plural(r.realizados_desvinculados, "lançamento pago mantido", "lançamentos pagos mantidos")}.`,
+                        );
+                        atualizar();
+                      }}
+                    />
                   </div>
                 )}
               </li>

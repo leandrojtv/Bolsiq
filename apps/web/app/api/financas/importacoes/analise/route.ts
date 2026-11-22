@@ -4,7 +4,7 @@ import { naoAutenticado } from "@/lib/respostas";
 import { tratarFinancas } from "@/lib/respostas-financas";
 import { arquivosDoForm, erroDeEnvio } from "../arquivos";
 
-/** multipart: `arquivos` (um ou mais .ofx). Le sem gravar e sugere o destino. */
+/** multipart: `arquivos` (um ou mais .ofx ou .csv do C6). Le sem gravar e sugere o destino. */
 export async function POST(req: Request) {
   const u = await usuarioLogado();
   if (!u) return naoAutenticado();

@@ -34,6 +34,7 @@ anterior como `substituído por`.
 | [0034](0034-parcelamentos-dividas-fluxo-metas.md) | Bolsiq Finanças: parcelamentos, dívidas, orçamento, fluxo e metas | aceito       |
 | [0035](0035-insights-financas.md)                 | Bolsiq Finanças: insights determinísticos de gastos               | aceito       |
 | [0038](0038-importacao-csv-c6.md)                 | Bolsiq Finanças: fatura do C6 em CSV                              | aceito       |
+| [0039](0039-excluir-divida.md)                    | Bolsiq Finanças: excluir empréstimo ou financiamento              | aceito       |
 
 ## Números reservados
 

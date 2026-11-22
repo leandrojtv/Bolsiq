@@ -1,5 +1,5 @@
 /**
- * Contrato entre um leitor de formato (OFX hoje; CSV e PDF depois) e o resto da
+ * Contrato entre um leitor de formato (OFX e CSV do C6 hoje; PDF depois) e o resto da
  * importacao. A revisao, a deduplicacao e a categorizacao so conhecem
  * `ExtratoLido`: formato novo e um leitor novo, sem mexer nelas.
  */
@@ -20,6 +20,16 @@ export interface LinhaLida {
   sentido: "credito" | "debito";
   /** NAME + MEMO quando os dois existem. */
   descricao: string;
+  /**
+   * Parcela informada em coluna propria (CSV do C6). undefined: o leitor nao
+   * sabe, e a parcela sai da descricao; null: compra a vista.
+   */
+  parcela?: { atual: number; total: number } | null;
+  /**
+   * Nome de categoria padrao do Bolsiq sugerido pelo banco (ou pelo leitor,
+   * como IOF e anuidade). So vale quando nenhuma regra nem o historico casam.
+   */
+  categoria_sugerida?: string | null;
 }
 
 export interface ExtratoLido {
@@ -36,12 +46,14 @@ export interface ExtratoLido {
   saldo: { valor: string; data: string } | null;
   linhas: LinhaLida[];
   avisos: string[];
+  /** Vencimento da fatura, quando o arquivo diz (nome do CSV do C6). */
+  vencimento?: string | null;
 }
 
 export interface LeitorDeExtrato {
   formato: string;
   reconhece(texto: string, nome: string): boolean;
-  ler(texto: string): ExtratoLido;
+  ler(texto: string, nome: string): ExtratoLido;
 }
 
 export class ErroDeLeitura extends Error {}

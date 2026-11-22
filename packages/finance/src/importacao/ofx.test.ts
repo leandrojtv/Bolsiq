@@ -134,7 +134,7 @@ describe("partes do OFX", () => {
 
   it("recusa o que nao e OFX ou nao tem extrato", () => {
     expect(() => lerExtrato(new TextEncoder().encode("a;b;c"), "x.csv")).toThrow(
-      /só OFX/,
+      /Formato não suportado/,
     );
     expect(() => lerExtrato(new TextEncoder().encode("OFXHEADER:100"), "x.ofx")).toThrow(
       /<OFX>/,

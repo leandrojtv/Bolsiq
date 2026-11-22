@@ -177,7 +177,7 @@ export const LinhaDeImportacao = z.object({
   /** Descricao do lancamento parecido, para o usuario decidir. */
   duplicata_descricao: z.string().nullable(),
   categoria_detectada: Id.nullable(),
-  origem_categoria: z.enum(["regra", "historico", "nenhuma"]),
+  origem_categoria: z.enum(["regra", "historico", "banco", "nenhuma"]),
   selecionada: z.boolean(),
   acao: z.enum(ACOES),
   category_id: Id.nullable(),

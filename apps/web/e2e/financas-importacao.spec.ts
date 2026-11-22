@@ -29,7 +29,7 @@ test("Bolsiq Finanças: importa OFX, revisa, confirma, reimporta sem duplicar e 
     .getByRole("link", { name: "Importar" })
     .click();
   await expect(page).toHaveURL(/\/financas\/importar$/);
-  await page.getByLabel("Arquivos OFX").setInputFiles(OFX);
+  await page.getByLabel("Arquivos OFX ou CSV").setInputFiles(OFX);
   await expect(page.getByRole("list", { name: "Arquivos lidos" })).toContainText(
     "extrato de conta · 6 linhas",
   );
@@ -60,7 +60,7 @@ test("Bolsiq Finanças: importa OFX, revisa, confirma, reimporta sem duplicar e 
 
   // O mesmo arquivo de novo: so o aluguel, que ficou de fora, e novo.
   await page.goto("/financas/importar");
-  await page.getByLabel("Arquivos OFX").setInputFiles(OFX);
+  await page.getByLabel("Arquivos OFX ou CSV").setInputFiles(OFX);
   await page.getByRole("button", { name: "Revisar linhas" }).click();
   await expect(page.getByText("já importada", { exact: true })).toHaveCount(5);
   await expect(page.getByText("1 marcada", { exact: true })).toBeVisible();

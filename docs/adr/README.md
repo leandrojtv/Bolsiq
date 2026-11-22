@@ -35,6 +35,7 @@ anterior como `substituído por`.
 | [0035](0035-insights-financas.md)                  | Bolsiq Finanças: insights determinísticos de gastos               | aceito       |
 | [0036](0036-agente-financeiro.md)                  | Assistente no Bolsiq Finanças: ferramentas e contexto por módulo  | aceito       |
 | [0037](0037-painel-geral-e-alertas-financeiros.md) | Painel geral (patrimônio consolidado) e alertas financeiros       | aceito       |
+| [0038](0038-importacao-csv-c6.md)                  | Bolsiq Finanças: fatura do C6 em CSV                              | aceito       |
 
 ## Números reservados
 

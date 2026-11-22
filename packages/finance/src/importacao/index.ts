@@ -1,5 +1,6 @@
 import { d } from "../decimal.js";
 import { detectarParcela, normalizarDeExtrato } from "./normalizar.js";
+import { leitorCsvC6 } from "./csv-c6.js";
 import { leitorOfx } from "./ofx.js";
 import {
   ErroDeLeitura,
@@ -9,12 +10,13 @@ import {
 } from "./tipos.js";
 
 export * from "./categorizar.js";
+export { categoriaDoC6, dataC6, leitorCsvC6, valorC6 } from "./csv-c6.js";
 export * from "./normalizar.js";
 export { dataOfx, leitorOfx, valorOfx } from "./ofx.js";
 export * from "./tipos.js";
 
-/** Formatos aceitos. CSV e PDF entram aqui como novos leitores. */
-export const LEITORES: LeitorDeExtrato[] = [leitorOfx];
+/** Formatos aceitos. PDF entra aqui como novo leitor. */
+export const LEITORES: LeitorDeExtrato[] = [leitorOfx, leitorCsvC6];
 
 /**
  * Bytes -> texto. Banco brasileiro declara CHARSET:1252 e manda UTF-8, ou o
@@ -34,8 +36,11 @@ export function decodificar(bytes: Uint8Array): string {
 export function lerExtrato(bytes: Uint8Array, nome: string): ExtratoLido {
   const texto = decodificar(bytes);
   const leitor = LEITORES.find((l) => l.reconhece(texto, nome));
-  if (!leitor) throw new ErroDeLeitura("Formato não suportado: por enquanto, só OFX.");
-  return leitor.ler(texto);
+  if (!leitor)
+    throw new ErroDeLeitura(
+      "Formato não suportado: por enquanto, OFX e a fatura do C6 em CSV.",
+    );
+  return leitor.ler(texto, nome);
 }
 
 export interface LinhaProposta extends LinhaLida {
@@ -57,7 +62,7 @@ export function proporLinhas(extrato: ExtratoLido): LinhaProposta[] {
     const chave = `${l.data}|${l.sentido}|${l.valor}|${descricao_normalizada}`;
     const ordinal = (vistos.get(chave) ?? 0) + 1;
     vistos.set(chave, ordinal);
-    const parcela = detectarParcela(l.descricao);
+    const parcela = l.parcela !== undefined ? l.parcela : detectarParcela(l.descricao);
     return {
       ...l,
       tipo: l.sentido === "credito" ? "receita" : "despesa",
@@ -92,7 +97,7 @@ export function chaveDeDedupe(
 
 /** Pagamento de fatura e transferencia propria: sugere marcar como transferencia. */
 export function pareceTransferencia(descricaoNormalizada: string): boolean {
-  return /\b(PAGAMENTO|PAGTO|PGTO|PAG) (DE )?(FATURA|CARTAO)|PAGAMENTO (RECEBIDO|EFETUADO)|PGTO DEBITO CONTA|FATURA CARTAO|TRANSF\w* (ENTRE CONTAS|MESMA TITULARIDADE)/.test(
+  return /\b(PAGAMENTO|PAGTO|PGTO|PAG) (DE )?(FATURA|CARTAO)|PAGAMENTO (RECEBIDO|EFETUADO)|PGTO DEBITO CONTA|FATURA CARTAO|INCLUSAO DE PAGAMENTO|TRANSF\w* (ENTRE CONTAS|MESMA TITULARIDADE)/.test(
     descricaoNormalizada,
   );
 }

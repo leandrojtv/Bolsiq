@@ -15,6 +15,7 @@ import {
   type Tx,
 } from "../db/operacoes.js";
 import { criarCartao, listarFaturas } from "../db/cartoes.js";
+import { listarPlanos } from "../db/parcelamentos.js";
 import {
   analisarArquivos,
   confirmarImportacao,
@@ -24,6 +25,7 @@ import {
   listarRegras,
   criarRegra,
   obterImportacao,
+  cancelarImportacao,
   type ArquivoRecebido,
 } from "../db/importacao.js";
 import { FiltroDeLancamentos, NovaConta, NovoLancamento } from "../contratos.js";
@@ -222,7 +224,7 @@ describe("importacao de extrato de conta", () => {
     ).rejects.toThrow(/limite é 3/);
     await expect(
       comoA((tx) => criarImportacao(tx, A, pedido, [texto("x.csv", "a;b")])),
-    ).rejects.toThrow(/só OFX/);
+    ).rejects.toThrow(/Formato não suportado/);
   });
 
   it("revisa, marca o pagamento de fatura como transferencia e confirma", async () => {
@@ -504,6 +506,207 @@ describe("importacao de fatura de cartao", () => {
     await expect(comoA((tx) => desfazerImportacao(tx, A, rev.id))).rejects.toThrow(
       /conciliados/,
     );
+  });
+});
+
+describe("fatura do C6 em CSV", () => {
+  const C6 = "c6-Fatura_2026-11-10.csv";
+  const HOJE_C6 = "2026-11-20";
+  // Usuario proprio: as suites de RLS contam que B nao tem nada.
+  const C = "user-ccc";
+  const comoC = <T>(f: (tx: Tx) => Promise<T>) => comoUsuario(db, C, f);
+  let cartaoC6 = "";
+  let contaC6 = "";
+  let categoriaC: (nome: string) => string = () => "";
+  const pedido = () =>
+    NovaImportacao.parse({ alvo: "cartao", card_id: cartaoC6, vencimento: "2026-11-10" });
+  const importar = (arquivo: ArquivoRecebido = fixture(C6)) =>
+    comoC((tx) => criarImportacao(tx, C, pedido(), [arquivo]));
+
+  beforeAll(async () => {
+    await comoC((tx) => semearCategorias(tx, C));
+    const cats = await comoC((tx) => listarCategorias(tx, C));
+    categoriaC = (nome) => cats.find((c) => c.nome === nome)?.id ?? "";
+    cartaoC6 = (
+      await comoC((tx) =>
+        criarCartao(
+          tx,
+          C,
+          NovoCartao.parse({
+            nome: "C6 Carbon",
+            instituicao: "C6 Bank",
+            final: "2222",
+            dia_fechamento: 3,
+            dia_vencimento: 10,
+          }),
+          HOJE_C6,
+        ),
+      )
+    ).id;
+  });
+
+  it("sugere o cartao por um dos finais e a fatura pelo nome do arquivo", async () => {
+    const a = await comoC((tx) => analisarArquivos(tx, C, [fixture(C6)]));
+    expect(a.sugestao).toEqual({
+      alvo: "cartao",
+      account_id: null,
+      card_id: cartaoC6,
+      vencimento: "2026-11-10",
+    });
+    expect(a.arquivos[0]).toMatchObject({ formato: "csv-c6", banco: "C6", linhas: 42 });
+  });
+
+  it("sem saber a conta, o pagamento fica desmarcado e nao vira receita", async () => {
+    const rev = await importar();
+    const pagamento = rev.linhas.find((l) => l.tipo === "receita")!;
+    expect(pagamento).toMatchObject({
+      situacao: "nova",
+      acao: "ignorar",
+      category_id: null,
+      sugere_transferencia: true,
+    });
+    // Compras: o total do arquivo.
+    expect(rev.totais.total).toBe("-5038.20");
+    await comoC((tx) => editarLinha(tx, C, rev.id, pagamento.id, { selecionada: true }));
+    await expect(comoC((tx) => confirmarImportacao(tx, C, rev.id))).rejects.toThrow(
+      /paga a fatura/,
+    );
+    await comoC((tx) => cancelarImportacao(tx, C, rev.id));
+  });
+
+  it("com a conta do C6, o pagamento vira transferencia dela", async () => {
+    contaC6 = (
+      await comoC((tx) =>
+        criarConta(
+          tx,
+          C,
+          NovaConta.parse({
+            nome: "C6 conta",
+            tipo: "corrente",
+            instituicao: "C6",
+            data_saldo_inicial: "2026-01-01",
+          }),
+          HOJE_C6,
+        ),
+      )
+    ).id;
+    const rev = await importar();
+    expect(rev.linhas.find((l) => l.tipo === "receita")).toMatchObject({
+      acao: "importar",
+      transferencia_conta_id: contaC6,
+      category_id: null,
+    });
+    // Pagamento entra, compras saem: o mesmo saldo do arquivo, com sinal do cartao.
+    expect(rev.totais.total).toBe("1623.41");
+    await comoC((tx) => cancelarImportacao(tx, C, rev.id));
+  });
+
+  it("concilia o pagamento ja lancado, cria os planos e bate com a fatura", async () => {
+    await comoC((tx) =>
+      criarLancamento(
+        tx,
+        C,
+        NovoLancamento.parse({
+          tipo: "transferencia",
+          valor: "6661.61",
+          data: "2026-10-10",
+          descricao: "Pagamento fatura C6",
+          account_id: contaC6,
+          cartao_destino_id: cartaoC6,
+        }),
+      ),
+    );
+    const rev = await importar();
+    expect(rev.vencimento).toBe("2026-11-10");
+    expect(rev.totais).toMatchObject({
+      linhas: 42,
+      selecionadas: 42,
+      total: "-5038.20",
+      possiveis_duplicatas: 1,
+    });
+    const por = (descricao: string) =>
+      rev.linhas.find((l) => l.descricao_original === descricao)!;
+    expect(por("Inclusao de Pagamento")).toMatchObject({
+      situacao: "possivel_duplicata",
+      acao: "conciliar",
+      duplicata_descricao: "Pagamento fatura C6",
+    });
+    expect(por("CLINICA SORRISO")).toMatchObject({
+      parcela_atual: 6,
+      parcela_total: 7,
+      data: "2026-10-30",
+      category_id: categoriaC("Saúde"),
+      origem_categoria: "banco",
+    });
+    expect(por("IOF ANTHROPIC SA")).toMatchObject({
+      category_id: categoriaC("IOF"),
+      origem_categoria: "banco",
+    });
+    expect(por("Anuidade Diferenciada")).toMatchObject({
+      category_id: categoriaC("Tarifas bancárias"),
+    });
+    expect(por("DELL")).toMatchObject({ category_id: null, origem_categoria: "nenhuma" });
+
+    const ok = await comoC((tx) =>
+      confirmarImportacao(tx, C, rev.id, undefined, HOJE_C6),
+    );
+    expect(ok.totais.gravadas).toBe(41);
+    const faturas = await comoC((tx) => listarFaturas(tx, C, cartaoC6, HOJE_C6));
+    expect(faturas.find((f) => f.vencimento === "2026-11-10")).toMatchObject({
+      total: "5038.20",
+      pagamentos: "6661.61",
+    });
+    // Parcelas n/N com N > n: 20 planos (as duas 2/2 terminam nesta fatura).
+    const planos = (await comoC((tx) => listarPlanos(tx, C))).filter(
+      (p) => p.card_id === cartaoC6,
+    );
+    expect(planos).toHaveLength(20);
+    expect(planos.find((p) => p.descricao === "CLINICA SORRISO")).toMatchObject({
+      n_parcelas: 7,
+      primeira_data: "2026-05-30",
+      parcelas_restantes: 1,
+    });
+    expect(planos.find((p) => p.descricao === "ANUIDADE DIFERENCIADA")).toMatchObject({
+      n_parcelas: 12,
+      parcelas_restantes: 7,
+    });
+  });
+
+  it("reimportar a mesma fatura reconhece tudo", async () => {
+    const rev = await importar();
+    expect(rev.linhas.every((l) => l.situacao === "ja_importada")).toBe(true);
+    await comoC((tx) => cancelarImportacao(tx, C, rev.id));
+  });
+
+  it("a parcela seguinte, na fatura seguinte, concilia com o plano", async () => {
+    const rev = await comoC((tx) =>
+      criarImportacao(
+        tx,
+        C,
+        NovaImportacao.parse({
+          alvo: "cartao",
+          card_id: cartaoC6,
+          vencimento: "2026-12-10",
+        }),
+        [
+          texto(
+            "Fatura_2026-12-10.csv",
+            "Data de Compra;Nome no Cartão;Final do Cartão;Categoria;Descrição;Parcela;Valor (em US$);Cotação (em R$);Valor (em R$)\r\n" +
+              "30/05/2026;TITULAR EXEMPLO;1111;Assistência médica e odontológica;CLINICA SORRISO;7/7;0;0;155.71\r\n",
+          ),
+        ],
+      ),
+    );
+    expect(rev.linhas[0]).toMatchObject({
+      data: "2026-11-30",
+      situacao: "possivel_duplicata",
+      acao: "conciliar",
+    });
+    await comoC((tx) => confirmarImportacao(tx, C, rev.id, undefined, HOJE_C6));
+    const plano = (await comoC((tx) => listarPlanos(tx, C))).find(
+      (p) => p.descricao === "CLINICA SORRISO",
+    );
+    expect(plano).toMatchObject({ parcelas_restantes: 0 });
   });
 });
 

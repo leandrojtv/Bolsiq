@@ -183,8 +183,20 @@ export const NovoItemDoPlanejamento = z.object({
   mes: Mes,
   category_id: Id,
   descricao: z.preprocess(vazioNulo, z.string().trim().max(120).nullable().optional()),
+  /** Valor fechado; com `parte_propria`, so esse percentual entra no orcamento. */
   valor: valor("zero"),
   fixo: z.boolean().default(false),
+  /** Percentual que e seu quando o custo e dividido (ex.: 50). Vazio: nao dividido. */
+  parte_propria: z.preprocess(
+    (v) => (typeof v === "string" ? (v.trim() === "" ? null : v.replace(",", ".")) : v),
+    z.coerce
+      .number({ invalid_type_error: "percentual inválido" })
+      .gt(0, "a sua parte deve ser maior que 0%")
+      .lt(100, "a sua parte deve ser menor que 100%")
+      .multipleOf(0.01, "use até 2 casas decimais")
+      .nullable()
+      .optional(),
+  ),
 });
 export type NovoItemDoPlanejamento = z.infer<typeof NovoItemDoPlanejamento>;
 export type ItemDigitado = z.input<typeof NovoItemDoPlanejamento>;
@@ -201,9 +213,14 @@ export const ItemDoPlanejamento = z.object({
   id: Id,
   category_id: Id,
   descricao: z.string().nullable(),
+  /** Valor fechado. */
   valor: Dinheiro,
   fixo: z.boolean(),
   recurrence_id: Id.nullable(),
+  /** Percentual do usuario quando dividido; null: nao dividido. */
+  parte_propria: z.number().nullable(),
+  /** Parte do usuario: o que entra no planejado da categoria. */
+  valor_proprio: Dinheiro,
 });
 export type ItemDoPlanejamento = z.infer<typeof ItemDoPlanejamento>;
 
@@ -234,6 +251,8 @@ export const Planejamento = z.object({
     sobra_planejada: Dinheiro,
     receitas_realizadas: Dinheiro,
     despesas_realizadas: Dinheiro,
+    /** Parte das despesas divididas que outra pessoa cobre. */
+    despesas_de_terceiros: Dinheiro,
   }),
 });
 export type Planejamento = z.infer<typeof Planejamento>;

@@ -32,6 +32,8 @@ import { painelDoMes } from "../db/painel.js";
 import {
   copiarPlanejamento,
   criarItem,
+  definirValorDaCategoria,
+  editarItem,
   obterPlanejamento,
   puxarRecorrencias,
 } from "../db/planejamento.js";
@@ -39,6 +41,7 @@ import { rotinaDiaria } from "../db/rotina.js";
 import { FiltroDeLancamentos, NovaConta, NovoLancamento } from "../contratos.js";
 import { NovoCartao } from "../contratos-importacao.js";
 import {
+  EdicaoDeItemDoPlanejamento,
   EdicaoDeRecorrencia,
   NovaRecorrencia,
   NovoItemDoPlanejamento,
@@ -396,6 +399,52 @@ describe("planejamento", () => {
       fixo: true,
     });
     expect(abril.totais.despesas_fixas).toBe("1900.00");
+  });
+
+  it("item dividido guarda o fechado, orca a parte propria e copia a divisao", async () => {
+    const moradia = categoria("Moradia");
+    const p = await comoA((tx) =>
+      criarItem(
+        tx,
+        A,
+        NovoItemDoPlanejamento.parse({
+          mes: "2024-05",
+          category_id: moradia,
+          descricao: "Condomínio",
+          valor: "800",
+          fixo: true,
+          parte_propria: "50",
+        }),
+      ),
+    );
+    const cond = p.itens.find((i) => i.descricao === "Condomínio");
+    expect(cond).toMatchObject({
+      valor: "800.00",
+      parte_propria: 50,
+      valor_proprio: "400.00",
+    });
+    expect(p.totais).toMatchObject({
+      despesas_fixas: "400.00",
+      despesas_de_terceiros: "400.00",
+    });
+    // Inline da categoria: total = geral + parte propria dos itens descritos.
+    const q = await comoA((tx) =>
+      definirValorDaCategoria(tx, A, "2024-05", moradia, "500"),
+    );
+    expect(q.categorias.find((c) => c.category_id === moradia)?.planejado).toBe("500.00");
+    expect(q.itens.find((i) => i.descricao === null)?.valor).toBe("100.00");
+    await comoA((tx) => copiarPlanejamento(tx, A, "2024-05", "2024-06"));
+    const junho = await comoA((tx) => obterPlanejamento(tx, A, "2024-06"));
+    expect(junho.itens.find((i) => i.descricao === "Condomínio")?.parte_propria).toBe(50);
+    const r = await comoA((tx) =>
+      editarItem(
+        tx,
+        A,
+        cond!.id,
+        EdicaoDeItemDoPlanejamento.parse({ parte_propria: null }),
+      ),
+    );
+    expect(r.totais.despesas_de_terceiros).toBe("0.00");
   });
 
   it("B nao ve recorrencia nem planejamento de A", async () => {

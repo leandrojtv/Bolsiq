@@ -2,9 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { d } from "../decimal.js";
 import { MapeamentoDeCsv } from "../contratos-importacao.js";
-import { conferirFatura } from "../db/importacao.js";
 import {
   cabecalhoDoCsv,
+  conferirFatura,
   dataDoCsv,
   lerExtrato,
   marcacaoDe,
@@ -75,9 +75,10 @@ describe("Nubank cartao", () => {
       vencimento: "2026-11-15",
     });
     expect(e.linhas).toHaveLength(8);
-    expect(linhas.filter((l) => l.sentido === "credito").map((l) => l.marcacao)).toEqual(
-      ["pagamento", "estorno"],
-    );
+    expect(linhas.filter((l) => l.sentido === "credito").map((l) => l.marcacao)).toEqual([
+      "pagamento",
+      "estorno",
+    ]);
   });
 
   it("IOF marcado e com categoria propria, parcela pela descricao", () => {
@@ -147,7 +148,13 @@ describe("CSV generico com mapeamento salvo", () => {
     } catch (e) {
       expect(e).toBeInstanceOf(PrecisaDeMapeamento);
       const p = (e as PrecisaDeMapeamento).csv;
-      expect(p.colunas).toEqual(["dt. movimento", "historico", "credito", "debito", "parc."]);
+      expect(p.colunas).toEqual([
+        "dt. movimento",
+        "historico",
+        "credito",
+        "debito",
+        "parc.",
+      ]);
       expect(p.separador).toBe("|");
       expect(p.amostra).toHaveLength(3);
     }
@@ -176,7 +183,8 @@ describe("CSV generico com mapeamento salvo", () => {
   });
 
   it("coluna unica de valor com sinal invertido (cartao que manda compra negativa)", () => {
-    const fatura = "data;descricao;valor\n01/10/2026;CAFE;-10,00\n02/10/2026;PAGAMENTO;99,00";
+    const fatura =
+      "data;descricao;valor\n01/10/2026;CAFE;-10,00\n02/10/2026;PAGAMENTO;99,00";
     const m = MapeamentoDeCsv.parse({
       assinatura: cabecalhoDoCsv(fatura)!.assinatura,
       tipo: "cartao",
@@ -192,8 +200,12 @@ describe("CSV generico com mapeamento salvo", () => {
 
   it("mapeamento sem coluna de valor e recusado no contrato", () => {
     expect(
-      MapeamentoDeCsv.safeParse({ assinatura: "a", tipo: "conta", data: "d", descricao: "x" })
-        .success,
+      MapeamentoDeCsv.safeParse({
+        assinatura: "a",
+        tipo: "conta",
+        data: "d",
+        descricao: "x",
+      }).success,
     ).toBe(false);
   });
 });
@@ -223,7 +235,9 @@ describe("conferencia do total da fatura", () => {
   });
 
   it("ate R$ 0,05 confere; acima, aponta a linha do valor da diferenca e as repetidas", () => {
-    expect(conferirFatura("100.05", [linha("a", "despesa", "100.00")]).confere).toBe(true);
+    expect(conferirFatura("100.05", [linha("a", "despesa", "100.00")]).confere).toBe(
+      true,
+    );
     const c = conferirFatura("100.00", [
       linha("a", "despesa", "100.00"),
       linha("b", "despesa", "35.00"),

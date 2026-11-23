@@ -1,7 +1,11 @@
 import { Decimal } from "decimal.js";
 import type { LanguageModel } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
-import type { CabecalhoDaIA, SaidaDaIA } from "../../src/importacao/esquema.js";
+import type {
+  CabecalhoDaIA,
+  CabecalhoFinancasDaIA,
+  SaidaDaIA,
+} from "../../src/importacao/esquema.js";
 import {
   SenhaIncorreta,
   type FerramentasDoSistema,
@@ -59,10 +63,12 @@ const USO = {
 };
 
 /** O cabecalho que um modelo correto devolveria para a fixture. */
-export const cabecalhoDa = (r: SaidaDaIA): CabecalhoDaIA => ({
-  ...r.documento,
-  avisos: r.avisos,
-});
+export const cabecalhoDa = (r: SaidaDaIA): CabecalhoDaIA | CabecalhoFinancasDaIA => {
+  const { financas, ...documento } = r.documento;
+  return financas
+    ? { ...financas, avisos: r.avisos }
+    : { ...documento, avisos: r.avisos };
+};
 
 /**
  * A resposta gravada para um pedido: o cabecalho em JSON, ou as linhas em blocos
@@ -100,6 +106,7 @@ export function respostaGravada(
     transacoes: daqui(r.transacoes),
     proventos: daqui(r.proventos),
     notas: daqui(r.notas),
+    lancamentos: daqui(r.lancamentos),
     malformadas: [],
   });
 }

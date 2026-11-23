@@ -20,6 +20,7 @@ import {
 } from "./tipos.js";
 
 export * from "./categorizar.js";
+export * from "./conferencia.js";
 export * from "./csv.js";
 export { categoriaDoC6, dataC6, leitorCsvC6, valorC6 } from "./csv-c6.js";
 export * from "./normalizar.js";

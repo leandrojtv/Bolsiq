@@ -50,6 +50,13 @@
       "when": 1795197412880,
       "tag": "0006_financas_e_relatorio",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795475264323,
+      "tag": "0007_importacao_financas",
+      "breakpoints": true
     }
   ]
 }

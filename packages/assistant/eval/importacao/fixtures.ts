@@ -160,6 +160,7 @@ const saida = (
   transacoes: [],
   proventos: [],
   notas: [],
+  lancamentos: [],
   avisos: [],
   ...s,
 });

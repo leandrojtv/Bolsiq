@@ -1,4 +1,7 @@
-import type { CabecalhoDaIA } from "../../src/importacao/esquema.js";
+import type {
+  CabecalhoDaIA,
+  CabecalhoFinancasDaIA,
+} from "../../src/importacao/esquema.js";
 import { cabecalhoDa, respostaGravada } from "./executar.js";
 import { FIXTURES } from "./fixtures.js";
 
@@ -28,7 +31,7 @@ export const CAMINHO_DA_RESPOSTA = "infra/docker/llm-falso-importacao.json";
 
 /** O que o provedor falso devolve: o cabecalho (JSON) e as linhas (blocos CSV). */
 export interface RespostaDoFalso {
-  cabecalho: CabecalhoDaIA;
+  cabecalho: CabecalhoDaIA | CabecalhoFinancasDaIA;
   csv: string;
 }
 

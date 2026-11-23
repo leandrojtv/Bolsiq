@@ -15,7 +15,11 @@ export * from "./ferramentas.js";
 export * from "./atalho.js";
 export * from "./job.js";
 export * from "./postgres.js";
+export * from "./validacao-financas.js";
+export * from "./servico-financas.js";
+export * from "./envio.js";
 export {
   SISTEMA_DE_IMPORTACAO,
   VERSAO_DO_PROMPT_DE_IMPORTACAO,
 } from "../../prompts/importacao-v1.js";
+export { VERSAO_DO_PROMPT_DE_FINANCAS } from "../../prompts/importacao-financas-v1.js";

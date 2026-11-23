@@ -61,7 +61,10 @@ const linhasDe = (texto: string) => texto.split(/\r?\n/);
 /** dd/mm/aaaa, dd/mm/aa, dd-mm-aaaa, aaaa-mm-dd e mm/dd/aaaa (so com o formato pedido). */
 export type FormatoDeData = MapeamentoDeCsv["formato_data"];
 
-export function dataDoCsv(t: string, formato: FormatoDeData = "dd/mm/aaaa"): string | null {
+export function dataDoCsv(
+  t: string,
+  formato: FormatoDeData = "dd/mm/aaaa",
+): string | null {
   const s = t.trim().slice(0, 10);
   let ano: string;
   let mes: string;
@@ -223,9 +226,16 @@ export const leitorCsvNubankCartao: LeitorDeExtrato = {
     );
     // Nubank_2026-11-15.csv: o nome traz o vencimento.
     const venc = /(\d{4}-\d{2}-\d{2})/.exec(nome)?.[1] ?? null;
-    return extrato("csv-nubank-cartao", "cartao", "Nubank", paraLinhas("cartao", brutas), avisos, {
-      vencimento: venc && dataDoCsv(venc, "aaaa-mm-dd") ? venc : null,
-    });
+    return extrato(
+      "csv-nubank-cartao",
+      "cartao",
+      "Nubank",
+      paraLinhas("cartao", brutas),
+      avisos,
+      {
+        vencimento: venc && dataDoCsv(venc, "aaaa-mm-dd") ? venc : null,
+      },
+    );
   },
 };
 
@@ -249,7 +259,13 @@ export const leitorCsvNubankConta: LeitorDeExtrato = {
       },
       avisos,
     );
-    return extrato("csv-nubank-conta", "conta", "Nubank", paraLinhas("conta", brutas), avisos);
+    return extrato(
+      "csv-nubank-conta",
+      "conta",
+      "Nubank",
+      paraLinhas("conta", brutas),
+      avisos,
+    );
   },
 };
 
@@ -282,11 +298,21 @@ export const leitorCsvInterConta: LeitorDeExtrato = {
     const saldo = linhas
       .map((l) => camposDaLinha(l, a.sep))
       .find((c) => semAcento(c[0] ?? "") === "saldo");
-    const fim = brutas.map((b) => b.data).sort().at(-1);
+    const fim = brutas
+      .map((b) => b.data)
+      .sort()
+      .at(-1);
     const valorDoSaldo = saldo ? valorDoCsv(saldo[1] ?? "", "virgula") : null;
-    return extrato("csv-inter-conta", "conta", "Inter", paraLinhas("conta", brutas), avisos, {
-      saldo: valorDoSaldo && fim ? { valor: valorDoSaldo, data: fim } : null,
-    });
+    return extrato(
+      "csv-inter-conta",
+      "conta",
+      "Inter",
+      paraLinhas("conta", brutas),
+      avisos,
+      {
+        saldo: valorDoSaldo && fim ? { valor: valorDoSaldo, data: fim } : null,
+      },
+    );
   },
 };
 
@@ -316,7 +342,13 @@ export const leitorCsvItauConta: LeitorDeExtrato = {
       },
       avisos,
     );
-    return extrato("csv-itau-conta", "conta", "Itaú", paraLinhas("conta", brutas), avisos);
+    return extrato(
+      "csv-itau-conta",
+      "conta",
+      "Itaú",
+      paraLinhas("conta", brutas),
+      avisos,
+    );
   },
 };
 
@@ -335,7 +367,9 @@ export interface CabecalhoDeCsv {
  * pelo menos 3 campos nao vazios e seguida de uma linha com o mesmo numero de
  * campos. A assinatura e o cabecalho normalizado: mesmo banco, mesma assinatura.
  */
-export function cabecalhoDoCsv(texto: string): (CabecalhoDeCsv & { indice: number }) | null {
+export function cabecalhoDoCsv(
+  texto: string,
+): (CabecalhoDeCsv & { indice: number }) | null {
   const linhas = linhasDe(texto);
   for (let i = 0; i < Math.min(15, linhas.length - 1); i++) {
     const l = linhas[i] ?? "";
@@ -381,7 +415,8 @@ export function leitorCsvMapeado(m: MapeamentoDeCsv): LeitorDeExtrato {
         ["data", m.data],
         ["descrição", m.descricao],
       ] as const)
-        if (col(nome) === -1) throw new ErroDeLeitura(`coluna de ${campo} não encontrada`);
+        if (col(nome) === -1)
+          throw new ErroDeLeitura(`coluna de ${campo} não encontrada`);
       if (col(m.valor) === -1 && col(m.credito) === -1 && col(m.debito) === -1)
         throw new ErroDeLeitura("coluna de valor não encontrada");
       const avisos: string[] = [];

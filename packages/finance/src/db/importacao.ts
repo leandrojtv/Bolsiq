@@ -47,6 +47,7 @@ import {
   type OrigemDeRegra,
   type RegraParaAplicar,
 } from "../importacao/index.js";
+import { conferirFatura } from "../importacao/conferencia.js";
 import {
   auditar,
   categoriaDoUsuario,
@@ -688,20 +689,20 @@ export async function criarImportacaoDeExtratos(
     );
     const cat =
       pagamento || informativa
-      ? { category_id: null, origem: "nenhuma" as const, regra_id: null }
-      : regra.origem === "nenhuma" && doBanco
-        ? { category_id: doBanco, origem: "banco" as const, regra_id: null }
-        : regra;
+        ? { category_id: null, origem: "nenhuma" as const, regra_id: null }
+        : regra.origem === "nenhuma" && doBanco
+          ? { category_id: doBanco, origem: "banco" as const, regra_id: null }
+          : regra;
     // Pagamento sem a transferencia ja lancada: vira transferencia da conta que
     // paga o cartao; sem saber a conta, fica desmarcado ate o usuario escolher.
     const acao =
       repetida || informativa
-      ? "ignorar"
-      : manual
-        ? "conciliar"
-        : (pagamento && !pagadora) || duvidosa
-          ? "ignorar"
-          : "importar";
+        ? "ignorar"
+        : manual
+          ? "conciliar"
+          : (pagamento && !pagadora) || duvidosa
+            ? "ignorar"
+            : "importar";
     const transferenciaDe = pagamento && acao === "importar" ? pagadora : null;
     return {
       id: randomUUID(),
@@ -880,55 +881,6 @@ async function montarImportacao(
     conferencia_fatura:
       i.total_informado && linhas ? conferirFatura(i.total_informado, linhas) : null,
     pode_desfazer: await podeDesfazer(tx, uid, i.id, i.status),
-  };
-}
-
-/** Tolerancia da conferencia do total da fatura: arredondamento de centavos. */
-export const TOLERANCIA_DA_FATURA = "0.05";
-
-/**
- * Soma do documento contra o total escrito: compras, IOF e tarifas menos
- * estornos. Pagamento e saldo anterior ficam fora: com a fatura anterior paga
- * inteira, os dois se anulam. Todas as linhas contam, marcadas ou nao: e a
- * conferencia da leitura, nao do que vai ser gravado. Suspeitas: a linha com o
- * valor da diferenca, as repetidas no mesmo dia e as que ja vieram com aviso.
- */
-export function conferirFatura(
-  totalInformado: string,
-  linhas: Pick<
-    LinhaDb,
-    "id" | "tipo" | "valor" | "marcacao" | "data" | "descricao_normalizada" | "aviso"
-  >[],
-): NonNullable<Importacao["conferencia_fatura"]> {
-  let calculado = d(0);
-  for (const l of linhas) {
-    if (l.marcacao === "pagamento" || l.marcacao === "saldo_anterior") continue;
-    if (l.tipo === "despesa") calculado = calculado.plus(l.valor);
-    else if (l.marcacao === "estorno") calculado = calculado.minus(l.valor);
-  }
-  const diferenca = calculado.minus(totalInformado);
-  const confere = diferenca.abs().lte(TOLERANCIA_DA_FATURA);
-  const suspeitas: string[] = [];
-  if (!confere) {
-    const vistas = new Map<string, number>();
-    for (const l of linhas) {
-      const k = `${l.data}|${l.valor}|${l.descricao_normalizada}`;
-      vistas.set(k, (vistas.get(k) ?? 0) + 1);
-    }
-    for (const l of linhas)
-      if (
-        d(l.valor).eq(diferenca.abs()) ||
-        (vistas.get(`${l.data}|${l.valor}|${l.descricao_normalizada}`) ?? 0) > 1 ||
-        l.aviso
-      )
-        suspeitas.push(l.id);
-  }
-  return {
-    total_informado: moeda(d(totalInformado)),
-    total_calculado: moeda(calculado),
-    diferenca: moeda(diferenca),
-    confere,
-    suspeitas,
   };
 }
 

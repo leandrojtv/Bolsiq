@@ -110,7 +110,12 @@ export const STATUS_DE_IMPORTACAO = [
   "desfeita",
 ] as const;
 export const SITUACOES = ["nova", "ja_importada", "possivel_duplicata"] as const;
-export const MARCACOES_DE_LINHA = ["pagamento", "estorno", "saldo_anterior", "iof"] as const;
+export const MARCACOES_DE_LINHA = [
+  "pagamento",
+  "estorno",
+  "saldo_anterior",
+  "iof",
+] as const;
 export const ACOES = ["importar", "ignorar", "conciliar"] as const;
 
 const NomeDeColuna = z.string().min(1).max(120);
@@ -126,7 +131,9 @@ export const MapeamentoDeCsv = z
     credito: NomeDeColuna.nullable().default(null),
     debito: NomeDeColuna.nullable().default(null),
     parcela: NomeDeColuna.nullable().default(null),
-    formato_data: z.enum(["dd/mm/aaaa", "aaaa-mm-dd", "mm/dd/aaaa"]).default("dd/mm/aaaa"),
+    formato_data: z
+      .enum(["dd/mm/aaaa", "aaaa-mm-dd", "mm/dd/aaaa"])
+      .default("dd/mm/aaaa"),
     decimal: z.enum(["virgula", "ponto"]).default("virgula"),
     inverter_sinal: z.boolean().default(false),
   })

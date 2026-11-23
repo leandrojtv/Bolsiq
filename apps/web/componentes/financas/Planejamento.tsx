@@ -28,13 +28,22 @@ function NovoItem({ mes, onSalvo }: { mes: string; onSalvo: (p: Planejamento) =>
   const [descricao, setDescricao] = useState("");
   const [valor, setValor] = useState("");
   const [fixo, setFixo] = useState(false);
+  const [dividido, setDividido] = useState(false);
+  const [parte, setParte] = useState("50");
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   async function salvar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErro(null);
-    const item = { mes, category_id: categoria, descricao, valor, fixo };
+    const item = {
+      mes,
+      category_id: categoria,
+      descricao,
+      valor,
+      fixo,
+      parte_propria: dividido ? parte : null,
+    };
     const r = NovoItemDoPlanejamento.safeParse(item);
     if (!r.success)
       return setErro(
@@ -71,7 +80,7 @@ function NovoItem({ mes, onSalvo }: { mes: string; onSalvo: (p: Planejamento) =>
       <form
         aria-label="Novo item do planejamento"
         onSubmit={(e) => void salvar(e)}
-        className="grid grid-cols-2 gap-3 md:grid-cols-[1fr_1fr_140px_auto_auto] md:items-end"
+        className="grid grid-cols-2 gap-3 md:grid-cols-[1fr_1fr_140px_auto_auto_auto] md:items-end"
         noValidate
       >
         <label className={ROTULO}>
@@ -96,7 +105,7 @@ function NovoItem({ mes, onSalvo }: { mes: string; onSalvo: (p: Planejamento) =>
           />
         </label>
         <label className={ROTULO}>
-          Valor planejado
+          {dividido ? "Valor fechado" : "Valor planejado"}
           <input
             className={cn(CAMPO, "font-mono")}
             inputMode="decimal"
@@ -113,10 +122,38 @@ function NovoItem({ mes, onSalvo }: { mes: string; onSalvo: (p: Planejamento) =>
           />
           Fixo
         </label>
+        <div className="col-span-2 flex min-h-touch items-center gap-2 text-sm md:col-span-1">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={dividido}
+              onChange={(e) => setDividido(e.target.checked)}
+            />
+            Dividido
+          </label>
+          {dividido && (
+            <label className="flex items-center gap-1">
+              <span className="sr-only">Sua parte (%)</span>
+              <input
+                aria-label="Sua parte (%)"
+                className={cn(CAMPO, "h-8 w-16 py-0 text-right font-mono")}
+                inputMode="decimal"
+                value={parte}
+                onChange={(e) => setParte(e.target.value)}
+              />
+              <span className="whitespace-nowrap">% seu</span>
+            </label>
+          )}
+        </div>
         <Button type="submit" variant="primary" disabled={enviando}>
           Adicionar
         </Button>
       </form>
+      {dividido && (
+        <p className="m-0 text-xs text-text-3">
+          Informe o valor fechado da conta; só a sua parte entra no planejado e na sobra.
+        </p>
+      )}
       {erro && (
         <p role="alert" className="m-0 text-sm text-down">
           {erro}
@@ -168,6 +205,38 @@ function ValorInline({
         if (e.key === "Enter") {
           e.preventDefault();
           void onSalvar(texto).then(() => setEditando(false));
+        }
+      }}
+    />
+  );
+}
+
+/** Percentual do usuario num item dividido; Enter ou sair do campo salva. */
+function ParteInline({
+  parte,
+  rotulo,
+  onSalvar,
+}: {
+  parte: number;
+  rotulo: string;
+  onSalvar: (v: string) => Promise<unknown>;
+}) {
+  const [texto, setTexto] = useState(String(parte).replace(".", ","));
+  const salvar = () => {
+    if (texto.replace(",", ".") !== String(parte)) void onSalvar(texto);
+  };
+  return (
+    <input
+      aria-label={rotulo}
+      className={cn(CAMPO, "h-7 w-14 py-0 text-right font-mono text-xs")}
+      inputMode="decimal"
+      value={texto}
+      onChange={(e) => setTexto(e.target.value)}
+      onBlur={salvar}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          salvar();
         }
       }}
     />
@@ -228,6 +297,13 @@ export function PaginaDePlanejamento() {
           <StatTile
             label="Despesas planejadas"
             value={<Money value={t.despesas_planejadas} />}
+            subtitle={
+              Number(t.despesas_de_terceiros) > 0 ? (
+                <>
+                  sua parte; outros cobrem <Money value={t.despesas_de_terceiros} />
+                </>
+              ) : undefined
+            }
           />
           <StatTile label="Fixas" value={<Money value={t.despesas_fixas} />} />
           <StatTile label="Variáveis" value={<Money value={t.despesas_variaveis} />} />
@@ -420,9 +496,46 @@ export function PaginaDePlanejamento() {
                           />
                           fixo
                         </label>
+                        <label className="ml-3 inline-flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            aria-label={`Dividido: ${i.descricao ?? nome.get(i.category_id)}`}
+                            checked={i.parte_propria !== null}
+                            onChange={(e) =>
+                              void agir(async () =>
+                                guardar(
+                                  await editarItem(i.id, {
+                                    parte_propria: e.target.checked ? 50 : null,
+                                  }),
+                                ),
+                              )
+                            }
+                          />
+                          dividido
+                        </label>
+                        {i.parte_propria !== null && (
+                          <span className="ml-2 inline-flex items-center gap-1">
+                            <ParteInline
+                              key={`${i.id}-${i.parte_propria}`}
+                              parte={i.parte_propria}
+                              rotulo={`Sua parte (%): ${i.descricao ?? nome.get(i.category_id)}`}
+                              onSalvar={(v) =>
+                                agir(async () =>
+                                  guardar(await editarItem(i.id, { parte_propria: v })),
+                                )
+                              }
+                            />
+                            % seu
+                          </span>
+                        )}
                       </td>
                       <td className="py-1 text-right text-xs">
-                        <Money value={i.valor} />
+                        <Money value={i.valor_proprio} />
+                        {i.parte_propria !== null && (
+                          <span className="block text-text-3">
+                            de <Money value={i.valor} />
+                          </span>
+                        )}
                       </td>
                       <td className="hidden md:table-cell" colSpan={2} />
                       <td className="py-1 text-right">

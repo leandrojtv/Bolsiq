@@ -15,6 +15,8 @@ export const Env = z.object({
   FINANCE_ROTINA_CRON: z.string().default("10 3 * * *"),
   /** Recalculo diario dos insights do Bolsiq Financas (depois da rotina). */
   FINANCE_INSIGHTS_CRON: z.string().default("40 3 * * *"),
+  /** Relatorio mensal do assistente (ADR 0036): dia 1, de manha, em Sao Paulo. */
+  ASSISTANT_REPORT_CRON: z.string().default("0 8 1 * *"),
   /** De quanto em quanto tempo procura carteira marcada para recalcular. */
   RECALCULO_MS: z.coerce.number().int().positive().default(2000),
   // Importacao com IA (ADR 0027): o worker usa a chave do usuario.

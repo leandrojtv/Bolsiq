@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CASOS } from "./casos.js";
+import { CASOS_FINANCAS } from "./casos-financas.js";
 import { executarCaso, resumir } from "./executar.js";
 import {
   extrairNumeros,
@@ -11,34 +12,53 @@ import {
 import { modeloDeRoteiro } from "./roteiro.js";
 
 describe("eval com o roteiro", () => {
-  it("tem de 20 a 30 perguntas", () => {
+  it("tem de 20 a 30 perguntas de investimentos e pelo menos 12 do Finanças", () => {
     expect(CASOS.length).toBeGreaterThanOrEqual(20);
     expect(CASOS.length).toBeLessThanOrEqual(30);
+    expect(CASOS_FINANCAS.length).toBeGreaterThanOrEqual(12);
+    expect(new Set(CASOS_FINANCAS.map((c) => c.modulo))).toEqual(new Set(["financas"]));
   });
 
-  it("os valores esperados saem das ferramentas reais, sobre a base de teste", async () => {
-    const resultados = [];
-    for (const c of CASOS) resultados.push(await executarCaso(c, modeloDeRoteiro));
-    const falhas = resultados
-      .filter(
-        (r) =>
-          !(
-            r.ferramenta_certa &&
-            r.parametros_certos &&
-            r.numeros_certos &&
-            r.texto_certo
-          ),
-      )
-      .map((r) => ({
-        id: r.id,
-        faltando: r.numeros_faltando,
-        sem_origem: r.numeros_sem_origem,
-        resposta: r.resposta,
-        erro: r.erro,
-      }));
-    expect(falhas).toEqual([]);
-    expect(resumir(resultados).aprovado).toBe(true);
+  it("o roteiro acusa numero sem origem e ferramenta errada", async () => {
+    const caso = CASOS_FINANCAS.find((c) => c.id === "fin-ifood-outubro")!;
+    const errado = await executarCaso({ ...caso, numeros: [999.99] }, modeloDeRoteiro);
+    expect(errado.numeros_sem_origem).toEqual([999.99]);
+    const outra = await executarCaso(
+      { ...caso, ferramentas: [{ nome: "resumo_mes" }] },
+      (c) => modeloDeRoteiro({ ...c, ferramentas: [{ nome: "assinaturas" }] }),
+    );
+    expect(outra.ferramenta_certa).toBe(false);
   });
+
+  it.each([
+    ["investimentos", CASOS],
+    ["Bolsiq Finanças", CASOS_FINANCAS],
+  ])(
+    "%s: os valores esperados saem das ferramentas reais, sobre a base de teste",
+    async (_n, casos) => {
+      const resultados = [];
+      for (const c of casos) resultados.push(await executarCaso(c, modeloDeRoteiro));
+      const falhas = resultados
+        .filter(
+          (r) =>
+            !(
+              r.ferramenta_certa &&
+              r.parametros_certos &&
+              r.numeros_certos &&
+              r.texto_certo
+            ),
+        )
+        .map((r) => ({
+          id: r.id,
+          faltando: r.numeros_faltando,
+          sem_origem: r.numeros_sem_origem,
+          resposta: r.resposta,
+          erro: r.erro,
+        }));
+      expect(falhas).toEqual([]);
+      expect(resumir(resultados).aprovado).toBe(true);
+    },
+  );
 });
 
 describe("medidas do eval", () => {

@@ -39,6 +39,9 @@ function respostaDaImportacao(corpo) {
   return achada?.csv ?? "";
 }
 
+const reais = (v) =>
+  `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 let ultimaAutorizacao = null;
 
 const ferramentaDa = (texto) => {
@@ -47,6 +50,9 @@ const ferramentaDa = (texto) => {
   if (t.includes("aportar")) return ["sugerir_aporte", { valor: 1000 }];
   if (t.includes("alerta"))
     return ["criar_alerta", { ticker: "PETR4", tipo: "preco_acima", valor: 40 }];
+  // Bolsiq Financas (ADR 0036).
+  if (t.includes("meu mês")) return ["resumo_mes", {}];
+  if (t.includes("corto")) return ["sugerir_cortes", { meta_mensal: 500 }];
   return null;
 };
 
@@ -81,6 +87,17 @@ function respostaFinal(ferramenta, saida) {
   }
   if (ferramenta === "criar_alerta")
     return "Preparei o alerta. Confirme na tela para criá-lo.";
+  if (ferramenta === "resumo_mes") {
+    if (saida.erro) return `Sem o resumo: ${saida.mensagem}`;
+    return [
+      `Resumo de ${saida.competencia}:`,
+      `- Renda recebida: ${reais(saida.renda.recebida)}`,
+      `- Despesas: ${reais(saida.despesas.total)}`,
+      `- Saldo previsto no fim do mês: ${reais(saida.saldo_previsto_fim_do_mes)}`,
+    ].join("\n");
+  }
+  if (ferramenta === "sugerir_cortes")
+    return `Economia possível: ${reais(saida.economia_mensal)} por mês.`;
   return "Consulta feita.";
 }
 

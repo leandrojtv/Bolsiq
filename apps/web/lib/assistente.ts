@@ -5,9 +5,11 @@ import { executarScreener, indicators, IndicadorFiltravel } from "@bolsiq/analyt
 import {
   cifrarChave,
   classificarModelo,
+  custoDoRelatorio,
   custoEstimado,
   decifrarChave,
   finalDaChave,
+  fontesFinanceirasDoBanco,
   lerChaveMestra,
   listarModelos,
   MAX_MENSAGENS_NO_HISTORICO,
@@ -22,8 +24,10 @@ import {
   type CarteiraResumida,
   type Credencial,
   type Fontes,
+  type FontesFinanceiras,
   type IndicadoresDoAtivo,
   type ModeloClassificado,
+  type ModuloDoAssistente,
   type Proveniencia,
   type Provedor,
 } from "@bolsiq/assistant";
@@ -135,6 +139,10 @@ export async function estadoDoAssistente(uid: string): Promise<EstadoDoAssistent
   });
   const provedor = (s?.provedor ?? null) as Provedor | null;
   const modelo = s?.modelo ?? null;
+  const preco = {
+    entrada: s?.preco_entrada ? Number(s.preco_entrada) : null,
+    saida: s?.preco_saida ? Number(s.preco_saida) : null,
+  };
   const classificado =
     provedor && modelo
       ? classificarModelo(provedor, {
@@ -155,6 +163,13 @@ export async function estadoDoAssistente(uid: string): Promise<EstadoDoAssistent
     status_modelo: classificado?.status ?? null,
     aviso_modelo: classificado?.aviso ?? null,
     consentiu: Boolean(s?.consentimento_em),
+    consentiu_financas: Boolean(s?.consentimento_financas_em),
+    relatorio_mensal: {
+      ligado: s?.relatorio_mensal ?? false,
+      // Usa a chave do usuario: sem provedor proprio, nao ha relatorio.
+      disponivel: Boolean(provedor && modelo),
+      custo_estimado: provedor && modelo ? custoDoRelatorio(preco) : null,
+    },
     configurado: Boolean(provedor && modelo),
     plataforma,
     modo: env.ASSISTANT_RECOMMENDATIONS,
@@ -293,15 +308,49 @@ export async function removerConfiguracao(uid: string): Promise<void> {
   );
 }
 
-export async function registrarConsentimento(uid: string): Promise<void> {
+/**
+ * Consentimento por escopo (ADR 0036): o de investimentos cobre carteira e
+ * perfil; o do Bolsiq Financas, lancamentos, saldos e parcelas.
+ */
+export async function registrarConsentimento(
+  uid: string,
+  escopo: "investimentos" | "financas" = "investimentos",
+): Promise<void> {
+  const campo =
+    escopo === "financas"
+      ? { consentimento_financas_em: sql`now()` }
+      : { consentimento_em: sql`now()` };
   await comoUsuario(banco(), uid, (tx) =>
     tx
       .insert(settings)
-      .values({ user_id: uid, consentimento_em: sql`now()` })
+      .values({ user_id: uid, ...campo })
       .onConflictDoUpdate({
         target: settings.user_id,
-        set: { consentimento_em: sql`now()`, atualizado_em: sql`now()` },
+        set: { ...campo, atualizado_em: sql`now()` },
       }),
+  );
+}
+
+/** Liga ou desliga o relatorio mensal. Ligar exige provedor proprio e o consentimento do Financas. */
+export async function configurarRelatorio(uid: string, ligado: boolean): Promise<void> {
+  const s = await lerSettings(uid);
+  if (ligado && !(s?.provedor && s.modelo))
+    throw new ErroDoAssistente(
+      409,
+      "nao_configurado",
+      "O relatório usa a sua chave: escolha um provedor e um modelo antes de ligar.",
+    );
+  if (ligado && !s?.consentimento_financas_em)
+    throw new ErroDoAssistente(
+      409,
+      "consentimento",
+      "Confirme o envio dos dados do Bolsiq Finanças ao provedor antes de ligar o relatório.",
+    );
+  await comoUsuario(banco(), uid, (tx) =>
+    tx
+      .update(settings)
+      .set({ relatorio_mensal: ligado, atualizado_em: sql`now()` })
+      .where(eq(settings.user_id, uid)),
   );
 }
 
@@ -315,7 +364,10 @@ export interface AcessoAoModelo extends Credencial {
  * Tudo o que a chamada precisa, validando consentimento e limites. Chave em
  * memoria so durante a requisicao; nao vai para log, resposta nem banco em claro.
  */
-export async function acessoParaConversar(uid: string): Promise<AcessoAoModelo> {
+export async function acessoParaConversar(
+  uid: string,
+  modulo: ModuloDoAssistente = "investimentos",
+): Promise<AcessoAoModelo> {
   const hoje = inicioDoDia();
   const { s, usadas, naPlataforma } = await comoUsuario(banco(), uid, async (tx) => {
     const [s] = await tx.select().from(settings).where(eq(settings.user_id, uid));
@@ -338,11 +390,18 @@ export async function acessoParaConversar(uid: string): Promise<AcessoAoModelo> 
     return { s, usadas, naPlataforma };
   });
 
-  if (!s?.consentimento_em)
+  // Cada modulo pede o consentimento dos dados que manda; o Painel, os dois.
+  if (modulo !== "financas" && !s?.consentimento_em)
     throw new ErroDoAssistente(
       409,
       "consentimento",
       "Confirme o envio de dados ao provedor antes da primeira conversa.",
+    );
+  if (modulo !== "investimentos" && !s?.consentimento_financas_em)
+    throw new ErroDoAssistente(
+      409,
+      "consentimento_financas",
+      "Confirme o envio dos dados do Bolsiq Finanças ao provedor antes de conversar aqui.",
     );
   if ((usadas?.n ?? 0) >= env.ASSISTANT_DAILY_MESSAGES)
     throw new ErroDoAssistente(
@@ -351,7 +410,7 @@ export async function acessoParaConversar(uid: string): Promise<AcessoAoModelo> 
       `Você chegou ao limite de ${env.ASSISTANT_DAILY_MESSAGES} mensagens por dia.`,
     );
 
-  if (s.provedor && s.modelo) {
+  if (s?.provedor && s.modelo) {
     const provedor = s.provedor as Provedor;
     const registro = registroDoModelo(provedor, s.modelo);
     if (registro?.status === "sem_ferramentas")
@@ -431,25 +490,35 @@ export async function salvarPerfil(uid: string, p: PerfilDoInvestidor): Promise<
 export interface ConversaResumida {
   id: string;
   titulo: string;
+  modulo: string;
   atualizada_em: string;
   tokens_entrada: number;
   tokens_saida: number;
   custo_estimado: string | null;
 }
 
-export function listarConversas(uid: string): Promise<ConversaResumida[]> {
+export function listarConversas(
+  uid: string,
+  modulo?: ModuloDoAssistente,
+): Promise<ConversaResumida[]> {
   return comoUsuario(banco(), uid, (tx) =>
     tx
       .select({
         id: conversations.id,
         titulo: conversations.titulo,
+        modulo: conversations.modulo,
         atualizada_em: conversations.atualizada_em,
         tokens_entrada: conversations.tokens_entrada,
         tokens_saida: conversations.tokens_saida,
         custo_estimado: conversations.custo_estimado,
       })
       .from(conversations)
-      .where(eq(conversations.user_id, uid))
+      .where(
+        and(
+          eq(conversations.user_id, uid),
+          modulo ? eq(conversations.modulo, modulo) : undefined,
+        ),
+      )
       .orderBy(desc(conversations.atualizada_em))
       .limit(50),
   );
@@ -458,7 +527,11 @@ export function listarConversas(uid: string): Promise<ConversaResumida[]> {
 export async function lerConversa(uid: string, id: string) {
   return comoUsuario(banco(), uid, async (tx) => {
     const [c] = await tx
-      .select({ id: conversations.id, titulo: conversations.titulo })
+      .select({
+        id: conversations.id,
+        titulo: conversations.titulo,
+        modulo: conversations.modulo,
+      })
       .from(conversations)
       .where(and(eq(conversations.id, id), eq(conversations.user_id, uid)));
     if (!c) throw new ErroDoAssistente(404, "not_found", "Conversa não encontrada.");
@@ -485,21 +558,46 @@ export async function apagarConversa(uid: string, id: string): Promise<void> {
     throw new ErroDoAssistente(404, "not_found", "Conversa não encontrada.");
 }
 
-/** Abre (ou confere) a conversa, grava a pergunta e devolve o historico para o modelo. */
-export async function iniciarTurno(uid: string, id: string | undefined, texto: string) {
+/** Modulo gravado na conversa; nulo se ela nao existe ou nao e do usuario. */
+export async function moduloDaConversa(
+  uid: string,
+  id: string,
+): Promise<ModuloDoAssistente | null> {
+  const [c] = await comoUsuario(banco(), uid, (tx) =>
+    tx
+      .select({ modulo: conversations.modulo })
+      .from(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.user_id, uid))),
+  );
+  return (c?.modulo as ModuloDoAssistente | undefined) ?? null;
+}
+
+/**
+ * Abre (ou confere) a conversa, grava a pergunta e devolve o historico para o
+ * modelo. O modulo e o da conversa: fica gravado na primeira mensagem, e a
+ * conversa continua com o mesmo prompt e as mesmas ferramentas.
+ */
+export async function iniciarTurno(
+  uid: string,
+  id: string | undefined,
+  texto: string,
+  moduloDaTela: ModuloDoAssistente,
+) {
   return comoUsuario(banco(), uid, async (tx) => {
     let conversa = id;
+    let modulo = moduloDaTela;
     if (conversa) {
       const [c] = await tx
-        .select({ id: conversations.id })
+        .select({ id: conversations.id, modulo: conversations.modulo })
         .from(conversations)
         .where(and(eq(conversations.id, conversa), eq(conversations.user_id, uid)));
       if (!c) throw new ErroDoAssistente(404, "not_found", "Conversa não encontrada.");
+      modulo = c.modulo as ModuloDoAssistente;
     } else {
       conversa = randomUUID();
       await tx
         .insert(conversations)
-        .values({ id: conversa, user_id: uid, titulo: texto.slice(0, 60) });
+        .values({ id: conversa, user_id: uid, titulo: texto.slice(0, 60), modulo });
     }
     const anteriores = await tx
       .select({ papel: messages.papel, partes: messages.partes })
@@ -514,7 +612,7 @@ export async function iniciarTurno(uid: string, id: string | undefined, texto: s
       papel: "user",
       partes: [{ type: "text", text: texto }],
     });
-    return { conversa, historico: paraOModelo(anteriores.reverse()) };
+    return { conversa, modulo, historico: paraOModelo(anteriores.reverse()) };
   });
 }
 
@@ -806,5 +904,9 @@ export function fontesDoUsuario(uid: string): Fontes {
     perfil: () => lerPerfil(uid),
   };
 }
+
+/** `FontesFinanceiras` do usuario logado, sobre `packages/finance` (RLS). */
+export const fontesFinanceirasDoUsuario = (uid: string): FontesFinanceiras =>
+  fontesFinanceirasDoBanco(banco(), uid, hojeEmSp());
 
 export const modoDeRecomendacao = () => env.ASSISTANT_RECOMMENDATIONS;

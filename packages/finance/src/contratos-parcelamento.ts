@@ -108,6 +108,16 @@ export type Plano = z.infer<typeof Plano>;
 export const DetalheDoPlano = Plano.extend({ tabela: z.array(Linha) });
 export type DetalheDoPlano = z.infer<typeof DetalheDoPlano>;
 
+/**
+ * Excluir um plano: as parcelas previstas somem; os lancamentos ja realizados
+ * (parcelas pagas e amortizacoes extras) ficam, soltos do plano (ADR 0039).
+ */
+export const ResultadoDaExclusao = z.object({
+  previstas_apagadas: z.number().int().min(0),
+  realizados_desvinculados: z.number().int().min(0),
+});
+export type ResultadoDaExclusao = z.infer<typeof ResultadoDaExclusao>;
+
 export const ResultadoDaSimulacao = z.object({
   antes: z.object({
     parcelas: z.number().int(),

@@ -17,6 +17,7 @@ import {
   type TaxaCdi,
   amortizar,
   apagarMeta,
+  apagarDivida,
   apagarPlano,
   comprometidoPorMes,
   criarEmprestimo,
@@ -435,6 +436,11 @@ export async function quitarPlano(uid: string, id: string, data: string) {
 export async function removerPlano(uid: string, id: string) {
   const o = await origem();
   return como(uid, (tx) => apagarPlano(tx, uid, id, o));
+}
+
+export async function removerDivida(uid: string, id: string) {
+  const o = await origem();
+  return como(uid, (tx) => apagarDivida(tx, uid, id, o));
 }
 
 // Fluxo, orcamento e metas

@@ -10,6 +10,7 @@ import type {
   FluxoDeCaixa,
   Meta,
   Plano,
+  ResultadoDaExclusao,
   DetalheDaFatura,
   ListaDeRecorrencias,
   PainelDoMes,
@@ -267,6 +268,10 @@ export const quitarPlano = (id: string, data: string) =>
   ).then((r) => r.data);
 export const apagarPlano = (id: string) =>
   api<null>(`financas/parcelamentos/${id}`, { method: "DELETE" });
+export const excluirDivida = (id: string) =>
+  api<{ data: ResultadoDaExclusao }>(`financas/dividas/${id}`, { method: "DELETE" }).then(
+    (r) => r.data,
+  );
 
 export const definirValorDaCategoria = (
   mes: string,

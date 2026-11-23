@@ -10,7 +10,8 @@ painel e planejamento) e
 [ADR 0034](../adr/0034-parcelamentos-dividas-fluxo-metas.md) (parcelamentos, dívidas,
 orçamento, fluxo e metas) e
 [ADR 0035](../adr/0035-insights-financas.md) (insights de gastos) e
-[ADR 0038](../adr/0038-importacao-csv-c6.md) (fatura do C6 em CSV).
+[ADR 0038](../adr/0038-importacao-csv-c6.md) (fatura do C6 em CSV) e
+[ADR 0039](../adr/0039-excluir-divida.md) (excluir empréstimo ou financiamento).
 
 Não lê nem faz join com `portfolio`, `app`, `analytics` ou `market_data`. O Painel
 geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
@@ -35,7 +36,7 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 | Dashboard do mês (`/financas`, com seletor de mês)                           | pronto                                          |
 | Planejamento mensal por categoria (`/financas/planejamento`)                 | pronto; não cria lançamento                     |
 | Compra parcelada no cartão e parcela importada (`/financas/parcelamentos`)   | pronto                                          |
-| Empréstimo e financiamento Price/SAC com simulador (`/financas/dividas`)     | pronto                                          |
+| Empréstimo e financiamento Price/SAC com simulador (`/financas/dividas`)     | pronto; exclusão com confirmação                |
 | Orçamento por categoria com estados (no planejamento; `/financas/orcamento`) | pronto                                          |
 | Fluxo de caixa projetado de 3 a 12 meses (`/financas/fluxo`)                 | pronto                                          |
 | Metas (`/financas/metas`)                                                    | pronto                                          |
@@ -105,6 +106,13 @@ insights (cache, respostas e ajustes) e auditoria do módulo; a exclusão també
 - **Dívidas**: Price ou SAC, tabela com juros, amortização e saldo; saldo devedor
   derivado do histórico. Simular amortização extra (reduzir prazo ou parcela, com os
   juros economizados), registrar, quitar.
+- **Excluir dívida** (`DELETE /api/financas/dividas/{id}`, botão "Excluir dívida" no
+  detalhe, com confirmação): apaga as parcelas previstas e mantém os lançamentos
+  realizados (parcelas pagas e amortizações extras) na conta, sem o vínculo com o
+  plano (`installment_plan_id` e `parcela_numero` nulos). Saldo da conta e meses
+  passados não mudam. Responde `previstas_apagadas` e `realizados_desvinculados`;
+  compra parcelada no cartão dá 422 (sai por `DELETE /api/financas/parcelamentos/{id}`,
+  mesma regra); plano de outro usuário dá 404. Sem desfazer.
 - **Orçamento**: o planejamento por categoria com estados ok, atenção (≥ 80%) e
   estourado (> 100%) sobre realizado + previsto, edição inline e sugestão pela média
   de 3 meses.
@@ -251,6 +259,13 @@ documento OpenAPI sai dos mesmos schemas em `/api/financas/openapi`, e
 | `/api/financas/importacoes/{id}/desfazer`       | POST                    |
 | `/api/financas/regras`                          | GET, POST               |
 | `/api/financas/regras/{id}`                     | PATCH, DELETE           |
+| `/api/financas/parcelamentos`                   | GET, POST               |
+| `/api/financas/parcelamentos/{id}`              | GET, DELETE             |
+| `/api/financas/parcelamentos/{id}/quitar`       | POST                    |
+| `/api/financas/dividas`                         | POST                    |
+| `/api/financas/dividas/{id}`                    | DELETE                  |
+| `/api/financas/dividas/{id}/simular`            | POST                    |
+| `/api/financas/dividas/{id}/amortizar`          | POST                    |
 | `/api/financas/insights?mes=YYYY-MM`            | GET                     |
 | `/api/financas/insights/{id}?mes=YYYY-MM`       | GET (com as evidências) |
 | `/api/financas/insights/{id}/feedback`          | POST                    |
@@ -285,8 +300,13 @@ apaga (409): arquive.
   referência calculadas à parte, simulador e saldo devedor pelo histórico.
 - `packages/finance/src/integration/parcelamentos.test.ts`: compra 3x nas 3
   faturas, parcela importada concilia, parcela sem plano cria o plano, dívida com
-  amortização e quitação, fluxo com recorrência, parcela e fatura, orçamento e metas.
+  amortização e quitação, excluir dívida (previstas apagadas, pagas e amortização
+  extra mantidas sem vínculo, 404 para outro usuário, 422 para compra no cartão),
+  fluxo com recorrência, parcela e fatura, orçamento e metas.
 - `apps/web/e2e/financas-parcelamento.spec.ts`: compra em 3x aparece nas 3 faturas.
+- `apps/web/e2e/financas-dividas.spec.ts`: cadastrar financiamento com 3 parcelas
+  pagas, cancelar e confirmar a exclusão, em desktop e em celular (390 px), e conferir
+  que só as 3 pagas ficam nos lançamentos.
 - `packages/finance/src/insights/*.test.ts`: cada detector com casos positivos e
   negativos (conta de luz variável não é assinatura; dois cafés no mesmo dia não são
   assinatura nem duplicidade), dispensa de 90 dias, simulador e custo de oportunidade.

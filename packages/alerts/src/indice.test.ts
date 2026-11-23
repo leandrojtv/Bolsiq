@@ -86,5 +86,7 @@ describe("10 mil regras ativas", () => {
     }
     expect(fora).toEqual([]);
     expect(i.candidatas(COTACAO, "XXXX3")).toHaveLength(0);
-  });
+    // Prazo maior que o padrao de 5 s: o teste nao mede tempo, e 10 mil
+    // avaliacoes com cobertura passam de 5 s no runner do CI.
+  }, 20_000);
 });

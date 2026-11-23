@@ -11,8 +11,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { NOMES_DE_PROVEDOR, type Provedor } from "../src/catalogo.js";
 import { VERSAO_DO_PROMPT } from "../prompts/sistema-v1.js";
+import { VERSAO_DO_PROMPT_FINANCAS } from "../prompts/sistema-financas-v1.js";
 import { criarModelo } from "../src/provedores.js";
 import { CASOS } from "./casos.js";
+import { CASOS_FINANCAS } from "./casos-financas.js";
 import { executarCaso, resumir, type ResultadoDoCaso } from "./executar.js";
 import { modeloDeRoteiro } from "./roteiro.js";
 
@@ -27,9 +29,10 @@ if (real && !NOMES_DE_PROVEDOR.includes(EVAL_PROVEDOR as Provedor)) {
   process.exit(2);
 }
 
+const TODOS = [...CASOS, ...CASOS_FINANCAS];
 const casos = EVAL_CASOS
-  ? CASOS.filter((c) => EVAL_CASOS.split(",").includes(c.id))
-  : CASOS;
+  ? TODOS.filter((c) => EVAL_CASOS.split(",").includes(c.id))
+  : TODOS;
 const nome = real ? `${EVAL_PROVEDOR}/${EVAL_MODELO}` : "roteiro (não homologa)";
 escrever(`Avaliando ${nome}: ${casos.length} casos`);
 
@@ -80,6 +83,7 @@ if (real && !EVAL_CASOS) {
         provedor: EVAL_PROVEDOR,
         modelo: EVAL_MODELO,
         prompt: VERSAO_DO_PROMPT,
+        prompt_financas: VERSAO_DO_PROMPT_FINANCAS,
         data: new Date().toISOString().slice(0, 10),
         resumo,
         casos: resultados.map(({ resposta, ...r }) => ({

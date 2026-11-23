@@ -308,6 +308,9 @@ importers:
       '@bolsiq/analytics':
         specifier: workspace:*
         version: link:../analytics
+      '@bolsiq/finance':
+        specifier: workspace:*
+        version: link:../finance
       '@bolsiq/portfolio':
         specifier: workspace:*
         version: link:../portfolio
@@ -817,6 +820,9 @@ importers:
 
   services/portfolio-worker:
     dependencies:
+      '@bolsiq/alerts':
+        specifier: workspace:*
+        version: link:../../packages/alerts
       '@bolsiq/assistant':
         specifier: workspace:*
         version: link:../../packages/assistant
@@ -832,6 +838,9 @@ importers:
       '@bolsiq/finance':
         specifier: workspace:*
         version: link:../../packages/finance
+      '@bolsiq/messaging':
+        specifier: workspace:*
+        version: link:../../packages/messaging
       '@bolsiq/portfolio':
         specifier: workspace:*
         version: link:../../packages/portfolio

@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { Regra, schema } from "@bolsiq/alerts";
+import { preferenciasCompletas, Regra, schema } from "@bolsiq/alerts";
 import { banco } from "./analytics";
 import {
   descreverCondicao,
@@ -175,13 +175,18 @@ export async function listarNotificacoes(
   ]);
   return {
     itens: linhas.map((l) => {
-      const dados = (l.dados ?? {}) as { ticker?: string; tipo?: string };
+      const dados = (l.dados ?? {}) as { ticker?: string; tipo?: string; link?: string };
       return {
         id: l.id,
         titulo: l.titulo,
         corpo: l.corpo,
         ticker: l.ticker ?? dados.ticker ?? null,
         tipo: (l.tipo ?? dados.tipo ?? null) as TipoDeRegra | null,
+        // Avisos do sistema (financas, relatorio) levam o destino no proprio aviso.
+        link:
+          typeof dados.link === "string" && dados.link.startsWith("/")
+            ? dados.link
+            : null,
         criada_em: new Date(l.criada_em).toISOString(),
         lida: l.lida_em !== null,
       };
@@ -221,6 +226,7 @@ export async function lerPreferencias(uid: string): Promise<Preferencias> {
     silencio_inicio: p?.silencio_inicio ?? null,
     silencio_fim: p?.silencio_fim ?? null,
     fuso: p?.fuso ?? "America/Sao_Paulo",
+    financas: preferenciasCompletas(p?.financas),
   };
 }
 

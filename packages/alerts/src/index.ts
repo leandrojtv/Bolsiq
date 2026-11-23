@@ -11,3 +11,4 @@ export * from "./canais/templates.js";
 export * from "./repositorio.js";
 export * from "./worker.js";
 export * as schema from "./db/schema.js";
+export * from "./financas.js";

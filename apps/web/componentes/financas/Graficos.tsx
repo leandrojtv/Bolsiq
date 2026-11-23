@@ -190,3 +190,68 @@ export function GraficoDoFluxo({
     />
   );
 }
+
+/** Evolucao mensal do patrimonio liquido; o mes corrente (parcial) tracejado. */
+export function GraficoDoPatrimonio({
+  pontos,
+}: {
+  pontos: {
+    mes: string;
+    patrimonio_liquido: string;
+    investimentos: string;
+    contas: string;
+    parcial: boolean;
+  }[];
+}) {
+  const caixa = useGrafico(() => {
+    const rotulos = pontos.map((p) => rotuloDoMes(p.mes));
+    return {
+      ...base(),
+      // A legenda quebra em duas linhas no celular: espaco para ela e o eixo.
+      grid: { left: 8, right: 8, top: 12, bottom: 64, containLabel: true },
+      xAxis: {
+        type: "category",
+        data: rotulos,
+        axisLabel: { color: token("text-3"), fontSize: 11 },
+        axisLine: { lineStyle: { color: token("border") } },
+      },
+      series: [
+        {
+          name: "Investimentos",
+          type: "bar",
+          stack: "ativos",
+          barMaxWidth: 22,
+          itemStyle: { color: token("series-2"), opacity: 0.7 },
+          data: pontos.map((p) => Number(p.investimentos)),
+        },
+        {
+          name: "Contas",
+          type: "bar",
+          stack: "ativos",
+          barMaxWidth: 22,
+          itemStyle: { color: token("series-3"), opacity: 0.7 },
+          data: pontos.map((p) => Number(p.contas)),
+        },
+        {
+          name: "Patrimônio líquido",
+          type: "line",
+          symbolSize: 7,
+          lineStyle: { color: token("series-1"), width: 2.4 },
+          itemStyle: { color: token("series-1") },
+          data: pontos.map((p) => ({
+            value: Number(p.patrimonio_liquido),
+            itemStyle: p.parcial ? { borderType: "dashed", opacity: 0.6 } : undefined,
+          })),
+        },
+      ],
+    };
+  }, [pontos]);
+  return (
+    <div
+      ref={caixa}
+      role="img"
+      aria-label={`Patrimônio líquido por mês: ${pontos.map((p) => `${rotuloDoMes(p.mes)} ${p.patrimonio_liquido}${p.parcial ? " (parcial)" : ""}`).join(", ")}`}
+      style={{ height: 280 }}
+    />
+  );
+}

@@ -9,6 +9,7 @@ import {
   jsonb,
   numeric,
   pgSchema,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -759,4 +760,67 @@ export const insight_settings = finance.table(
       sql`${t.ref_essenciais} + ${t.ref_nao_essenciais} + ${t.ref_poupanca} = 100`,
     ),
   ],
+);
+
+/**
+ * Foto mensal do patrimonio liquido (ADR 0037), gravada pelo job do dia 1 para
+ * o mes anterior. Os numeros do portfolio ficam aqui como valor, nao como
+ * referencia: mudar a carteira depois nao reescreve a evolucao.
+ */
+export const net_worth_snapshots = finance.table(
+  "net_worth_snapshots",
+  {
+    user_id: text("user_id").notNull(),
+    /** Primeiro dia do mes fotografado. */
+    mes: dia("mes").notNull(),
+    contas: dinheiro("contas").notNull(),
+    renda_variavel: dinheiro("renda_variavel").notNull(),
+    renda_fixa: dinheiro("renda_fixa").notNull(),
+    fundos: dinheiro("fundos").notNull(),
+    faturas: dinheiro("faturas").notNull(),
+    dividas: dinheiro("dividas").notNull(),
+    patrimonio_liquido: dinheiro("patrimonio_liquido").notNull(),
+    /** Valor de cada carteira no momento da foto: `[{ id, nome, valor }]`. */
+    carteiras: jsonb("carteiras").notNull().default([]),
+    /** Quando o portfolio avaliou as carteiras (cotacoes usadas). */
+    carteiras_avaliadas_em: utc("carteiras_avaliadas_em"),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.user_id, t.mes] }),
+    check("net_worth_snapshots_mes_ck", sql`extract(day from ${t.mes}) = 1`),
+  ],
+);
+
+/**
+ * Fatos ja avisados pelo job `finance.vigia` (ADR 0037). O outbox e fila e e
+ * limpo depois de publicado; esta tabela e o que impede o mesmo fato (fatura,
+ * limiar do orcamento, mes negativo, receita atrasada) de virar evento de novo.
+ */
+export const emitted_alerts = finance.table(
+  "emitted_alerts",
+  {
+    user_id: text("user_id").notNull(),
+    chave: text("chave").notNull(),
+    event_name: text("event_name").notNull(),
+    emitido_em: utc("emitido_em").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.user_id, t.chave] })],
+);
+
+/** Dead-letter do publicador do outbox do finance (mesmas colunas do db-core). */
+export const dead_letter = finance.table(
+  "dead_letter",
+  {
+    id: text("id").primaryKey(),
+    consumer: text("consumer").notNull(),
+    event_id: text("event_id"),
+    event_name: text("event_name"),
+    subject: text("subject").notNull(),
+    payload: jsonb("payload"),
+    error: text("error").notNull(),
+    attempts: integer("attempts").notNull(),
+    created_at: utc("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("dead_letter_created_at_idx").on(t.created_at)],
 );

@@ -71,6 +71,20 @@
       "when": 1795174204858,
       "tag": "0009_rls_insights",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795213216796,
+      "tag": "0010_patrimonio_e_vigia",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795213227062,
+      "tag": "0011_rls_patrimonio_e_vigia",
+      "breakpoints": true
     }
   ]
 }

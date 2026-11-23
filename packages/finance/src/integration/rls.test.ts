@@ -157,6 +157,8 @@ describe("RLS do finance", () => {
       "cards",
       "categories",
       "categorization_rules",
+      "dead_letter",
+      "emitted_alerts",
       "goals",
       "import_rows",
       "imports",
@@ -164,12 +166,15 @@ describe("RLS do finance", () => {
       "insight_settings",
       "insights",
       "installment_plans",
+      "net_worth_snapshots",
       "outbox",
       "recurrences",
       "statements",
       "transactions",
     ]);
-    for (const t of r.rows) {
+    // A dead-letter e so do publicador (ADR 0037): sem RLS, mas tambem sem
+    // grant para a aplicacao, conferido no teste de auditoria e outbox.
+    for (const t of r.rows.filter((x) => x.relname !== "dead_letter")) {
       expect(t.relrowsecurity, t.relname).toBe(true);
       expect(t.relforcerowsecurity, t.relname).toBe(true);
     }
@@ -266,6 +271,9 @@ describe("RLS do finance", () => {
       /permission denied/i,
     );
     await expect(cru(A, "SELECT * FROM finance.outbox")).rejects.toThrow(
+      /permission denied/i,
+    );
+    await expect(cru(A, "SELECT * FROM finance.dead_letter")).rejects.toThrow(
       /permission denied/i,
     );
     const ins = await cru(

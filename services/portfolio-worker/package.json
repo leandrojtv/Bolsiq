@@ -11,11 +11,13 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@bolsiq/alerts": "workspace:*",
     "@bolsiq/assistant": "workspace:*",
     "@bolsiq/auth": "workspace:*",
     "@bolsiq/contracts": "workspace:*",
     "@bolsiq/db-core": "workspace:*",
     "@bolsiq/finance": "workspace:*",
+    "@bolsiq/messaging": "workspace:*",
     "@bolsiq/portfolio": "workspace:*",
     "drizzle-orm": "^0.45.4",
     "pg-boss": "^10.1.6",

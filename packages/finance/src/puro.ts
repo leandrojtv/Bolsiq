@@ -17,3 +17,5 @@ export * from "./fluxo.js";
 export * from "./orcamento.js";
 export * from "./contratos-parcelamento.js";
 export * from "./insights/index.js";
+export * from "./patrimonio.js";
+export * from "./vigia.js";

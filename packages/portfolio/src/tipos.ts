@@ -76,6 +76,8 @@ const INDEXADORES = ["CDI", "SELIC", "IPCA", "IGPM", "PRE"] as const;
 export const Indexador = z.enum(INDEXADORES, {
   message: `deve ser um de: ${INDEXADORES.join(", ")}`,
 });
+/** COE e estruturado rendem pelo subjacente (Ibovespa, S&P 500, dolar): indexador livre. */
+const CLASSES_COM_INDEXADOR_LIVRE: readonly ClasseDePosicao[] = ["coe", "estruturado"];
 
 const VALORIZACOES = ["cotacao_b3", "curva", "tesouro", "cota_cvm", "manual"] as const;
 export const Valorizacao = z.enum(VALORIZACOES, {
@@ -106,7 +108,7 @@ export const LinhaDePosicao = z
       .regex(/^\d{14}$/, "deve ter 14 digitos")
       .nullable(),
     emissor: textoOpcional,
-    indexador: Indexador.nullable(),
+    indexador: z.string().min(1).nullable(),
     pct_indexador: fracaoAte(5),
     taxa_aa: fracaoAte(1),
     data_aplicacao: dataOpcional,
@@ -124,6 +126,16 @@ export const LinhaDePosicao = z
     observacao: textoOpcional,
   })
   .superRefine((l, ctx) => {
+    if (
+      l.indexador !== null &&
+      !CLASSES_COM_INDEXADOR_LIVRE.includes(l.classe) &&
+      !Indexador.safeParse(l.indexador).success
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["indexador"],
+        message: `deve ser um de: ${INDEXADORES.join(", ")}`,
+      });
     const comTicker = CLASSES_COM_TICKER.includes(l.classe);
     if (comTicker || l.classe === "titulo_publico") {
       if (l.codigo === null)

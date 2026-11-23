@@ -68,6 +68,10 @@ describe("normalizacao deterministica", () => {
     expect(indexador("IPCA+")).toBe("IPCA");
     expect(indexador("Prefixado")).toBe("PRE");
     expect(indexador("")).toBe("");
+    expect(indexador("100% DI")).toBe("CDI");
+    expect(indexador("PRÉ")).toBe("PRE");
+    expect(indexador("Ibovespa")).toBe("IBOVESPA");
+    expect(indexador("Ações Express")).toBe("AÇÕES EXPRESS");
     expect(liquidez("Diária")).toBe("S");
     expect(liquidez("Não")).toBe("N");
     expect(liquidez("No vencimento")).toBe("N");

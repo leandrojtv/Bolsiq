@@ -14,7 +14,7 @@ export const REGRAS_DE_NORMALIZACAO = `Uma linha por ativo. Regras por coluna da
   vencimento, como NTNB_2030-08-15 (obrigatório). Em coe, o código do extrato.
 - cnpj: em fundo e previdencia, se o extrato trouxer.
 - emissor: em renda_fixa e coe, o banco ou a empresa emissora.
-- indexador: CDI, SELIC, IPCA, IGPM, PRE ou vazio.
+- indexador: CDI, SELIC, IPCA, IGPM, PRE ou vazio. Em coe e estruturado, o subjacente como aparece no extrato (ex.: IBOVESPA, S&P 500, DOLAR).
 - pct_indexador: percentual do indexador em fração. 120% do CDI é 1.20.
 - taxa_aa: taxa ao ano em fração. 14,69% é 0.1469; IPCA + 7,95% é 0.0795.
 - data_aplicacao e vencimento: AAAA-MM-DD.

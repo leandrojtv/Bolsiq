@@ -134,11 +134,11 @@ export function classe(v: string, ativo = ""): string {
 export function indexador(v: string): string {
   const t = semAcento(v.trim());
   if (vazio(t)) return "";
-  if (/cdi|di\b/.test(t)) return "CDI";
-  if (/selic/.test(t)) return "SELIC";
-  if (/ipca/.test(t)) return "IPCA";
-  if (/igp-?m/.test(t)) return "IGPM";
-  if (/pre|prefixad/.test(t)) return "PRE";
+  if (/\b(cdi|di)\b/.test(t)) return "CDI";
+  if (/\bselic\b/.test(t)) return "SELIC";
+  if (/\bipca\b/.test(t)) return "IPCA";
+  if (/\bigp-?m\b/.test(t)) return "IGPM";
+  if (/^pre\b|\bpre-?fixad/.test(t)) return "PRE";
   return v.trim().toUpperCase();
 }
 

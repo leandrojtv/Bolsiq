@@ -65,7 +65,9 @@ seguida:
   contra o total escrito. Diferença acima de R$ 0,05 vira aviso, e as linhas
   suspeitas (a do valor da diferença, as repetidas no mesmo dia e as que já vieram
   com aviso) aparecem destacadas na revisão. A mesma conta roda no Finanças
-  (`conferirFatura`) sobre as `import_rows`, para valer também para OFX e CSV.
+  (`conferirFatura`) sobre as `import_rows` de qualquer extrato que traga o total
+  escrito (`total_informado`); o LEDGERBAL do OFX não entra, porque inclui saldo
+  em aberto.
 
 Lançamento não é deduplicado na junção dos lotes: dois cafés iguais têm o mesmo
 trecho. A linha repetida pelo modelo aparece como suspeita na conferência.

@@ -278,7 +278,9 @@ A leitura é a do assistente ([importação com IA](importacao-ia.md#financas)),
 A revisão mostra a conferência do total da fatura (`conferencia_fatura`: compras,
 IOF e tarifas menos estornos contra o total escrito, tolerância de R$ 0,05) com as
 linhas suspeitas destacadas, a marcação, a moeda de origem e o aviso de cada linha.
-A conferência vale também para OFX com LEDGERBAL e para CSV, quando houver total.
+A conferência roda quando o extrato traz o total escrito da fatura
+(`ExtratoLido.total_informado`, hoje o PDF); o LEDGERBAL do OFX continua indo só para
+o total informado da fatura do cartão.
 
 ## BFF
 

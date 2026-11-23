@@ -30,6 +30,8 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 | Cartões e faturas pelo ciclo (`/financas/cartoes`)                           | pronto (cadastro, fatura atual, pagamento)      |
 | Importação de extrato e fatura em OFX (`/financas/importar`)                 | pronto: revisão, dedupe, conciliação, desfazer  |
 | Fatura do C6 em CSV (`/financas/importar`)                                   | pronto: parcelas, pagamento, IOF, vários finais |
+| CSV de Nubank, Inter e Itaú e CSV com mapeamento de colunas salvo            | pronto                                          |
+| Fatura e extrato em PDF ou foto (atalho de layout ou IA do assistente)       | pronto: senha, marcações, total conferido       |
 | Regras de categorização (`/financas/regras`)                                 | pronto; correções viram regras aprendidas       |
 | Fatura: fechamento, pagamento previsto e pagar (transferência)               | pronto                                          |
 | Recorrências (`/financas/recorrentes`) e job diário                          | pronto; previstos até 90 dias, idempotente      |
@@ -237,6 +239,47 @@ conferir com o app do banco.
 As migrations são aplicadas pelo passo de migrate do `portfolio-worker`, journal
 `drizzle_finance`.
 
+## CSV de outros bancos e mapeamento de colunas
+
+Leitores por layout ([ADR 0040](../adr/0040-faturas-e-extratos-em-pdf-e-csv.md)),
+reconhecidos pelo cabeçalho:
+
+| Formato             | Cabeçalho                                             | Observação                                |
+| ------------------- | ----------------------------------------------------- | ----------------------------------------- |
+| `csv-nubank-cartao` | `date,title,amount`                                   | compra positiva; vencimento pelo nome     |
+| `csv-nubank-conta`  | `Data,Valor,Identificador,Descrição`                  | o identificador é o FITID                 |
+| `csv-inter-conta`   | preâmbulo e `Data Lançamento;Histórico;Descrição;...` | saldo do preâmbulo vira o saldo informado |
+| `csv-itau-conta`    | `data;lançamento;ag./origem;valor (R$);saldos (R$)`   | `SALDO ANTERIOR`/`SALDO DO DIA` marcados  |
+| `csv-mapeado`       | qualquer um com o mapeamento salvo                    | `finance.csv_layouts`, por `assinatura`   |
+
+CSV sem leitor volta na análise em `para_mapear` (colunas e amostra). A tela pede
+data, descrição, valor (ou crédito e débito), parcela, formato da data, decimal e se
+o sinal vem invertido; o mapeamento vai no campo `mapeamentos` (JSON) da análise e
+da criação da revisão, e fica salvo quando lê um arquivo.
+
+Toda linha ganha `marcacao` pela descrição (`marcacaoDe`): `pagamento` e `estorno`
+só como crédito do cartão, `saldo_anterior` em qualquer destino (chega desmarcado e
+nunca vira lançamento) e `iof` como débito (categoria IOF).
+
+## Fatura e extrato em PDF ou foto
+
+A leitura é a do assistente ([importação com IA](importacao-ia.md#financas)), com
+`documento = financas` no job. Fluxo na tela, no cartão "Fatura em PDF ou foto":
+
+1. `POST /importacoes/ia` (multipart `arquivos`, `senhas` por nome, `aceitar_imagem`,
+   `modelo`): abre o PDF com a senha em memória e cria o job; 202 com o id;
+2. progresso por `GET /importacoes/ia/{job}/eventos` (SSE), com confirmar custo e
+   cancelar;
+3. `GET /importacoes/ia/{job}/arquivos/{indice}`: cabeçalho lido (banco,
+   vencimento, total), linhas, recusadas com o motivo, avisos e destino sugerido;
+4. `POST /importacoes/ia/{job}/arquivos/{indice}` (NovaImportacao): cria a revisão
+   de sempre (`criarImportacaoDeExtratos`) e apaga o arquivo do job.
+
+A revisão mostra a conferência do total da fatura (`conferencia_fatura`: compras,
+IOF e tarifas menos estornos contra o total escrito, tolerância de R$ 0,05) com as
+linhas suspeitas destacadas, a marcação, a moeda de origem e o aviso de cada linha.
+A conferência vale também para OFX com LEDGERBAL e para CSV, quando houver total.
+
 ## BFF
 
 Todas as rotas exigem a sessão (401 sem ela) e validam com Zod (422). O
@@ -333,3 +376,12 @@ apaga (409): arquive.
   reimportação e parcela seguinte conciliando com o plano.
 - `apps/web/e2e/financas-importacao-c6.spec.ts`: upload da fatura do C6, compras e
   créditos batendo com o arquivo, pagamento como transferência e confirmação.
+- `packages/finance/src/importacao/csv.test.ts`: valores e datas de CSV, marcações,
+  Nubank (cartão e conta), Inter (windows-1252 e preâmbulo), Itaú (saldos marcados),
+  CSV genérico com mapeamento e a conferência do total da fatura.
+- `packages/finance/src/integration/importacao.test.ts` (ADR 0040): revisão a partir
+  do extrato lido do PDF com marcações, moeda, IOF, total conferido e plano criado;
+  reimportação; total divergente com suspeitas; CSV desconhecido pedindo mapeamento
+  e lido pelo mapeamento salvo, que outro usuário não vê.
+- `apps/web/e2e/financas-importacao-pdf.spec.ts`: fatura do Nubank em PDF pelo
+  layout (sem IA) e do Santander pela IA (provedor falso), na mesma revisão.

@@ -203,6 +203,83 @@ export const AnaliseDeImportacao = z.object({
 });
 export type AnaliseDeImportacao = z.infer<typeof AnaliseDeImportacao>;
 
+// Leitura de PDF e imagem pelo assistente (ADR 0040)
+
+export const STATUS_DA_LEITURA = [
+  "lendo",
+  "aguardando_confirmacao",
+  "extraindo",
+  "pronto",
+  "falhou",
+  "cancelado",
+] as const;
+
+/** O job da leitura como a tela acompanha (por SSE ou consulta). */
+export const JobDeLeitura = z.object({
+  id: Id,
+  status: z.enum(STATUS_DA_LEITURA),
+  estimativa: z.object({ custo_estimado: z.string().nullable() }).nullable(),
+  erro: z.string().nullable(),
+  criado_em: z.string(),
+  arquivos: z.array(
+    z.object({
+      indice: z.number().int(),
+      nome: z.string(),
+      estado: z.string(),
+      progresso: z
+        .object({
+          etapa: z.string(),
+          feitos: z.number().optional(),
+          total: z.number().optional(),
+          linhas: z.number().optional(),
+        })
+        .nullable(),
+      estrategia: z.string().nullable(),
+      erro: z.string().nullable(),
+      tem_resultado: z.boolean(),
+      tem_arquivo: z.boolean(),
+    }),
+  ),
+});
+export type JobDeLeitura = z.infer<typeof JobDeLeitura>;
+
+/** Campos do multipart da leitura com IA, alem dos `arquivos`. */
+export const NovaLeitura = z.object({
+  modelo: z.string().trim().max(200).optional(),
+  aceitar_imagem: z.enum(["true", "false"]).default("false"),
+  /** Senha de PDF por nome de arquivo (JSON). Usada so em memoria; nunca gravada. */
+  senhas: z.record(z.string().max(200), z.string().max(200)).default({}),
+});
+
+/** O que a IA (ou o atalho) leu de um arquivo, antes de criar a revisao. */
+export const LeituraDeFatura = z.object({
+  nome: z.string(),
+  /** Lida pelo layout conhecido do banco, sem IA. */
+  atalho: z.boolean(),
+  tipo: z.enum(ALVOS),
+  banco: z.string().nullable(),
+  final_cartao: z.string().nullable(),
+  vencimento: Data.nullable(),
+  fechamento: Data.nullable(),
+  total_informado: Dinheiro.nullable(),
+  linhas: z.number().int(),
+  /** Linhas que a IA propos e a validacao recusou (invencao, total, data). */
+  rejeitadas: z.array(z.object({ motivo: z.string(), trecho: z.string() })),
+  avisos: z.array(z.string()),
+  sugestao: z.object({
+    alvo: z.enum(ALVOS).nullable(),
+    account_id: Id.nullable(),
+    card_id: Id.nullable(),
+    vencimento: Data.nullable(),
+  }),
+});
+export type LeituraDeFatura = z.infer<typeof LeituraDeFatura>;
+
+export const ParametroDaLeitura = z.object({
+  job: Id,
+  indice: z.coerce.number().int().min(0),
+});
+
 const Divisao = z.object({ category_id: Id, valor: Dinheiro });
 
 export const LinhaDeImportacao = z.object({

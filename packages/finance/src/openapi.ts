@@ -27,7 +27,11 @@ import {
   EdicaoDeRegra,
   Importacao,
   ImportacaoComLinhas,
+  JobDeLeitura,
+  LeituraDeFatura,
   NovaImportacao,
+  NovaLeitura,
+  ParametroDaLeitura,
   NovaRegra,
   NovoCartao,
   ParametroLinha,
@@ -84,13 +88,26 @@ const tags = ["financas"];
 
 const Arquivos = z
   .array(z.string().describe("binário"))
-  .describe("Um ou mais arquivos .ofx (campo repetido `arquivos`)");
+  .describe("Um ou mais arquivos .ofx ou .csv (campo repetido `arquivos`)");
+
+const ArquivosDaLeitura = z
+  .array(z.string().describe("binário"))
+  .describe("Fatura ou extrato em PDF ou imagem (campo repetido `arquivos`)");
+
+/** Mapeamento de colunas de CSV desconhecido, em JSON (lista de MapeamentoDeCsv). */
+const MapeamentosNoForm = z
+  .string()
+  .optional()
+  .describe("JSON: [{assinatura, tipo, data, descricao, valor | credito e debito, ...}]");
 
 /** Rotas que recebem multipart/form-data em vez de JSON. */
 const MULTIPART = new Set([
   "post /api/financas/importacoes/analise",
   "post /api/financas/importacoes",
+  "post /api/financas/importacoes/ia",
 ]);
+
+const ParametroDoJob = z.object({ job: z.string().min(1).max(64) });
 
 /** Rotas do BFF /api/financas (ADR 0031). Um teste do web reprova rota fora daqui. */
 export const ROTAS_DE_FINANCAS: RouteSpec[] = [
@@ -252,7 +269,7 @@ export const ROTAS_DE_FINANCAS: RouteSpec[] = [
     path: "/api/financas/importacoes/analise",
     summary: "Lê os arquivos sem gravar e sugere o destino (conta ou cartão e fatura)",
     tags,
-    body: z.object({ arquivos: Arquivos }),
+    body: z.object({ arquivos: Arquivos, mapeamentos: MapeamentosNoForm }),
     response: RespostaDe(AnaliseDeImportacao),
   },
   {
@@ -267,7 +284,77 @@ export const ROTAS_DE_FINANCAS: RouteSpec[] = [
     path: "/api/financas/importacoes",
     summary: "Cria a revisão: linhas propostas, duplicatas e categorias sugeridas",
     tags,
-    body: NovaImportacao.innerType().extend({ arquivos: Arquivos }),
+    body: NovaImportacao.innerType().extend({
+      arquivos: Arquivos,
+      mapeamentos: MapeamentosNoForm,
+    }),
+    response: RespostaDe(ImportacaoComLinhas),
+  },
+  {
+    method: "post",
+    path: "/api/financas/importacoes/ia",
+    summary:
+      "Lê fatura ou extrato em PDF ou imagem em segundo plano (atalho dos layouts conhecidos ou IA); 202 com o job",
+    tags,
+    body: NovaLeitura.extend({ arquivos: ArquivosDaLeitura }),
+    response: RespostaDe(z.object({ job_id: z.string() })),
+  },
+  {
+    method: "get",
+    path: "/api/financas/importacoes/ia",
+    summary: "Última leitura das últimas 24 horas, para a tela voltar a ela",
+    tags,
+    response: RespostaDe(JobDeLeitura.nullable()),
+  },
+  {
+    method: "get",
+    path: "/api/financas/importacoes/ia/{job}",
+    summary: "Estado da leitura e de cada arquivo",
+    tags,
+    params: ParametroDoJob,
+    response: RespostaDe(JobDeLeitura),
+  },
+  {
+    method: "get",
+    path: "/api/financas/importacoes/ia/{job}/eventos",
+    summary: "Progresso da leitura por Server-Sent Events (um JobDeLeitura por evento)",
+    tags,
+    params: ParametroDoJob,
+    response: JobDeLeitura,
+  },
+  {
+    method: "post",
+    path: "/api/financas/importacoes/ia/{job}/confirmar",
+    summary: "Confirma o custo estimado acima do limite e segue a leitura",
+    tags,
+    params: ParametroDoJob,
+    response: Vazio,
+  },
+  {
+    method: "post",
+    path: "/api/financas/importacoes/ia/{job}/cancelar",
+    summary: "Cancela a leitura e apaga os arquivos",
+    tags,
+    params: ParametroDoJob,
+    response: Vazio,
+  },
+  {
+    method: "get",
+    path: "/api/financas/importacoes/ia/{job}/arquivos/{indice}",
+    summary:
+      "O que foi lido do arquivo: cabeçalho da fatura, linhas, recusadas, avisos e destino sugerido",
+    tags,
+    params: ParametroDaLeitura,
+    response: RespostaDe(LeituraDeFatura),
+  },
+  {
+    method: "post",
+    path: "/api/financas/importacoes/ia/{job}/arquivos/{indice}",
+    summary:
+      "Cria a revisão de sempre (import_rows) com as linhas lidas: mesmo dedupe, parcela e plano",
+    tags,
+    params: ParametroDaLeitura,
+    body: NovaImportacao.innerType(),
     response: RespostaDe(ImportacaoComLinhas),
   },
   {

@@ -121,3 +121,27 @@ export function descricoesParecidas(a: string, b: string): boolean {
   const comuns = py.filter((p) => px.has(p)).length;
   return comuns / Math.min(px.size, py.length) >= 0.6;
 }
+
+const PAGAMENTO =
+  /\b(PAGAMENTO|PAGTO|PGTO|PAG) (DE |DA )?(FATURA|CARTAO)|PAGAMENTO (RECEBIDO|EFETUADO|ON ?LINE)|INCLUSAO DE PAGAMENTO|PAGAMENTO$/;
+const ESTORNO = /\b(ESTORNO|ESTORNADO|CREDITO DE ESTORNO|REEMBOLSO|DEVOLUCAO|CANCELAMENTO)\b/;
+const SALDO = /^(SALDO (ANTERIOR|DO DIA|FINAL|INICIAL|EM CONTA|TOTAL)|S A L D O|SDO CTA)/;
+const IOF = /^IOF\b|\bIOF (DE )?(COMPRA|TRANSACAO|INTERNACIONAL)/;
+
+/**
+ * Linha que nao e compra nem receita comum, pela descricao. Pagamento e estorno
+ * so como credito do cartao; saldo em qualquer destino; IOF so como debito.
+ */
+export function marcacaoDe(
+  descricao: string,
+  tipo: "conta" | "cartao",
+  sentido: "credito" | "debito",
+): "pagamento" | "estorno" | "saldo_anterior" | "iof" | null {
+  const t = semAcento(descricao).replace(/\s+/g, " ").trim();
+  if (SALDO.test(t)) return "saldo_anterior";
+  if (sentido === "debito") return IOF.test(t) ? "iof" : null;
+  if (tipo !== "cartao") return null;
+  if (PAGAMENTO.test(t)) return "pagamento";
+  if (ESTORNO.test(t)) return "estorno";
+  return null;
+}

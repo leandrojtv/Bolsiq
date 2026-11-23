@@ -197,7 +197,7 @@ data_posicao,corretora,classe,subclasse,ativo,codigo,cnpj,emissor,indexador,pct_
 | `codigo`          | `acao`, `fii`, `bdr`, `etf` (ticker) e `titulo_publico` | texto                                                                                                                        |
 | `cnpj`            | nao; falta vira pendencia                               | 14 digitos, com ou sem pontuacao                                                                                             |
 | `emissor`         | nao                                                     | texto                                                                                                                        |
-| `indexador`       | nao                                                     | `CDI`, `SELIC`, `IPCA`, `IGPM`, `PRE` ou vazio                                                                               |
+| `indexador`       | nao                                                     | `CDI`, `SELIC`, `IPCA`, `IGPM`, `PRE` ou vazio; em `coe` e `estruturado`, texto livre com o subjacente (ex.: `IBOVESPA`)     |
 | `pct_indexador`   | nao                                                     | fracao, ate 5: 120% do CDI e `1.20`                                                                                          |
 | `taxa_aa`         | nao                                                     | fracao, ate 1: 14,69% e `0.1469`                                                                                             |
 | `data_aplicacao`  | nao                                                     | data                                                                                                                         |

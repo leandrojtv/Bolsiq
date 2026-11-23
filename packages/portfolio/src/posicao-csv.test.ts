@@ -129,6 +129,15 @@ describe("importarPosicaoBolsiq, formato", () => {
     expect(importarPosicaoBolsiq(ordem).rejeicoes[0]?.motivo).toMatch(/nesta ordem/);
   });
 
+  it("coe e estruturado aceitam o subjacente como indexador", () => {
+    const r = ler(
+      linha({ ativo: "COE Ibov", classe: "coe", indexador: "Ibovespa" }),
+      linha({ ativo: "Swap", classe: "estruturado", indexador: "S&P 500" }),
+    );
+    expect(r.rejeicoes).toEqual([]);
+    expect(r.posicoes.map((p) => p.indexador)).toEqual(["IBOVESPA", "S&P 500"]);
+  });
+
   it("arquivo vazio nao e erro", () => {
     expect(importarPosicaoBolsiq("").linhas_lidas).toBe(0);
   });

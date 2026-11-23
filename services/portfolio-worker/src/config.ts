@@ -15,6 +15,11 @@ export const Env = z.object({
   FINANCE_ROTINA_CRON: z.string().default("10 3 * * *"),
   /** Recalculo diario dos insights do Bolsiq Financas (depois da rotina). */
   FINANCE_INSIGHTS_CRON: z.string().default("40 3 * * *"),
+  NATS_URL: z.string().default("nats://localhost:4222"),
+  /** Vigia do Bolsiq Financas (ADR 0037): alertas de fatura, orcamento, saldo e receita. */
+  FINANCE_VIGIA_CRON: z.string().default("5 * * * *"),
+  /** Foto mensal do patrimonio liquido: dia 1, 06h30 em Sao Paulo. */
+  NET_WORTH_SNAPSHOT_CRON: z.string().default("30 6 1 * *"),
   /** Relatorio mensal do assistente (ADR 0036): dia 1, de manha, em Sao Paulo. */
   ASSISTANT_REPORT_CRON: z.string().default("0 8 1 * *"),
   /** De quanto em quanto tempo procura carteira marcada para recalcular. */

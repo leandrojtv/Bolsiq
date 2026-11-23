@@ -32,6 +32,23 @@ Nao le `market_data`, `analytics` nem `portfolio`. Tudo chega por evento
 | `data_com_proxima`        | `marketdata.dividend.announced.v1`  | data com a ate N dias                   |
 | `demonstrativo_publicado` | `marketdata.statement.published.v1` | DFP ou ITR nova ou reapresentada        |
 
+### Alertas do Bolsiq Financas
+
+Sem regra do usuario: o finance publica o fato (`finance.*`, stream `FINANCE`) e o
+worker avisa conforme `user_prefs.financas` (`{ ativo, canais }` por tipo; padrao
+ligado, so no sino). Notificacao unica por `financas:<tipo>` e `<usuario>:<chave>`,
+com `dados.link` para a tela certa ([ADR 0037](../adr/0037-painel-geral-e-alertas-financeiros.md)).
+
+| Tipo               | Evento                             |
+| ------------------ | ---------------------------------- |
+| `fatura_vencendo`  | `finance.fatura.vencendo.v1`       |
+| `orcamento_limite` | `finance.orcamento.limite.v1`      |
+| `saldo_negativo`   | `finance.saldo.negativo.v1`        |
+| `receita_atrasada` | `finance.receita.atrasada.v1`      |
+| `assinatura_nova`  | `finance.insight.novo.v1` (motivo) |
+| `reajuste`         | `finance.insight.novo.v1` (motivo) |
+| `tarifa_nova`      | `finance.insight.novo.v1` (motivo) |
+
 Graham e Bazin comparam com o **ultimo preco que o worker viu**. Sem preco
 conhecido, nao dispara: comparar preco justo com preco desconhecido nao tem
 resposta. Na pratica o preco chega primeiro, porque cotacao e diaria e

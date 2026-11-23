@@ -19,6 +19,7 @@ import {
 import { buscarCotacoes } from "@/lib/api";
 import { lembrarModulo, moduloParaLembrar } from "@/lib/modulo";
 import { useSino } from "./alertas/useSino";
+import { EVENTO_ABRIR_ASSISTENTE } from "./assistente/abrir";
 import { useConta } from "./conta/Conta";
 import { BuscaGlobal, ID_DA_BUSCA } from "./BuscaGlobal";
 import { useWatchlist } from "./watchlist";
@@ -57,6 +58,17 @@ export function Casca({ children }: { children: ReactNode }) {
   const porTicker = new Map((data?.data ?? []).map((c) => [c.ticker, c]));
   const [assistenteAberto, setAssistenteAberto] = useState(false);
   const [assistenteUsado, setAssistenteUsado] = useState(false);
+  const [pergunta, setPergunta] = useState<string | undefined>(undefined);
+  // Atalhos das telas (Painel geral) abrem o assistente ja no contexto da rota.
+  useEffect(() => {
+    const abrir = (e: Event) => {
+      setPergunta((e as CustomEvent<{ pergunta?: string }>).detail.pergunta);
+      setAssistenteUsado(true);
+      setAssistenteAberto(true);
+    };
+    window.addEventListener(EVENTO_ABRIR_ASSISTENTE, abrir);
+    return () => window.removeEventListener(EVENTO_ABRIR_ASSISTENTE, abrir);
+  }, []);
   const modulo = moduloDaRota(caminho);
   // Ultimo modulo usado: define a entrada depois do login (ADR 0031).
   useEffect(() => {
@@ -121,7 +133,12 @@ export function Casca({ children }: { children: ReactNode }) {
         <MessageCircle aria-hidden="true" size={22} />
       </button>
       {assistenteUsado && (
-        <PainelDoAssistente aberto={assistenteAberto} aoMudar={setAssistenteAberto} />
+        <PainelDoAssistente
+          aberto={assistenteAberto}
+          aoMudar={setAssistenteAberto}
+          pergunta={pergunta}
+          aoUsarPergunta={() => setPergunta(undefined)}
+        />
       )}
     </AppShell>
   );

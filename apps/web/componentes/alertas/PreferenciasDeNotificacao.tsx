@@ -4,6 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, Skeleton, cn } from "@bolsiq/ui";
+import {
+  PREFERENCIA_FINANCEIRA_PADRAO,
+  ROTULO_DO_TIPO_FINANCEIRO,
+  TIPOS_FINANCEIROS,
+} from "@bolsiq/alerts/financas";
 import { Preferencias, ROTULO_DO_CANAL, type CanalDeAlerta } from "@/lib/alertas-modelo";
 import { CHAVES, lerPreferencias, salvarPreferencias } from "./cliente";
 import { ativarPush } from "./push";
@@ -116,6 +121,66 @@ export function PreferenciasDeNotificacao() {
               className={CAMPO}
             />
           </label>
+        </Card>
+
+        <Card title="Alertas do Bolsiq Finanças">
+          <p className="m-0 text-[13px] text-text-2">
+            Avisos automáticos das suas finanças. Sempre aparecem no sino quando ligados;
+            os outros canais seguem os ligados acima.
+          </p>
+          <ul
+            aria-label="Alertas do Bolsiq Finanças"
+            className="m-0 flex list-none flex-col p-0"
+          >
+            {TIPOS_FINANCEIROS.map((t) => {
+              const atual = p.financas[t] ?? PREFERENCIA_FINANCEIRA_PADRAO;
+              const mudar = (n: typeof atual) =>
+                setP({ ...p, financas: { ...p.financas, [t]: n } });
+              const extras = data.canais_disponiveis.filter((c) => c !== "inapp");
+              return (
+                <li
+                  key={t}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border py-2.5 first:border-t-0"
+                >
+                  <label className="flex min-h-touch flex-1 cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={atual.ativo}
+                      onChange={(e) => mudar({ ...atual, ativo: e.target.checked })}
+                      className="size-4 accent-accent"
+                    />
+                    <span className="font-semibold">{ROTULO_DO_TIPO_FINANCEIRO[t]}</span>
+                  </label>
+                  {extras.map((c) => (
+                    <label
+                      key={c}
+                      className={cn(
+                        "flex min-h-touch items-center gap-2 text-[13px] text-text-2",
+                        !atual.ativo && "opacity-60",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`${ROTULO_DO_TIPO_FINANCEIRO[t]}: ${ROTULO_DO_CANAL[c]}`}
+                        checked={atual.canais.includes(c)}
+                        disabled={!atual.ativo}
+                        onChange={(e) =>
+                          mudar({
+                            ...atual,
+                            canais: e.target.checked
+                              ? [...atual.canais, c]
+                              : atual.canais.filter((x) => x !== c),
+                          })
+                        }
+                        className="size-4 accent-accent"
+                      />
+                      {ROTULO_DO_CANAL[c]}
+                    </label>
+                  ))}
+                </li>
+              );
+            })}
+          </ul>
         </Card>
 
         <Card title="Silêncio">

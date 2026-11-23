@@ -14,7 +14,9 @@ import {
   rotinaDeInsights,
   rotinaDiaria,
 } from "@bolsiq/finance";
+import { conectar } from "@bolsiq/messaging";
 import { carregarEnv } from "./config.js";
+import { iniciarPainel } from "./painel.js";
 import { iniciarImportacao } from "./importacao.js";
 import { iniciarRelatorio } from "./relatorio.js";
 import {
@@ -91,6 +93,12 @@ await boss.work<{ user_id?: string }>(JOB_INSIGHTS, async ([trabalho]) => {
 // Relatorio mensal do assistente (ADR 0036): opt-in, com a chave do usuario.
 await iniciarRelatorio(boss, db, env, hojeEmSp, log);
 
+// Painel geral e alertas do financas (ADR 0037): vigia, foto mensal do
+// patrimonio e publicacao do outbox do finance no NATS.
+const messaging = await conectar({ servers: env.NATS_URL, name: "portfolio-worker" });
+await messaging.garantirStream();
+const publicacao = await iniciarPainel(boss, db, env, precos, messaging, hojeEmSp, log);
+
 let ultimoCiclo = Date.now();
 let parado = false;
 async function ciclo() {
@@ -142,7 +150,9 @@ servidor.listen(env.PORT, "0.0.0.0");
 async function encerrar() {
   parado = true;
   servidor.close();
+  await publicacao.parar();
   await boss.stop({ graceful: true });
+  await messaging.fechar();
   await pool.end();
   process.exit(0);
 }

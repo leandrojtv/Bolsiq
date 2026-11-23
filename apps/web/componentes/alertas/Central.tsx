@@ -88,7 +88,7 @@ export function Central({ destacar }: { destacar?: string }) {
             return (
               <li key={n.id} className="border-t border-border">
                 <Link
-                  href={n.ticker ? `/ativo/${n.ticker}` : "/alertas"}
+                  href={n.link ?? (n.ticker ? `/ativo/${n.ticker}` : "/alertas")}
                   onClick={() => !n.lida && marcar.mutate([n.id])}
                   className={cn(
                     "flex gap-3 px-2 py-3 text-text hover:bg-surface-2",

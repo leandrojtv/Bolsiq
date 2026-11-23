@@ -97,6 +97,11 @@ insights (cache, respostas e ajustes) e auditoria do módulo; a exclusão també
 - **Planejamento**: itens por mês e categoria (descrição, valor, fixo). Compara com o
   realizado e o previsto da categoria, mostra a sobra planejada, copia o mês anterior
   e puxa as recorrências. Não cria lançamento.
+- **Item dividido**: uma despesa com custo dividido (aluguel, condomínio) guarda o
+  valor fechado em `valor` e o percentual do usuário em `parte_propria` (entre 0 e
+  100, exclusivos; nulo quando não é dividido). Planejado da categoria, fixos, sobra,
+  painel e alertas usam só a parte própria (`valor_proprio`); o total coberto por
+  outros sai em `totais.despesas_de_terceiros`. Copiar o mês leva a divisão junto.
 
 ## Parcelamentos, dívidas, orçamento, fluxo e metas
 

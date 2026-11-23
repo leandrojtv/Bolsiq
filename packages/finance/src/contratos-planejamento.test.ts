@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  EdicaoDeItemDoPlanejamento,
   EdicaoDeRecorrencia,
   NovaRecorrencia,
   NovoItemDoPlanejamento,
@@ -65,6 +66,26 @@ describe("planejamento e pagamento", () => {
       NovoItemDoPlanejamento.safeParse({ mes: "03/2024", category_id: "c", valor: "1" })
         .success,
     ).toBe(false);
+  });
+  it("item dividido aceita percentual entre 0 e 100, exclusivos", () => {
+    const base = { mes: "2024-03", category_id: "c", valor: "3000" };
+    expect(
+      NovoItemDoPlanejamento.parse({ ...base, parte_propria: "50" }).parte_propria,
+    ).toBe(50);
+    expect(
+      NovoItemDoPlanejamento.parse({ ...base, parte_propria: "33,33" }).parte_propria,
+    ).toBe(33.33);
+    expect(
+      NovoItemDoPlanejamento.parse({ ...base, parte_propria: "" }).parte_propria,
+    ).toBe(null);
+    for (const parte of ["0", "100", "-5", "abc", "10.555"])
+      expect(
+        NovoItemDoPlanejamento.safeParse({ ...base, parte_propria: parte }).success,
+        parte,
+      ).toBe(false);
+    expect(EdicaoDeItemDoPlanejamento.parse({ parte_propria: null })).toEqual({
+      parte_propria: null,
+    });
   });
   it("pagamento com valor opcional", () => {
     expect(PagamentoDeFatura.parse({ data: "2024-03-10" })).toEqual({

@@ -461,6 +461,11 @@ export const budget_items = finance.table(
     fixo: boolean("fixo").notNull().default(false),
     /** Item puxado de uma recorrencia: copiar de novo nao duplica. */
     recurrence_id: text("recurrence_id"),
+    /**
+     * Custo dividido com outra pessoa: percentual que e do usuario. `valor`
+     * guarda o fechado; o orcamento usa so essa parte. Null: nao dividido.
+     */
+    parte_propria: numeric("parte_propria", { precision: 5, scale: 2, mode: "number" }),
     criado_em: utc("criado_em").notNull().defaultNow(),
   },
   (t) => [
@@ -476,6 +481,10 @@ export const budget_items = finance.table(
       .on(t.user_id, t.competencia, t.category_id, t.descricao)
       .nullsNotDistinct(),
     check("budget_items_valor_ck", sql`${t.valor} >= 0`),
+    check(
+      "budget_items_parte_propria_ck",
+      sql`${t.parte_propria} is null or (${t.parte_propria} > 0 and ${t.parte_propria} < 100)`,
+    ),
     check(
       "budget_items_competencia_ck",
       sql`${t.competencia} = date_trunc('month', ${t.competencia})::date`,

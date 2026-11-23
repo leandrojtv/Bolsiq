@@ -7,8 +7,17 @@ import { estadoDoOrcamento, type EstadoDoOrcamento } from "./orcamento.js";
  */
 export interface ItemPlanejado {
   category_id: string;
+  /** Valor fechado do item. */
   valor: string;
   fixo: boolean;
+  /** Percentual que e do usuario quando o custo e dividido; null: nao dividido. */
+  parte_propria?: number | null;
+}
+
+/** Parte do usuario no valor fechado: o que entra no orcamento dele. */
+export function valorProprio(valor: string, parte?: number | null): string {
+  if (parte === null || parte === undefined) return moeda(d(valor));
+  return moeda(d(valor).times(parte).div(100));
 }
 
 export interface MovimentoDaCategoria {
@@ -40,6 +49,8 @@ export interface TotaisDoPlanejamento {
   sobra_planejada: string;
   receitas_realizadas: string;
   despesas_realizadas: string;
+  /** Parte das despesas divididas que outra pessoa cobre (fora do orcamento). */
+  despesas_de_terceiros: string;
 }
 
 export function compararPlanejamento(
@@ -64,10 +75,14 @@ export function compararPlanejamento(
     }
     return l;
   };
+  let terceiros = d(0);
   for (const i of itens) {
     const l = linha(i.category_id);
-    l.planejado = l.planejado.plus(i.valor);
-    if (i.fixo) l.fixo = l.fixo.plus(i.valor);
+    const proprio = valorProprio(i.valor, i.parte_propria);
+    l.planejado = l.planejado.plus(proprio);
+    if (i.fixo) l.fixo = l.fixo.plus(proprio);
+    if (categorias.get(i.category_id)?.natureza === "despesa")
+      terceiros = terceiros.plus(d(i.valor).minus(proprio));
   }
   for (const m of movimentos) {
     const l = linha(m.category_id);
@@ -125,6 +140,7 @@ export function compararPlanejamento(
       sobra_planejada: moeda(t.rp.minus(t.dp)),
       receitas_realizadas: moeda(t.rr),
       despesas_realizadas: moeda(t.dr),
+      despesas_de_terceiros: moeda(terceiros),
     },
   };
 }

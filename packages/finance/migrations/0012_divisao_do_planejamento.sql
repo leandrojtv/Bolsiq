@@ -1,0 +1,2 @@
+ALTER TABLE "finance"."budget_items" ADD COLUMN "parte_propria" numeric(5, 2);--> statement-breakpoint
+ALTER TABLE "finance"."budget_items" ADD CONSTRAINT "budget_items_parte_propria_ck" CHECK ("finance"."budget_items"."parte_propria" is null or ("finance"."budget_items"."parte_propria" > 0 and "finance"."budget_items"."parte_propria" < 100));

@@ -8,7 +8,7 @@ import type {
 } from "../contratos-planejamento.js";
 import { d, moeda } from "../decimal.js";
 import { mediaDosMeses } from "../orcamento.js";
-import { compararPlanejamento } from "../planejamento.js";
+import { compararPlanejamento, valorProprio } from "../planejamento.js";
 import { vezesNoMes, type RegraDeRecorrencia } from "../recorrencia.js";
 import {
   auditar,
@@ -32,6 +32,7 @@ const colunas = {
   valor: budget_items.valor,
   fixo: budget_items.fixo,
   recurrence_id: budget_items.recurrence_id,
+  parte_propria: budget_items.parte_propria,
 };
 
 const competenciaDoMes = (mes: string) => `${mes}-01`;
@@ -42,11 +43,15 @@ export async function obterPlanejamento(
   mes: string,
 ): Promise<Planejamento> {
   const competencia = competenciaDoMes(mes);
-  const itens = (await tx
-    .select(colunas)
-    .from(budget_items)
-    .where(and(eq(budget_items.user_id, uid), eq(budget_items.competencia, competencia)))
-    .orderBy(asc(budget_items.criado_em))) as ItemDoPlanejamento[];
+  const itens: ItemDoPlanejamento[] = (
+    await tx
+      .select(colunas)
+      .from(budget_items)
+      .where(
+        and(eq(budget_items.user_id, uid), eq(budget_items.competencia, competencia)),
+      )
+      .orderBy(asc(budget_items.criado_em))
+  ).map((i) => ({ ...i, valor_proprio: valorProprio(i.valor, i.parte_propria) }));
   const movimentos = await tx
     .select({
       category_id: sql<string>`${transactions.category_id}`,
@@ -116,6 +121,7 @@ export async function criarItem(
       descricao: i.descricao ?? null,
       valor: moeda(d(i.valor)),
       fixo: i.fixo,
+      parte_propria: i.parte_propria ?? null,
     })
     .catch(repetido);
   await auditar(tx, uid, "planejamento.item_criado", "budget_item", id, origem);
@@ -260,7 +266,7 @@ export async function definirValorDaCategoria(
   await categoriaDoUsuario(tx, uid, categoryId);
   const competencia = competenciaDoMes(mes);
   const outros = await tx
-    .select({ valor: budget_items.valor })
+    .select({ valor: budget_items.valor, parte_propria: budget_items.parte_propria })
     .from(budget_items)
     .where(
       and(
@@ -270,7 +276,10 @@ export async function definirValorDaCategoria(
         sql`${budget_items.descricao} is not null`,
       ),
     );
-  const comDescricao = outros.reduce((s, o) => s.plus(o.valor), d(0));
+  const comDescricao = outros.reduce(
+    (s, o) => s.plus(valorProprio(o.valor, o.parte_propria)),
+    d(0),
+  );
   const geral = d(valor).minus(comDescricao);
   if (geral.lt(0))
     throw new ErroDeFinancas(

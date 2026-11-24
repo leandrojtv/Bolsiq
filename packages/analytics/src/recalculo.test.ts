@@ -370,13 +370,16 @@ describe("KLBN11: unit, controladora e 12 meses", () => {
     expect(p?.equity_parent).toBe("9882846000");
   });
 
-  it("P/VP usa o patrimonio da controladora e o preco por unit", () => {
+  it("P/VP no patrimonio da controladora, P/L no lucro consolidado, preco por unit", () => {
     const r = klbn();
     expect(r?.fonte_demonstrativo).toBe("cvm-itr-12m:2026-09-30:v1");
     // 6.116.676.833 acoes / 5 = 1.223.335.367 units; VPA 9.882.846.000 / units.
     expect(Number(r?.vpa)).toBeCloseTo(8.0786, 3);
     expect(Number(r?.pvp)).toBeCloseTo(2.0437, 3);
-    expect(Number(r?.pl)).toBeCloseTo(290.94, 1);
+    // Lucro consolidado de 12 meses: 451.225.000 sobre as mesmas units.
+    expect(Number(r?.pl)).toBeCloseTo(44.76, 1);
+    // ROE na controladora: 69.421.000 / 9.882.846.000.
+    expect(Number(r?.roe)).toBeCloseTo(0.00702, 4);
   });
 
   it("sem a composicao da unit o preco seria comparado a uma acao so", () => {

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import type { Db } from "@bolsiq/db-core";
 import {
   assinar,
@@ -171,6 +171,17 @@ export async function recalcularTicker(
         target: [indicators.ticker, indicators.reference_date],
         set: valores,
       });
+    // A linha mais nova por data-base e a que as telas leem. Linha posterior a
+    // esta foi calculada com menos dado (so preco, antes de o ticker ganhar
+    // demonstrativo) e esconderia o calculo atual.
+    await tx
+      .delete(indicators)
+      .where(
+        and(
+          eq(indicators.ticker, ticker),
+          gt(indicators.reference_date, linha.reference_date),
+        ),
+      );
     const evento = eventoDeIndicadores(ticker, linha);
     // Recalculo diario que nao mudou nada nao vira evento: o alerts avaliaria
     // as mesmas regras com os mesmos numeros.

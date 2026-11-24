@@ -32,7 +32,9 @@ export function derivar(dem: Demonstrativo, mkt: DadosDeMercado): Derivados {
     // EV soma a divida liquida porque quem compra a empresa assume a divida e
     // fica com o caixa. Divida liquida negativa reduz o EV.
     enterprise_value: valor_de_mercado.plus(divida_liquida),
-    lpa: dividir(lucroDaControladora(dem), acoes),
+    // LPA no lucro consolidado e VPA no patrimonio da controladora: e a
+    // convencao dos sites de mercado brasileiros (ADR 0040).
+    lpa: dividir(d(dem.lucro_liquido), acoes),
     vpa: dividir(patrimonioDaControladora(dem), acoes),
   };
 }

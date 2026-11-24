@@ -1,13 +1,14 @@
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { criarDb, criarPool, type Db } from "@bolsiq/db-core";
 import { DFP_2024 } from "../cvm.fixtures.js";
 import { executarScreener } from "../executarScreener.js";
 import { filtroDoPreset, FiltroDeScreener } from "../screener.js";
-import { outbox } from "../db/schema.js";
+import { indicators, outbox } from "../db/schema.js";
 import { recalcularTicker, type ClienteDoMarketData } from "../worker.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
@@ -302,6 +303,23 @@ describe("recalculo e screener", () => {
       FiltroDeScreener.parse({ tipos: ["fii"], ordenar_por: "dy_12m", ordem: "desc" }),
     );
     expect(porDy.linhas.map((l) => l.ticker).sort()).toEqual(["HGLG11", "KNCR11"]);
+  });
+
+  it("linha so de preco com data posterior nao esconde o calculo com demonstrativo", async () => {
+    // KLBN3 antes de ganhar companhia: uma linha por pregao, sem P/L.
+    await db.insert(indicators).values({
+      ticker: "PETR4",
+      reference_date: "2026-11-23",
+      kind: "stock",
+      preco: "30",
+      calculado_em: new Date().toISOString(),
+    } as typeof indicators.$inferInsert);
+    await recalcularTicker(db, cliente, "PETR4", { cdi: [], ibov: [] });
+    const linhas = await db
+      .select()
+      .from(indicators)
+      .where(eq(indicators.ticker, "PETR4"));
+    expect(linhas.map((l) => l.reference_date)).toEqual(["2024-12-31"]);
   });
 
   it("recalcular de novo sobrescreve a mesma data-base", async () => {

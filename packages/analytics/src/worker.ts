@@ -53,8 +53,8 @@ export function clienteDoMarketData(base: string, buscar: Buscar = fetch) {
     ativo: (t: string) => obter(`/v1/assets/${t}`, AssetDetailResponse),
     historico: (t: string, ajustado: boolean) =>
       obter(`/v1/history/${t}?adjusted=${ajustado}`, HistoryResponse),
-    fundamentos: (t: string) =>
-      obter(`/v1/fundamentals/${t}?period=annual`, FundamentalsResponse),
+    fundamentos: (t: string, periodo: "annual" | "quarterly" = "annual") =>
+      obter(`/v1/fundamentals/${t}?period=${periodo}`, FundamentalsResponse),
     proventos: (t: string, de: string) =>
       obter(`/v1/dividends/${t}?from=${de}`, DividendsResponse),
     informesFii: (t: string) => obter(`/v1/fiis/${t}/monthly`, FiiMonthlyResponse),
@@ -126,19 +126,23 @@ export async function recalcularTicker(
 
   const hoje = hojeEmSp();
   const cincoAnos = `${Number(hoje.slice(0, 4)) - 6}-01-01`;
-  const [brutas, ajustadas, fundamentos, proventos, informesFii] = await Promise.all([
-    cliente.historico(ticker, false),
-    cliente.historico(ticker, true),
-    a.cvm_code ? cliente.fundamentos(ticker) : Promise.resolve(null),
-    cliente.proventos(ticker, cincoAnos),
-    // 404 quando o FII ainda nao tem informe ligado: segue sem P/VP.
-    a.kind === "fii" ? cliente.informesFii(ticker) : Promise.resolve(null),
-  ]);
+  const [brutas, ajustadas, fundamentos, trimestrais, proventos, informesFii] =
+    await Promise.all([
+      cliente.historico(ticker, false),
+      cliente.historico(ticker, true),
+      a.cvm_code ? cliente.fundamentos(ticker) : Promise.resolve(null),
+      a.cvm_code ? cliente.fundamentos(ticker, "quarterly") : Promise.resolve(null),
+      cliente.proventos(ticker, cincoAnos),
+      // 404 quando o FII ainda nao tem informe ligado: segue sem P/VP.
+      a.kind === "fii" ? cliente.informesFii(ticker) : Promise.resolve(null),
+    ]);
 
   const linha = recalcular({
     ticker,
     kind: a.kind,
     anuais: fundamentos?.data.periods ?? [],
+    trimestrais: trimestrais?.data.periods ?? [],
+    acoesPorUnit: a.shares_per_unit,
     velasBrutas: brutas?.data.candles ?? [],
     velasAjustadas: ajustadas?.data.candles ?? [],
     proventos: proventos?.data ?? [],

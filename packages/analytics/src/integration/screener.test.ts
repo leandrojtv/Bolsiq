@@ -52,6 +52,7 @@ const cliente: ClienteDoMarketData = {
               kind: t === "PETR4" ? "stock" : "fii",
               sector: t === "PETR4" ? "Petróleo e Gás" : null,
               status: null,
+              shares_per_unit: null,
               provenance: {
                 source: "t",
                 fetched_at: meta.fetched_at,
@@ -72,35 +73,40 @@ const cliente: ClienteDoMarketData = {
       },
       meta,
     }),
-  fundamentos: (t) => {
+  fundamentos: (t, periodo = "annual") => {
     const d = DFP_2024.PETR4.demonstrativo;
     return Promise.resolve({
       data: {
         ticker: t,
         cvm_code: "009512",
         cnpj: "33000167000101",
-        period: "annual",
-        periods: [
-          {
-            reference_date: d.reference_date,
-            period_start: "2024-01-01",
-            statement_kind: "DFP",
-            consolidated: true,
-            revenue: d.receita,
-            gross_profit: d.resultado_bruto,
-            ebit: d.ebit,
-            net_income: d.lucro_liquido,
-            depreciation_amortization: d.depreciacao_amortizacao,
-            total_assets: d.ativo_total,
-            current_assets: d.ativo_circulante,
-            cash_and_equivalents: d.caixa_equivalentes,
-            current_liabilities: d.passivo_circulante,
-            equity: d.patrimonio_liquido,
-            gross_debt: d.divida_bruta,
-            shares_outstanding: DFP_2024.PETR4.acoes,
-            version: 1,
-          },
-        ],
+        period: periodo,
+        periods:
+          periodo === "quarterly"
+            ? []
+            : [
+                {
+                  reference_date: d.reference_date,
+                  period_start: "2024-01-01",
+                  statement_kind: "DFP",
+                  consolidated: true,
+                  revenue: d.receita,
+                  gross_profit: d.resultado_bruto,
+                  ebit: d.ebit,
+                  net_income: d.lucro_liquido,
+                  depreciation_amortization: d.depreciacao_amortizacao,
+                  total_assets: d.ativo_total,
+                  current_assets: d.ativo_circulante,
+                  cash_and_equivalents: d.caixa_equivalentes,
+                  current_liabilities: d.passivo_circulante,
+                  equity: d.patrimonio_liquido,
+                  equity_parent: null,
+                  net_income_parent: null,
+                  gross_debt: d.divida_bruta,
+                  shares_outstanding: DFP_2024.PETR4.acoes,
+                  version: 1,
+                },
+              ],
       },
       meta,
     });

@@ -9,6 +9,7 @@ import { DFP_2024 } from "./cvm.fixtures.js";
 import {
   acoesNaEscalaCerta,
   demonstrativoDe,
+  periodoMaisRecente,
   proventos12m,
   proventosPorAno,
   recalcular,
@@ -33,6 +34,8 @@ const periodo: FundamentalsPeriod = {
   cash_and_equivalents: petr.caixa_equivalentes,
   current_liabilities: petr.passivo_circulante,
   equity: petr.patrimonio_liquido,
+  equity_parent: null,
+  net_income_parent: null,
   gross_debt: petr.divida_bruta,
   shares_outstanding: DFP_2024.PETR4.acoes,
   version: 1,
@@ -302,5 +305,95 @@ describe("FII pelo informe mensal", () => {
     expect(Number(fii?.dy_12m)).toBe(0);
     const acao = recalcular(dados({ informesFii: informes }));
     expect(acao?.fonte_demonstrativo).toMatch(/^cvm-dfp:/);
+  });
+});
+
+describe("KLBN11: unit, controladora e 12 meses", () => {
+  // Numeros da Klabin na CVM (DFP 2025 e ITRs de 2025 e 2026). A DRE do ITR
+  // vem por trimestre.
+  const dfp2025: FundamentalsPeriod = {
+    ...periodo,
+    reference_date: "2025-12-31",
+    period_start: "2025-01-01",
+    net_income: "1678211000",
+    net_income_parent: "1403135000",
+    equity: "14401101000",
+    equity_parent: "7885946000",
+    shares_outstanding: 6_135_427_665,
+  };
+  const tri = (
+    reference_date: string,
+    period_start: string,
+    net_income: string,
+    net_income_parent: string,
+  ): FundamentalsPeriod => ({
+    ...dfp2025,
+    statement_kind: "ITR",
+    reference_date,
+    period_start,
+    net_income,
+    net_income_parent,
+  });
+  const trimestrais = [
+    {
+      ...tri("2026-09-30", "2026-07-01", "393122000", "241068000"),
+      equity: "16503683000",
+      equity_parent: "9882846000",
+      shares_outstanding: 6_116_676_833,
+    },
+    tri("2026-06-30", "2026-04-01", "386580000", "277156000"),
+    tri("2026-03-31", "2026-01-01", "-496976000", "-530056000"),
+    tri("2025-09-30", "2025-07-01", "477884000", "348574000"),
+    tri("2025-06-30", "2025-04-01", "585329000", "572066000"),
+    tri("2025-03-31", "2025-01-01", "446499000", "401242000"),
+  ];
+  const precoDaUnit = velas(60).map((v) => ({ ...v, close: "16.51" }));
+  const klbn = (sobre: Partial<DadosDoAtivo> = {}) =>
+    recalcular(
+      dados({
+        ticker: "KLBN11",
+        anuais: [dfp2025],
+        trimestrais,
+        acoesPorUnit: 5,
+        velasBrutas: precoDaUnit,
+        ...sobre,
+      }),
+    );
+
+  it("lucro de 12 meses soma o DFP anterior, o ano corrente e tira o ano anterior", () => {
+    const p = periodoMaisRecente([dfp2025], trimestrais);
+    expect(p?.reference_date).toBe("2026-09-30");
+    expect(p?.period_start).toBe("2025-10-01");
+    // 1.403.135 + (-530.056 + 277.156 + 241.068) - (401.242 + 572.066 + 348.574)
+    expect(p?.net_income_parent).toBe("69421000");
+    expect(p?.net_income).toBe("451225000");
+    expect(p?.equity_parent).toBe("9882846000");
+  });
+
+  it("P/VP usa o patrimonio da controladora e o preco por unit", () => {
+    const r = klbn();
+    expect(r?.fonte_demonstrativo).toBe("cvm-itr-12m:2026-09-30:v1");
+    // 6.116.676.833 acoes / 5 = 1.223.335.367 units; VPA 9.882.846.000 / units.
+    expect(Number(r?.vpa)).toBeCloseTo(8.0786, 3);
+    expect(Number(r?.pvp)).toBeCloseTo(2.0437, 3);
+    expect(Number(r?.pl)).toBeCloseTo(290.94, 1);
+  });
+
+  it("sem a composicao da unit o preco seria comparado a uma acao so", () => {
+    const r = klbn({ acoesPorUnit: null });
+    expect(Number(r?.pvp)).toBeCloseTo(2.0437 * 5, 2);
+  });
+
+  it("sem o ITR do ano anterior fica o DFP", () => {
+    const soAnoCorrente = trimestrais.filter((t) => t.reference_date >= "2026-01-01");
+    expect(periodoMaisRecente([dfp2025], soAnoCorrente)).toBe(dfp2025);
+    const r = klbn({ trimestrais: soAnoCorrente });
+    expect(r?.fonte_demonstrativo).toBe("cvm-dfp:2025-12-31:v1");
+    // DFP 2025: PL da controladora 7.885.946.000 sobre 1.227.085.533 units.
+    expect(Number(r?.pvp)).toBeCloseTo(2.569, 2);
+  });
+
+  it("ITR mais antigo que o DFP nao substitui o DFP", () => {
+    expect(periodoMaisRecente([dfp2025], trimestrais.slice(3))).toBe(dfp2025);
   });
 });

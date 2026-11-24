@@ -4,6 +4,7 @@ import type {
   FiiMonthlyReport,
   FundamentalsPeriod,
 } from "@bolsiq/contracts";
+import type { Decimal } from "decimal.js";
 import { d, paraMoeda } from "./decimal.js";
 import { bazin } from "./precoJusto.js";
 import { beta, desempenho, sharpe } from "./desempenho.js";
@@ -21,6 +22,10 @@ export interface DadosDoAtivo {
   kind: string;
   /** Periodos anuais do DFP, do mais recente ao mais antigo. */
   anuais: FundamentalsPeriod[];
+  /** Trimestres do ITR (DRE do trimestre, DFC acumulado no ano), do mais recente ao mais antigo. */
+  trimestrais?: FundamentalsPeriod[];
+  /** Acoes que formam a unit (KLBN11 = 5); ausente quando o ticker nao e unit. */
+  acoesPorUnit?: number | null;
   /** Ultimo ano de pregoes, sem ajuste: preco e liquidez. */
   velasBrutas: Candle[];
   /** Mesmo periodo ajustado por proventos: retornos. */
@@ -207,7 +212,85 @@ export function demonstrativoDe(p: FundamentalsPeriod): Demonstrativo | null {
     passivo_circulante: p.current_liabilities ?? "0",
     patrimonio_liquido: p.equity,
     divida_bruta: p.gross_debt ?? "0",
+    ...(p.net_income_parent === null ? {} : { lucro_controladora: p.net_income_parent }),
+    ...(p.equity_parent === null ? {} : { patrimonio_controladora: p.equity_parent }),
   };
+}
+
+/** Contas de resultado. As da DRE vem por trimestre no ITR; a depreciacao (DFC), acumulada. */
+type ContaDeFluxo =
+  | "revenue"
+  | "gross_profit"
+  | "ebit"
+  | "net_income"
+  | "net_income_parent"
+  | "depreciation_amortization";
+
+function inicioDoAno(data: string): string {
+  return `${data.slice(0, 4)}-01-01`;
+}
+
+/**
+ * Valor acumulado no ano ate `data`. A DRE do ITR vem por trimestre e e
+ * somada desde janeiro; o DFC do ITR ja vem acumulado. `null` quando falta
+ * algum trimestre ou a conta.
+ */
+function acumuladoNoAno(
+  trimestrais: FundamentalsPeriod[],
+  data: string,
+  conta: ContaDeFluxo,
+): Decimal | null {
+  const p = trimestrais.find((x) => x.reference_date === data);
+  const valor = p?.[conta];
+  if (!p || valor === null || valor === undefined) return null;
+  if (conta === "depreciation_amortization" || p.period_start === inicioDoAno(data)) {
+    return d(valor);
+  }
+  if (!p.period_start || p.period_start <= inicioDoAno(data)) return null;
+  const anterior = acumuladoNoAno(trimestrais, somarDias(p.period_start, -1), conta);
+  return anterior === null ? null : anterior.plus(valor);
+}
+
+/**
+ * Ultimo balanco com o resultado dos ultimos 12 meses.
+ *
+ * Quando ha ITR mais novo que o ultimo DFP, o balanco e o do ITR e cada conta
+ * de resultado vira o DFP anterior mais o acumulado do ano menos o acumulado
+ * do mesmo periodo do ano anterior. Sem o ITR do ano anterior ou do DFP
+ * daquele ano, fica o DFP: um indicador defasado e melhor que um errado.
+ */
+export function periodoMaisRecente(
+  anuais: FundamentalsPeriod[],
+  trimestrais: FundamentalsPeriod[],
+): FundamentalsPeriod | undefined {
+  const anual = anuais.find((p) => demonstrativoDe(p) !== null);
+  const itr = trimestrais[0];
+  if (!itr || (anual && itr.reference_date <= anual.reference_date)) return anual;
+
+  const ano = Number(itr.reference_date.slice(0, 4));
+  const dfpAnterior = anuais.find((p) => p.reference_date === `${ano - 1}-12-31`);
+  if (!dfpAnterior) return anual;
+  const mesmaDataAnoAnterior = `${ano - 1}${itr.reference_date.slice(4)}`;
+
+  const ttm = (conta: ContaDeFluxo): string | null => {
+    const base = dfpAnterior[conta];
+    const atual = acumuladoNoAno(trimestrais, itr.reference_date, conta);
+    const anterior = acumuladoNoAno(trimestrais, mesmaDataAnoAnterior, conta);
+    if (base === null || atual === null || anterior === null) return null;
+    return d(base).plus(atual).minus(anterior).toFixed();
+  };
+
+  const periodo: FundamentalsPeriod = {
+    ...itr,
+    period_start: somarDias(mesmaDataAnoAnterior, 1),
+    revenue: ttm("revenue"),
+    gross_profit: ttm("gross_profit"),
+    ebit: ttm("ebit"),
+    net_income: ttm("net_income"),
+    net_income_parent: ttm("net_income_parent"),
+    depreciation_amortization: ttm("depreciation_amortization"),
+  };
+  return demonstrativoDe(periodo) === null ? anual : periodo;
 }
 
 /** Faixa de P/VP plausivel. A razao entre os extremos (800) e menor que 1000. */
@@ -308,11 +391,16 @@ export function recalcular(dados: DadosDoAtivo): LinhaDeIndicadores | null {
   const p12m = proventos12m(dados.proventos, dados.hoje);
   const porAno = proventosPorAno(dados.proventos, dados.hoje);
 
-  const periodo = dados.anuais.find((p) => demonstrativoDe(p) !== null);
+  const periodo = periodoMaisRecente(dados.anuais, dados.trimestrais ?? []);
   const dem = periodo ? demonstrativoDe(periodo) : null;
+  // Preco de unit e de varias acoes: LPA e VPA vao para a mesma base.
   const acoes =
     periodo?.shares_outstanding && dem
-      ? acoesNaEscalaCerta(periodo.shares_outstanding, preco, dem.patrimonio_liquido)
+      ? acoesNaEscalaCerta(
+          periodo.shares_outstanding / (dados.acoesPorUnit ?? 1),
+          preco,
+          dem.patrimonio_controladora ?? dem.patrimonio_liquido,
+        )
       : null;
 
   const comum = {
@@ -400,6 +488,9 @@ export function recalcular(dados: DadosDoAtivo): LinhaDeIndicadores | null {
     margem_graham: razao(ind.margem_graham),
     preco_bazin: ind.preco_bazin,
     margem_bazin: razao(ind.margem_bazin),
-    fonte_demonstrativo: `cvm-dfp:${periodo.reference_date}:v${periodo.version}`,
+    fonte_demonstrativo:
+      periodo.statement_kind === "ITR"
+        ? `cvm-itr-12m:${periodo.reference_date}:v${periodo.version}`
+        : `cvm-dfp:${periodo.reference_date}:v${periodo.version}`,
   };
 }

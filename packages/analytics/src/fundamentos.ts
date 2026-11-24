@@ -11,6 +11,14 @@ export interface Derivados {
   vpa: Decimal | null;
 }
 
+export function lucroDaControladora(dem: Demonstrativo): Decimal {
+  return d(dem.lucro_controladora ?? dem.lucro_liquido);
+}
+
+export function patrimonioDaControladora(dem: Demonstrativo): Decimal {
+  return d(dem.patrimonio_controladora ?? dem.patrimonio_liquido);
+}
+
 export function derivar(dem: Demonstrativo, mkt: DadosDeMercado): Derivados {
   const acoes = d(mkt.acoes);
   const ebitda = d(dem.ebit).plus(d(dem.depreciacao_amortizacao));
@@ -24,8 +32,8 @@ export function derivar(dem: Demonstrativo, mkt: DadosDeMercado): Derivados {
     // EV soma a divida liquida porque quem compra a empresa assume a divida e
     // fica com o caixa. Divida liquida negativa reduz o EV.
     enterprise_value: valor_de_mercado.plus(divida_liquida),
-    lpa: dividir(d(dem.lucro_liquido), acoes),
-    vpa: dividir(d(dem.patrimonio_liquido), acoes),
+    lpa: dividir(lucroDaControladora(dem), acoes),
+    vpa: dividir(patrimonioDaControladora(dem), acoes),
   };
 }
 
@@ -97,7 +105,7 @@ export function rentabilidade(
   const capital_investido = d(dem.patrimonio_liquido).plus(der.divida_liquida);
 
   return {
-    roe: paraNumero(dividir(d(dem.lucro_liquido), d(dem.patrimonio_liquido))),
+    roe: paraNumero(dividir(lucroDaControladora(dem), patrimonioDaControladora(dem))),
     roic: paraNumero(dividir(nopat, capital_investido)),
     roa: paraNumero(dividir(d(dem.lucro_liquido), d(dem.ativo_total))),
     margem_bruta: paraNumero(dividir(d(dem.resultado_bruto), receita)),

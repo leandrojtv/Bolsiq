@@ -36,11 +36,14 @@ O `analytics-worker` consome o stream `MARKETDATA` e enfileira em
 
 O handler so enfileira, dentro da transacao da idempotencia. Um laco drena a
 fila com `FOR UPDATE SKIP LOCKED` e chama o `/v1` para cada ticker:
-`assets`, `history` (bruto e ajustado, 1 ano), `fundamentals` (anual) e
+`assets`, `history` (bruto e ajustado, 1 ano), `fundamentals` (anual e
+trimestral) e
 `dividends` (6 anos) e, para FII, `fiis/{ticker}/monthly` (2 anos). CDI e
 IBOV sao lidos uma vez por hora para a rodada.
 
-Acao com DFP calcula tudo, com data-base igual a do demonstrativo. FII, ETF e
+Acao com DFP calcula tudo, com data-base igual a do demonstrativo. Quando ha
+ITR mais novo que o ultimo DFP, a data-base e a do ITR: balanco do trimestre e
+resultado dos ultimos 12 meses (ver [12 meses, controladora e units](#12-meses-controladora-e-units)). FII, ETF e
 BDR, sem demonstrativo, calculam o que so depende de preco e provento:
 desempenho, dividend yield e Bazin, com data-base no ultimo pregao. FII com
 informe mensal ligado ganha tambem P/VP, patrimonio liquido e cotistas (ver
@@ -60,6 +63,21 @@ Nenhuma passando (patrimonio negativo), os indicadores por acao ficam nulos.
 
 Sem a correcao, essas 261 empresas apareciam com P/L perto de zero no topo de
 qualquer filtro de valor.
+
+### 12 meses, controladora e units
+
+Decidido no [ADR 0040](../adr/0040-indicadores-por-acao-12m-controladora.md).
+
+- **12 meses.** Resultado = DFP do ano anterior + acumulado do ano no ITR -
+  acumulado do mesmo periodo do ano anterior. A DRE do ITR vem por trimestre e e
+  somada desde janeiro; o DFC ja vem acumulado. Faltando trimestre, fica o DFP.
+  `fonte_demonstrativo` sai `cvm-itr-12m:<data>:v<versao>`.
+- **Controladora.** LPA, VPA e ROE usam o lucro e o patrimonio do demonstrativo
+  individual (`net_income_parent`, `equity_parent`), sem os nao controladores.
+  EV, margens e endividamento ficam no consolidado.
+- **Units.** O preco de uma unit e o de varias acoes (KLBN11 = 1 ON + 4 PN). O
+  recalculo divide as acoes em circulacao por `shares_per_unit` do
+  `/v1/assets/{ticker}`, e LPA, VPA e Graham ficam na base do preco da unit.
 
 ## Entradas
 

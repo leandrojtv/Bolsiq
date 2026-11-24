@@ -72,9 +72,10 @@ Decidido no [ADR 0040](../adr/0040-indicadores-por-acao-12m-controladora.md).
   acumulado do mesmo periodo do ano anterior. A DRE do ITR vem por trimestre e e
   somada desde janeiro; o DFC ja vem acumulado. Faltando trimestre, fica o DFP.
   `fonte_demonstrativo` sai `cvm-itr-12m:<data>:v<versao>`.
-- **Controladora.** LPA, VPA e ROE usam o lucro e o patrimonio do demonstrativo
-  individual (`net_income_parent`, `equity_parent`), sem os nao controladores.
-  EV, margens e endividamento ficam no consolidado.
+- **Controladora.** VPA (P/VP) usa o patrimonio do demonstrativo individual
+  (`equity_parent`), sem os nao controladores; ROE usa lucro e patrimonio da
+  controladora. LPA (P/L, Graham) usa o lucro consolidado, como os sites de
+  mercado. EV, margens e endividamento ficam no consolidado.
 - **Units.** O preco de uma unit e o de varias acoes (KLBN11 = 1 ON + 4 PN). O
   recalculo divide as acoes em circulacao por `shares_per_unit` do
   `/v1/assets/{ticker}`, e LPA, VPA e Graham ficam na base do preco da unit.

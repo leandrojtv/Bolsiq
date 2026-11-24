@@ -165,7 +165,7 @@ mensal de FII (desde o ano anterior a `FROM`), SGS e fundos.
 | `b3-cotahist-diario`  | pregão do dia; 404 da B3 encerra como `sem_pregao` e fica registrado, não falha                              | `quote.updated` por papel, `daily.closed`  |
 | `b3-cotahist-lacunas` | dia útil dos últimos 10 (`{"dias": 30}` amplia) sem preço: refaz o diário                                    | os mesmos do `b3-cotahist-diario`          |
 | `b3-cotahist-anual`   | ano inteiro (`{"ano": 2024}`), sem evento de preço                                                           | `asset.listed` para papel novo             |
-| `cvm-cadastro`        | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                                       | nenhum                                     |
+| `cvm-cadastro`        | cadastro + FCA: liga ticker a CNPJ, código CVM e setor; ação fora do FCA herda pelo emissor do ISIN          | nenhum                                     |
 | `cvm-dfp`, `cvm-itr`  | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                                     | `statement.published` por companhia e data |
 | `bcb-sgs`             | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                                        | nenhum                                     |
 | `cvm-fundos`          | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia)                 | nenhum                                     |

@@ -27,10 +27,14 @@ somavam no recálculo do analytics:
   (`services/market-data/src/dados/units.ts`), conferida contra o preço das ações
   que formam cada unit. O analytics divide as ações em circulação por esse número:
   LPA, VPA, Graham e valor de mercado ficam na base do preço da unit.
-- **Controladora.** `GET /v1/fundamentals` devolve `equity_parent` e
-  `net_income_parent`, do demonstrativo individual (que, pela equivalência
-  patrimonial, é o da controladora). LPA, VPA e ROE usam esses valores. EV,
-  margens e endividamento continuam no consolidado, onde estão receita e dívida.
+- **Controladora no VPA e no ROE; consolidado no LPA.** `GET /v1/fundamentals`
+  devolve `equity_parent` e `net_income_parent`, do demonstrativo individual
+  (que, pela equivalência patrimonial, é o da controladora). VPA (e P/VP) usa o
+  patrimônio da controladora; ROE usa lucro e patrimônio da controladora. O LPA
+  (e P/L, Graham) usa o lucro consolidado, que é a convenção dos sites de
+  mercado brasileiros: na KLBN11 o P/L pelo lucro da controladora daria 290,9,
+  contra cerca de 45 pelo consolidado e 49 nos sites. EV, margens e
+  endividamento continuam no consolidado.
 - **Último balanço e 12 meses.** Com ITR mais novo que o último DFP, o balanço é
   o do ITR e cada conta de resultado vira DFP do ano anterior + acumulado do ano
   − acumulado do mesmo período do ano anterior. A DRE do ITR vem por trimestre e é
@@ -39,11 +43,11 @@ somavam no recálculo do analytics:
 
 ## Consequências
 
-- O P/L passa a seguir a definição do IAS 33 (lucro dos acionistas da
-  controladora). Sites que usam o lucro consolidado mostram outro número quando
-  os minoritários pesam: na KLBN11, 290,9 contra cerca de 45, porque a
-  controladora teve prejuízo de 530 mi no 1º trimestre de 2026 e lucro de
-  69 mi em 12 meses.
+- O P/L não segue o IAS 33 (lucro da controladora), e sim o mercado. Em empresa
+  com minoritários relevantes, LPA e VPA ficam em bases diferentes; o ROE, que
+  precisa das duas pontas na mesma base, fica todo na controladora.
+- Ação que o FCA da CVM não lista (KLBN3 e KLBN4 na Klabin, que só lista a
+  KLBN11) herda a companhia do papel com o mesmo emissor no ISIN.
 - Unit nova na B3 precisa entrar na tabela; até lá, os indicadores dela saem como
   se o preço fosse de uma ação.
 - O recálculo faz uma chamada a mais ao `/v1` por ticker (fundamentos trimestrais).

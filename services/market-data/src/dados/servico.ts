@@ -53,6 +53,7 @@ import { BCB_LICENSE, BCB_SOURCE, type BcbAdapter } from "../fontes/bcb.js";
 import { CVM_LICENSE } from "../fontes/cvm.js";
 import { Coalescedor, dentroDoPrazo } from "./coalescedor.js";
 import { gravarSerieMacro, PRODUTOR, type Log } from "./ingestao.js";
+import { acoesPorUnit } from "./units.js";
 
 export interface Resposta<T> {
   data: T;
@@ -365,6 +366,7 @@ export function criarServicoDeDados(deps: {
         kind: a.kind as AssetDetail["kind"],
         sector: a.sector,
         status: a.status,
+        shares_per_unit: acoesPorUnit(ticker),
         provenance,
       },
       meta: {
@@ -853,6 +855,12 @@ export function criarServicoDeDados(deps: {
       const consolidado = grupos.get(`${data}|true`);
       const escolhido = consolidado ?? grupos.get(`${data}|false`) ?? [];
       const resumo = resumirContas(escolhido.map((l) => ({ ...l, amount: n(l.amount) })));
+      // O individual e a visao da controladora: patrimonio e lucro dele sao os
+      // do consolidado menos a parte dos nao controladores.
+      const individual = grupos.get(`${data}|false`);
+      const controladora = individual
+        ? resumirContas(individual.map((l) => ({ ...l, amount: n(l.amount) })))
+        : resumo;
       const dre = escolhido.filter((l) => l.statementType === "DRE");
       const inicio = dre
         .map((l) => l.periodStart)
@@ -866,6 +874,8 @@ export function criarServicoDeDados(deps: {
         statement_kind: periodo === "annual" ? "DFP" : "ITR",
         consolidated: consolidado !== undefined,
         ...resumo,
+        equity_parent: controladora.equity,
+        net_income_parent: controladora.net_income,
         shares_outstanding:
           emCirculacao !== undefined && emCirculacao > 0n ? Number(emCirculacao) : null,
         version: Math.max(...escolhido.map((l) => l.version)),

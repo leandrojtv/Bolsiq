@@ -70,6 +70,11 @@ export const AssetDetail = z.object({
   kind: AssetKind,
   sector: z.string().nullable(),
   status: z.string().nullable(),
+  /**
+   * Acoes que formam uma unit (KLBN11 = 1 ON + 4 PN = 5). Nulo quando o ticker
+   * nao e unit. Indicador por acao de unit multiplica por este numero.
+   */
+  shares_per_unit: z.number().int().positive().nullable(),
   provenance: Provenance,
 });
 
@@ -191,6 +196,13 @@ export const FundamentalsPeriod = z.object({
   cash_and_equivalents: Money.nullable(),
   current_liabilities: Money.nullable(),
   equity: Money.nullable(),
+  /**
+   * Patrimonio e lucro dos acionistas da controladora, do demonstrativo
+   * individual. No consolidado, `equity` e `net_income` incluem os nao
+   * controladores; LPA, VPA e ROE usam estes.
+   */
+  equity_parent: Money.nullable(),
+  net_income_parent: Money.nullable(),
   gross_debt: Money.nullable(),
   /** Acoes emitidas menos tesouraria, como a CVM publica. */
   shares_outstanding: Count.nullable(),

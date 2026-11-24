@@ -233,6 +233,9 @@ function dfp2024() {
       bp("2.02.01", "304684000"),
       bp("2.03", "367514000"),
     ].join("\n"),
+    // Individual: patrimonio e lucro da controladora, sem os nao controladores.
+    "dfp_cia_aberta_DRE_ind_2024.csv": [CAB, res("3.11", "36606000")].join("\n"),
+    "dfp_cia_aberta_BPP_ind_2024.csv": [CAB_BP, bp("2.03", "363159000")].join("\n"),
     "dfp_cia_aberta_DFC_MI_con_2024.csv": [
       CAB,
       fluxo("6.01.01.04", "Depreciação, depleção e amortização", "67033000"),
@@ -310,6 +313,9 @@ describe("CVM", () => {
       consolidated: true,
       revenue: "490829000000",
       net_income: "37009000000",
+      net_income_parent: "36606000000",
+      equity: "367514000000",
+      equity_parent: "363159000000",
       gross_debt: "373467000000",
       depreciation_amortization: "67033000000",
       shares_outstanding: 12888732761,

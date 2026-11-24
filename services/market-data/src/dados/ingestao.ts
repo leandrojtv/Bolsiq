@@ -416,6 +416,29 @@ export async function carregarCadastro(
       linhas += r.rowCount ?? 0;
     }
 
+    // O FCA as vezes lista so a unit (Klabin: KLBN11, sem KLBN3 e KLBN4). A
+    // acao sem ligacao herda a companhia do papel com o mesmo emissor no ISIN
+    // (BRKLBN...), desde que o emissor aponte para uma companhia so.
+    const herdadas = await db.execute(sql`
+      UPDATE market_data.assets a SET
+        cnpj = s.cnpj, cvm_code = s.cvm_code, legal_name = s.legal_name,
+        sector = s.sector, status = s.status, ownership_type = s.ownership_type,
+        registered_at = s.registered_at, updated_at = now()
+      FROM (
+        SELECT DISTINCT ON (left(isin, 6)) left(isin, 6) AS emissor, cnpj, cvm_code,
+          legal_name, sector, status, ownership_type, registered_at
+        FROM market_data.assets
+        WHERE kind = 'stock' AND cvm_code IS NOT NULL AND isin IS NOT NULL
+          AND left(isin, 6) IN (
+            SELECT left(isin, 6) FROM market_data.assets
+            WHERE kind = 'stock' AND cvm_code IS NOT NULL AND isin IS NOT NULL
+            GROUP BY 1 HAVING count(DISTINCT cnpj) = 1
+          )
+        ORDER BY left(isin, 6), ticker
+      ) s
+      WHERE a.kind = 'stock' AND a.cvm_code IS NULL AND left(a.isin, 6) = s.emissor`);
+    linhas += herdadas.rowCount ?? 0;
+
     await concluirCarga(db, carga, linhas);
     opcoes.log("info", "cadastro da CVM carregado", {
       companhias: companhias.length,

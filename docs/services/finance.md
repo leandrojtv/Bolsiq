@@ -34,7 +34,7 @@ geral (`/painel`) vai compor os módulos pelo BFF, nunca por SQL entre schemas.
 | Fatura: fechamento, pagamento previsto e pagar (transferência)               | pronto                                          |
 | Recorrências (`/financas/recorrentes`) e job diário                          | pronto; previstos até 90 dias, idempotente      |
 | Dashboard do mês (`/financas`, com seletor de mês)                           | pronto                                          |
-| Planejamento mensal por categoria (`/financas/planejamento`)                 | pronto; não cria lançamento                     |
+| Planejamento mensal por categoria (`/financas/planejamento`)                 | fora do menu e da Visão geral (#115)            |
 | Compra parcelada no cartão e parcela importada (`/financas/parcelamentos`)   | pronto                                          |
 | Empréstimo e financiamento Price/SAC com simulador (`/financas/dividas`)     | pronto; exclusão com confirmação                |
 | Orçamento por categoria com estados (no planejamento; `/financas/orcamento`) | pronto                                          |
@@ -96,7 +96,9 @@ insights (cache, respostas e ajustes) e auditoria do módulo; a exclusão també
   top 5 categorias e o que vence em 7 dias.
 - **Planejamento**: itens por mês e categoria (descrição, valor, fixo). Compara com o
   realizado e o previsto da categoria, mostra a sobra planejada, copia o mês anterior
-  e puxa as recorrências. Não cria lançamento.
+  e puxa as recorrências. Não cria lançamento. Desde #115 não aparece no menu nem
+  na Visão geral (card "Orçamento consumido" e atalho saíram); a tela, a API e os
+  alertas de orçamento continuam, para quem tem a URL ou já tinha itens.
 - **Item dividido**: uma despesa com custo dividido (aluguel, condomínio) guarda o
   valor fechado em `valor` e o percentual do usuário em `parte_propria` (entre 0 e
   100, exclusivos; nulo quando não é dividido). Planejado da categoria, fixos, sobra,

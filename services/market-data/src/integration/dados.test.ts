@@ -233,6 +233,9 @@ function dfp2024() {
       bp("2.02.01", "304684000"),
       bp("2.03", "367514000"),
     ].join("\n"),
+    // Individual: patrimonio e lucro da controladora, sem os nao controladores.
+    "dfp_cia_aberta_DRE_ind_2024.csv": [CAB, res("3.11", "36606000")].join("\n"),
+    "dfp_cia_aberta_BPP_ind_2024.csv": [CAB_BP, bp("2.03", "363159000")].join("\n"),
     "dfp_cia_aberta_DFC_MI_con_2024.csv": [
       CAB,
       fluxo("6.01.01.04", "Depreciação, depleção e amortização", "67033000"),
@@ -264,7 +267,7 @@ describe("CVM", () => {
       "33.000.167/0001-01;PETROLEO BRASILEIRO S.A. PETROBRAS;PETROBRAS;1977-07-20;9512;Petróleo e Gás;ATIVO;ESTATAL\n";
     const fca = await criarZip({
       "fca_cia_aberta_valor_mobiliario_2026.csv":
-        "CNPJ_Companhia;Codigo_Negociacao\n33.000.167/0001-01;PETR4\n33.000.167/0001-01;PETR3\n",
+        "CNPJ_Companhia;Codigo_Negociacao\n33.000.167/0001-01;PETR4\n",
     });
     const cvm = new CvmAdapter(
       buscarFalso({
@@ -272,14 +275,28 @@ describe("CVM", () => {
         "fca_cia_aberta_2026.zip": () => binario(fca),
       }),
     );
-    const r = await carregarCadastro(db, cvm, { ano: 2026, log });
-    expect(r.linhas).toBe(1);
-    const [petr] = await db.select().from(assets).where(eq(assets.ticker, "PETR4"));
-    expect(petr).toMatchObject({
-      cnpj: "33000167000101",
-      cvmCode: "009512",
-      sector: "Petróleo e Gás",
+    // PETR3 fora do FCA (como KLBN3 e KLBN4 na Klabin): herda pelo emissor do ISIN.
+    await db.insert(assets).values({
+      id: "PETR3",
+      ticker: "PETR3",
+      isin: "BRPETRACNOR9",
+      name: "PETROBRAS",
+      kind: "stock",
+      source: "b3-cotahist",
+      fetchedAt: "2026-11-01T00:00:00Z",
+      license: "x",
+      sourceRef: "y",
     });
+    const r = await carregarCadastro(db, cvm, { ano: 2026, log });
+    expect(r.linhas).toBe(2);
+    for (const ticker of ["PETR4", "PETR3"]) {
+      const [petr] = await db.select().from(assets).where(eq(assets.ticker, ticker));
+      expect(petr).toMatchObject({
+        cnpj: "33000167000101",
+        cvmCode: "009512",
+        sector: "Petróleo e Gás",
+      });
+    }
   });
 
   it("DFP grava, emite statement.published com os tickers e serve os fundamentos", async () => {
@@ -293,7 +310,7 @@ describe("CVM", () => {
     const [publicado] = await eventos("marketdata.statement.published.v1");
     expect(publicado?.payload).toEqual({
       cvm_code: "009512",
-      tickers: ["PETR4"],
+      tickers: ["PETR3", "PETR4"],
       period_end: "2024-12-31",
       statement_kind: "DFP",
     });
@@ -310,6 +327,9 @@ describe("CVM", () => {
       consolidated: true,
       revenue: "490829000000",
       net_income: "37009000000",
+      net_income_parent: "36606000000",
+      equity: "367514000000",
+      equity_parent: "363159000000",
       gross_debt: "373467000000",
       depreciation_amortization: "67033000000",
       shares_outstanding: 12888732761,

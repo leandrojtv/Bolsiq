@@ -1,13 +1,14 @@
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GenericContainer, type StartedTestContainer, Wait } from "testcontainers";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { criarDb, criarPool, type Db } from "@bolsiq/db-core";
 import { DFP_2024 } from "../cvm.fixtures.js";
 import { executarScreener } from "../executarScreener.js";
 import { filtroDoPreset, FiltroDeScreener } from "../screener.js";
-import { outbox } from "../db/schema.js";
+import { indicators, outbox } from "../db/schema.js";
 import { recalcularTicker, type ClienteDoMarketData } from "../worker.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
@@ -52,6 +53,7 @@ const cliente: ClienteDoMarketData = {
               kind: t === "PETR4" ? "stock" : "fii",
               sector: t === "PETR4" ? "Petróleo e Gás" : null,
               status: null,
+              shares_per_unit: null,
               provenance: {
                 source: "t",
                 fetched_at: meta.fetched_at,
@@ -72,35 +74,40 @@ const cliente: ClienteDoMarketData = {
       },
       meta,
     }),
-  fundamentos: (t) => {
+  fundamentos: (t, periodo = "annual") => {
     const d = DFP_2024.PETR4.demonstrativo;
     return Promise.resolve({
       data: {
         ticker: t,
         cvm_code: "009512",
         cnpj: "33000167000101",
-        period: "annual",
-        periods: [
-          {
-            reference_date: d.reference_date,
-            period_start: "2024-01-01",
-            statement_kind: "DFP",
-            consolidated: true,
-            revenue: d.receita,
-            gross_profit: d.resultado_bruto,
-            ebit: d.ebit,
-            net_income: d.lucro_liquido,
-            depreciation_amortization: d.depreciacao_amortizacao,
-            total_assets: d.ativo_total,
-            current_assets: d.ativo_circulante,
-            cash_and_equivalents: d.caixa_equivalentes,
-            current_liabilities: d.passivo_circulante,
-            equity: d.patrimonio_liquido,
-            gross_debt: d.divida_bruta,
-            shares_outstanding: DFP_2024.PETR4.acoes,
-            version: 1,
-          },
-        ],
+        period: periodo,
+        periods:
+          periodo === "quarterly"
+            ? []
+            : [
+                {
+                  reference_date: d.reference_date,
+                  period_start: "2024-01-01",
+                  statement_kind: "DFP",
+                  consolidated: true,
+                  revenue: d.receita,
+                  gross_profit: d.resultado_bruto,
+                  ebit: d.ebit,
+                  net_income: d.lucro_liquido,
+                  depreciation_amortization: d.depreciacao_amortizacao,
+                  total_assets: d.ativo_total,
+                  current_assets: d.ativo_circulante,
+                  cash_and_equivalents: d.caixa_equivalentes,
+                  current_liabilities: d.passivo_circulante,
+                  equity: d.patrimonio_liquido,
+                  equity_parent: null,
+                  net_income_parent: null,
+                  gross_debt: d.divida_bruta,
+                  shares_outstanding: DFP_2024.PETR4.acoes,
+                  version: 1,
+                },
+              ],
       },
       meta,
     });
@@ -296,6 +303,23 @@ describe("recalculo e screener", () => {
       FiltroDeScreener.parse({ tipos: ["fii"], ordenar_por: "dy_12m", ordem: "desc" }),
     );
     expect(porDy.linhas.map((l) => l.ticker).sort()).toEqual(["HGLG11", "KNCR11"]);
+  });
+
+  it("linha so de preco com data posterior nao esconde o calculo com demonstrativo", async () => {
+    // KLBN3 antes de ganhar companhia: uma linha por pregao, sem P/L.
+    await db.insert(indicators).values({
+      ticker: "PETR4",
+      reference_date: "2026-11-23",
+      kind: "stock",
+      preco: "30",
+      calculado_em: new Date().toISOString(),
+    } as typeof indicators.$inferInsert);
+    await recalcularTicker(db, cliente, "PETR4", { cdi: [], ibov: [] });
+    const linhas = await db
+      .select()
+      .from(indicators)
+      .where(eq(indicators.ticker, "PETR4"));
+    expect(linhas.map((l) => l.reference_date)).toEqual(["2024-12-31"]);
   });
 
   it("recalcular de novo sobrescreve a mesma data-base", async () => {

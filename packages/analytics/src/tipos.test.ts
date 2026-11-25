@@ -31,9 +31,9 @@ describe("Demonstrativo", () => {
 });
 
 describe("DadosDeMercado", () => {
-  it("exige acoes inteiro positivo", () => {
+  it("exige acoes positivo; em unit a conta pode dar fracao", () => {
     expect(() => DadosDeMercado.parse({ preco: "10", acoes: 0 })).toThrow();
-    expect(() => DadosDeMercado.parse({ preco: "10", acoes: 1.5 })).toThrow();
+    expect(DadosDeMercado.parse({ preco: "10", acoes: 1.5 }).acoes).toBe(1.5);
     expect(DadosDeMercado.parse({ preco: "10", acoes: 100 }).acoes).toBe(100);
   });
 

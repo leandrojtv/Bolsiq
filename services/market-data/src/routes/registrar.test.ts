@@ -35,6 +35,7 @@ const servico: ServicoDeDados = {
         kind: "stock",
         sector: null,
         status: null,
+        shares_per_unit: null,
         provenance: {
           source: "b3-cotahist",
           fetched_at: meta.fetched_at,

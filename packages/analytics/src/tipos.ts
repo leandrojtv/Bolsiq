@@ -20,13 +20,23 @@ export const Demonstrativo = z.object({
   passivo_circulante: Money,
   patrimonio_liquido: Money,
   divida_bruta: Money,
+  /**
+   * Lucro e patrimonio dos acionistas da controladora. Ausentes, valem os
+   * consolidados. Sao a base do LPA, do VPA e do ROE.
+   */
+  lucro_controladora: Money.optional(),
+  patrimonio_controladora: Money.optional(),
 });
 export type Demonstrativo = z.infer<typeof Demonstrativo>;
 
 export const DadosDeMercado = z.object({
   preco: Money,
-  /** Acoes em circulacao, ja descontada a tesouraria. */
-  acoes: z.number().int().positive(),
+  /**
+   * Acoes em circulacao, ja descontada a tesouraria. Para unit, a quantidade
+   * de units equivalentes (acoes divididas pelas acoes de cada unit), para que
+   * LPA e VPA fiquem na mesma base do preco.
+   */
+  acoes: z.number().positive(),
   /** Proventos por acao nos ultimos 12 meses. */
   proventos_12m: Money.optional(),
   /** Proventos por acao por ano, do mais antigo ao mais recente. */

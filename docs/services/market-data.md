@@ -165,7 +165,7 @@ mensal de FII (desde o ano anterior a `FROM`), SGS e fundos.
 | `b3-cotahist-diario`  | pregão do dia; 404 da B3 encerra como `sem_pregao` e fica registrado, não falha                              | `quote.updated` por papel, `daily.closed`  |
 | `b3-cotahist-lacunas` | dia útil dos últimos 10 (`{"dias": 30}` amplia) sem preço: refaz o diário                                    | os mesmos do `b3-cotahist-diario`          |
 | `b3-cotahist-anual`   | ano inteiro (`{"ano": 2024}`), sem evento de preço                                                           | `asset.listed` para papel novo             |
-| `cvm-cadastro`        | cadastro + FCA: liga ticker a CNPJ, código CVM e setor                                                       | nenhum                                     |
+| `cvm-cadastro`        | cadastro + FCA: liga ticker a CNPJ, código CVM e setor; ação fora do FCA herda pelo emissor do ISIN          | nenhum                                     |
 | `cvm-dfp`, `cvm-itr`  | demonstrativos do ano corrente e do anterior; pula arquivo de hash igual                                     | `statement.published` por companhia e data |
 | `bcb-sgs`             | CDI, Selic, IPCA e IGP-M desde o último ponto gravado                                                        | nenhum                                     |
 | `cvm-fundos`          | cadastro das classes e informe diário do mês corrente e do anterior (`{"meses": 13}` amplia)                 | nenhum                                     |
@@ -265,23 +265,23 @@ make test-integration
 
 ## Endpoints
 
-| Método | Rota                        | Fonte                          | Observação                                            |
-| ------ | --------------------------- | ------------------------------ | ----------------------------------------------------- |
-| GET    | `/v1/health`                | —                              | anônimo; servido por todos os papéis                  |
-| GET    | `/v1/openapi.json`, `/docs` | —                              | gerados dos schemas Zod                               |
-| GET    | `/v1/assets?q=&type=`       | COTAHIST + cadastro CVM        | até 20; ticker exato primeiro, depois prefixo, nome   |
-| GET    | `/v1/assets/{ticker}`       | COTAHIST + cadastro CVM        |                                                       |
-| GET    | `/v1/quotes/{tickers}`      | brapi; reserva no COTAHIST     | até 20 tickers separados por vírgula                  |
-| GET    | `/v1/history/{ticker}`      | COTAHIST; proventos da brapi   | `interval=1d\|1wk\|1mo`, padrão 1 ano, ajustado       |
-| GET    | `/v1/dividends/{ticker}`    | brapi                          | dividendo, JCP, desdobramento, grupamento             |
-| GET    | `/v1/fundamentals/{ticker}` | CVM DFP/ITR                    | `period=annual\|quarterly`; consolidado se houver     |
-| GET    | `/v1/macro/{serie}`         | SGS; IBOV pela brapi ou BOVA11 | `cdi`, `selic`, `ipca`, `igpm`, `ibov`                |
-| GET    | `/v1/funds?q=`              | CVM (registro de classes)      | por nome ou CNPJ, até 20                              |
-| GET    | `/v1/funds/{cnpj}`          | CVM (registro de classes)      | CNPJ com ou sem pontuação                             |
-| GET    | `/v1/funds/{cnpj}/history`  | CVM (informe diário)           | cota, patrimônio e cotistas por dia                   |
-| GET    | `/v1/fiis/{ticker}/monthly` | CVM (informe mensal de FII)    | PL, VP da cota, cotistas e DY por competência; 2 anos |
-| GET    | `/admin/jobs`               | pg-boss                        | `Authorization: Bearer $ADMIN_TOKEN`                  |
-| POST   | `/admin/jobs/{name}`        | pg-boss                        | corpo opcional `{"data": {"ano": 2024}}`              |
+| Método | Rota                        | Fonte                          | Observação                                                                                             |
+| ------ | --------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| GET    | `/v1/health`                | —                              | anônimo; servido por todos os papéis                                                                   |
+| GET    | `/v1/openapi.json`, `/docs` | —                              | gerados dos schemas Zod                                                                                |
+| GET    | `/v1/assets?q=&type=`       | COTAHIST + cadastro CVM        | até 20; ticker exato primeiro, depois prefixo, nome                                                    |
+| GET    | `/v1/assets/{ticker}`       | COTAHIST + cadastro CVM        | `shares_per_unit` para units (KLBN11 = 5)                                                              |
+| GET    | `/v1/quotes/{tickers}`      | brapi; reserva no COTAHIST     | até 20 tickers separados por vírgula                                                                   |
+| GET    | `/v1/history/{ticker}`      | COTAHIST; proventos da brapi   | `interval=1d\|1wk\|1mo`, padrão 1 ano, ajustado                                                        |
+| GET    | `/v1/dividends/{ticker}`    | brapi                          | dividendo, JCP, desdobramento, grupamento                                                              |
+| GET    | `/v1/fundamentals/{ticker}` | CVM DFP/ITR                    | `period=annual\|quarterly`; consolidado se houver; `equity_parent` e `net_income_parent` do individual |
+| GET    | `/v1/macro/{serie}`         | SGS; IBOV pela brapi ou BOVA11 | `cdi`, `selic`, `ipca`, `igpm`, `ibov`                                                                 |
+| GET    | `/v1/funds?q=`              | CVM (registro de classes)      | por nome ou CNPJ, até 20                                                                               |
+| GET    | `/v1/funds/{cnpj}`          | CVM (registro de classes)      | CNPJ com ou sem pontuação                                                                              |
+| GET    | `/v1/funds/{cnpj}/history`  | CVM (informe diário)           | cota, patrimônio e cotistas por dia                                                                    |
+| GET    | `/v1/fiis/{ticker}/monthly` | CVM (informe mensal de FII)    | PL, VP da cota, cotistas e DY por competência; 2 anos                                                  |
+| GET    | `/admin/jobs`               | pg-boss                        | `Authorization: Bearer $ADMIN_TOKEN`                                                                   |
+| POST   | `/admin/jobs/{name}`        | pg-boss                        | corpo opcional `{"data": {"ano": 2024}}`                                                               |
 
 Toda resposta de dados traz `meta`: `source`, `fetched_at`, `license`,
 `stale` e `delay_minutes`. `stale` é verdadeiro quando a fonte falhou e o valor

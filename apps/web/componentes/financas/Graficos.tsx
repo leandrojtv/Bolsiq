@@ -61,6 +61,7 @@ const base = () => {
     textStyle: { fontFamily: fonte },
     tooltip: {
       trigger: "axis",
+      confine: true,
       backgroundColor: token("surface"),
       borderColor: token("border-strong"),
       textStyle: { color: token("text"), fontFamily: fonte },

@@ -114,6 +114,9 @@ insights (cache, respostas e ajustes) e auditoria do módulo; a exclusão també
   a parcela prevista; sem plano, cria o plano e gera as restantes. As parcelas
   anteriores à importada (1 a 5 de uma 6/7) não viram lançamento, mas contam como
   pagas no resumo do plano.
+- **Gráficos** (`componentes/financas/Graficos.tsx`, ECharts): o tooltip fica preso
+  à área do gráfico (`confine`), para não sair da tela nem criar rolagem horizontal
+  no celular.
 - **Dívidas**: Price ou SAC, tabela com juros, amortização e saldo; saldo devedor
   derivado do histórico. Simular amortização extra (reduzir prazo ou parcela, com os
   juros economizados), registrar, quitar.

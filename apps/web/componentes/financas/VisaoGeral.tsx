@@ -99,34 +99,9 @@ export function VisaoGeral() {
           </section>
 
           <section
-            aria-label="Orçamento e parcelas"
+            aria-label="Parcelas"
             className="grid grid-cols-1 gap-3 sm:grid-cols-2"
           >
-            <Link href="/financas/planejamento" className="text-text">
-              <StatTile
-                label="Orçamento consumido"
-                value={
-                  painel.orcamento.percentual === null ? (
-                    "sem orçamento"
-                  ) : (
-                    <span
-                      className={cn(
-                        painel.orcamento.estado === "estourado" && "text-down",
-                        painel.orcamento.estado === "atencao" && "text-warn",
-                      )}
-                    >
-                      {painel.orcamento.percentual.toLocaleString("pt-BR")}%
-                    </span>
-                  )
-                }
-                subtitle={
-                  <>
-                    <Money value={painel.orcamento.consumo} /> de{" "}
-                    <Money value={painel.orcamento.planejado} /> planejado
-                  </>
-                }
-              />
-            </Link>
             <Link href="/financas/parcelamentos" className="text-text">
               <StatTile
                 label="Comprometido com parcelas este mês"
@@ -293,7 +268,6 @@ export function VisaoGeral() {
       <nav aria-label="Atalhos" className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
         {[
           ["/financas/lancamentos", "Ver todos os lançamentos"],
-          ["/financas/planejamento", "Planejamento do mês"],
           ["/financas/recorrentes", "Recorrentes"],
           ["/financas/insights", "Insights"],
           ["/financas/insights/simulador", "Simulador de cortes"],

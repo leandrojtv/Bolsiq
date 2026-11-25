@@ -518,6 +518,9 @@ describe("AppShell com modulos", () => {
     expect(moduloDaRota("/painel")).toBe("painel");
     expect(moduloDaRota("/ativo/PETR4")).toBe("investimentos");
     expect(navegacaoFinancas("/financas")[0]?.current).toBe(true);
+    expect(navegacaoFinancas("/financas").map((i) => i.href)).not.toContain(
+      "/financas/planejamento",
+    );
     expect(navegacaoPainel("/painel")).toMatchObject([
       { href: "/painel", current: true },
     ]);

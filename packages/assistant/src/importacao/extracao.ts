@@ -5,6 +5,7 @@ import {
   type ModelMessage,
   type UserContent,
 } from "ai";
+import type { z } from "zod";
 import { mensagemSegura } from "../chaves.js";
 import type { Uso } from "../orcamento.js";
 import {
@@ -14,10 +15,18 @@ import {
   blocoDoDocumento,
 } from "../../prompts/importacao-v1.js";
 import {
+  PEDIDO_DE_LINHAS_DE_FINANCAS,
+  PEDIDO_DO_CABECALHO_DE_FINANCAS_EM_JSON,
+  SISTEMA_DE_FINANCAS,
+  SISTEMA_DO_CABECALHO_DE_FINANCAS,
+} from "../../prompts/importacao-financas-v1.js";
+import {
   CabecalhoDaIA,
+  CabecalhoFinancasDaIA,
   COLUNAS_DO_BLOCO,
   saidaVazia,
   type TipoDeBloco,
+  type LancamentoDaIA,
   type Origem,
   type PosicaoDaIA,
   type ProventoDaIA,
@@ -36,7 +45,106 @@ import { ErroDeImportacao } from "./recebimento.js";
 import { escreverBlocos, lerResposta, type SaidaDasLinhas } from "./saida-csv.js";
 import type { Imagem, Parte } from "./texto.js";
 
+/** O cabecalho no formato interno: o documento da `SaidaDaIA` e os avisos. */
+export interface CabecalhoLido {
+  documento: SaidaDaIA["documento"];
+  avisos: string[];
+}
+
+/**
+ * O que muda entre os tipos de documento no mesmo pipeline: os prompts, o
+ * schema do cabecalho e como ele vira o documento interno. Lotes, retry,
+ * divisao, visao, autocorrecao e cache sao os mesmos (ADR 0040).
+ */
+export interface PerfilDeExtracao {
+  nome: "carteira" | "financas";
+  sistema: string;
+  sistema_do_cabecalho: string;
+  cabecalho_em_json: string;
+  schema: z.ZodTypeAny;
+  nome_do_schema: string;
+  pedido_de_linhas: string;
+  lerCabecalho(bruto: unknown): CabecalhoLido | null;
+  cabecalho_vazio(): CabecalhoLido;
+}
+
+const AVISO_SEM_CABECALHO =
+  "Não foi possível ler o cabeçalho do documento: sem totais para conciliar.";
+
+export const PERFIL_DA_CARTEIRA: PerfilDeExtracao = {
+  nome: "carteira",
+  sistema: SISTEMA_DE_IMPORTACAO,
+  sistema_do_cabecalho: SISTEMA_DO_CABECALHO,
+  cabecalho_em_json: PEDIDO_DO_CABECALHO_EM_JSON,
+  schema: CabecalhoDaIA,
+  nome_do_schema: "cabecalho_do_extrato",
+  pedido_de_linhas: "Converta os dados financeiros abaixo.",
+  lerCabecalho(bruto) {
+    const r = CabecalhoDaIA.safeParse(bruto);
+    if (!r.success) return null;
+    const { avisos, ...documento } = r.data;
+    return { documento, avisos };
+  },
+  cabecalho_vazio: () => ({
+    documento: {
+      tipo: "misto",
+      corretora: "",
+      data_referencia: "",
+      totais_declarados: [],
+    },
+    avisos: [AVISO_SEM_CABECALHO],
+  }),
+};
+
+export const PERFIL_DE_FINANCAS: PerfilDeExtracao = {
+  nome: "financas",
+  sistema: SISTEMA_DE_FINANCAS,
+  sistema_do_cabecalho: SISTEMA_DO_CABECALHO_DE_FINANCAS,
+  cabecalho_em_json: PEDIDO_DO_CABECALHO_DE_FINANCAS_EM_JSON,
+  schema: CabecalhoFinancasDaIA,
+  nome_do_schema: "cabecalho_da_fatura",
+  pedido_de_linhas: PEDIDO_DE_LINHAS_DE_FINANCAS,
+  lerCabecalho(bruto) {
+    const r = CabecalhoFinancasDaIA.safeParse(bruto);
+    if (!r.success) return null;
+    const { avisos, ...financas } = r.data;
+    return {
+      documento: {
+        tipo: financas.tipo,
+        corretora: financas.banco,
+        data_referencia: financas.data_vencimento || financas.periodo_fim,
+        totais_declarados: financas.total_fatura
+          ? [{ descricao: "total da fatura", valor: financas.total_fatura }]
+          : [],
+        financas,
+      },
+      avisos,
+    };
+  },
+  cabecalho_vazio: () => ({
+    documento: {
+      tipo: "fatura_cartao",
+      corretora: "",
+      data_referencia: "",
+      totais_declarados: [],
+      financas: {
+        banco: "",
+        tipo: "fatura_cartao",
+        final_cartao: "",
+        data_fechamento: "",
+        data_vencimento: "",
+        total_fatura: "",
+        periodo_inicio: "",
+        periodo_fim: "",
+      },
+    },
+    avisos: [AVISO_SEM_CABECALHO],
+  }),
+};
+
 export interface PedidoDeExtracao {
+  /** Carteira (padrao) ou Financas. */
+  perfil?: PerfilDeExtracao;
   modelo: LanguageModel;
   /** Provedor e nome do modelo: decidem como desligar o raciocinio. */
   provedor?: string;
@@ -58,7 +166,7 @@ export interface PedidoDeExtracao {
   espera_base_ms?: number;
   /** So estes pedidos (reprocessar lote). O cabecalho vem pronto em `cabecalho`. */
   apenas?: number[];
-  cabecalho?: CabecalhoDaIA;
+  cabecalho?: CabecalhoLido;
   /** Chave em uso: sai de qualquer texto de erro. */
   segredos: readonly string[];
   aoProgredir?: (feitos: number, total: number, linhas: number) => void;
@@ -69,7 +177,7 @@ export interface PedidoDeExtracao {
 
 export interface ResultadoDaExtracao {
   saida: SaidaDaIA;
-  cabecalho: CabecalhoDaIA;
+  cabecalho: CabecalhoLido;
   uso: Uso;
   chamadas: number;
 }
@@ -218,40 +326,50 @@ function anexo(a: { mime: string; dados: Uint8Array }): ParteDaMensagem {
     : { type: "file", data: a.dados, mediaType: a.mime };
 }
 
-/** O bloco ```json``` da resposta em texto, validado pelo mesmo schema. */
-export function lerCabecalhoEmTexto(texto: string): CabecalhoDaIA | null {
+/** O JSON do bloco ```json``` (ou o primeiro objeto) da resposta em texto. */
+function jsonDoTexto(texto: string): unknown {
   const bruto =
     /```(?:json)?\s*\n([\s\S]*?)```/.exec(texto)?.[1] ?? /\{[\s\S]*\}/.exec(texto)?.[0];
   if (!bruto) return null;
   try {
-    const r = CabecalhoDaIA.safeParse(JSON.parse(bruto));
-    return r.success ? r.data : null;
+    return JSON.parse(bruto);
   } catch {
     return null;
   }
 }
+
+/** O bloco ```json``` da resposta em texto, validado pelo mesmo schema. */
+export function lerCabecalhoEmTexto(texto: string): CabecalhoDaIA | null {
+  const r = CabecalhoDaIA.safeParse(jsonDoTexto(texto));
+  return r.success ? r.data : null;
+}
+
+const perfilDe = (p: PedidoDeExtracao) => p.perfil ?? PERFIL_DA_CARTEIRA;
 
 /**
  * Cabecalho por saida estruturada, com schema de sete propriedades. Modelo sem
  * saida estruturada, ou provedor que recusa o schema, responde em texto um bloco
  * ```json```, validado pelo mesmo schema.
  */
-async function extrairCabecalho(p: PedidoDeExtracao, uso: Uso): Promise<CabecalhoDaIA> {
+async function extrairCabecalho(p: PedidoDeExtracao, uso: Uso): Promise<CabecalhoLido> {
+  const perfil = perfilDe(p);
   const content = conteudoDoCabecalho(p);
   if (p.estruturada !== false) {
     try {
       const r = await comRetry(p, "cabeçalho", () =>
         generateObject({
           ...comum(p),
-          system: SISTEMA_DO_CABECALHO,
+          system: perfil.sistema_do_cabecalho,
           messages: [{ role: "user", content }],
-          schema: CabecalhoDaIA,
-          schemaName: "cabecalho_do_extrato",
+          schema: perfil.schema,
+          schemaName: perfil.nome_do_schema,
           maxOutputTokens: 2_000,
         }),
       );
       somar(uso, r);
-      return r.object;
+      const c = perfil.lerCabecalho(r.object);
+      if (c) return c;
+      p.aoErrar?.("cabeçalho por saída estruturada fora do schema, indo por texto");
     } catch (erro) {
       const status = statusDe(erro);
       if (status === 401 || status === 403 || p.abortar?.aborted)
@@ -265,25 +383,19 @@ async function extrairCabecalho(p: PedidoDeExtracao, uso: Uso): Promise<Cabecalh
     const r = await comRetry(p, "cabeçalho", () =>
       generateText({
         ...comum(p),
-        system: `${SISTEMA_DO_CABECALHO}\n\n${PEDIDO_DO_CABECALHO_EM_JSON}`,
+        system: `${perfil.sistema_do_cabecalho}\n\n${perfil.cabecalho_em_json}`,
         messages: [{ role: "user", content }],
         maxOutputTokens: 2_000,
       }),
     );
     somar(uso, r);
-    const c = lerCabecalhoEmTexto(r.text);
+    const c = perfil.lerCabecalho(jsonDoTexto(r.text));
     if (c) return c;
     p.aoErrar?.("cabeçalho em texto sem JSON válido");
   } catch (erro) {
     throw erroDoProvedor(erro, p, "cabeçalho", uso);
   }
-  return {
-    tipo: "misto",
-    corretora: "",
-    data_referencia: "",
-    totais_declarados: [],
-    avisos: ["Não foi possível ler o cabeçalho do documento: sem totais para conciliar."],
-  };
+  return perfil.cabecalho_vazio();
 }
 
 interface Pedaco {
@@ -298,6 +410,7 @@ function somarPedacos(a: Pedaco, b: Pedaco): Pedaco {
       transacoes: [...a.saida.transacoes, ...b.saida.transacoes],
       proventos: [...a.saida.proventos, ...b.saida.proventos],
       notas: [...a.saida.notas, ...b.saida.notas],
+      lancamentos: [...(a.saida.lancamentos ?? []), ...(b.saida.lancamentos ?? [])],
       malformadas: [...a.saida.malformadas, ...b.saida.malformadas],
     },
     avisos: [...a.avisos, ...b.avisos],
@@ -324,7 +437,7 @@ async function extrairLinhas(
     r = await comRetry(p, rotulo, () =>
       generateText({
         ...comum(p),
-        system: SISTEMA_DE_IMPORTACAO,
+        system: perfilDe(p).sistema,
         messages: mensagens,
         maxOutputTokens: max,
       }),
@@ -340,7 +453,7 @@ async function extrairLinhas(
       // Em sequencia: em paralelo, o limite de chamadas do provedor estoura antes.
       const a = await extrairLinhas(
         p,
-        conteudoDoLote(metades[0]),
+        conteudoDoLote(metades[0], perfilDe(p)),
         metades[0],
         `${rotulo}.1`,
         uso,
@@ -348,7 +461,7 @@ async function extrairLinhas(
       );
       const b = await extrairLinhas(
         p,
-        conteudoDoLote(metades[1]),
+        conteudoDoLote(metades[1], perfilDe(p)),
         metades[1],
         `${rotulo}.2`,
         uso,
@@ -369,7 +482,7 @@ async function extrairLinhas(
       const correcao = await comRetry(p, rotulo, () =>
         generateText({
           ...comum(p),
-          system: SISTEMA_DE_IMPORTACAO,
+          system: perfilDe(p).sistema,
           messages: [
             ...mensagens,
             { role: "assistant", content: r.text },
@@ -394,10 +507,8 @@ async function extrairLinhas(
   return { saida: leitura.saida, avisos };
 }
 
-function conteudoDoLote(l: Lote): UserContent {
-  return [
-    { type: "text", text: `Converta os dados financeiros abaixo.\n\n${textoDoLote(l)}` },
-  ];
+function conteudoDoLote(l: Lote, perfil = PERFIL_DA_CARTEIRA): UserContent {
+  return [{ type: "text", text: `${perfil.pedido_de_linhas}\n\n${textoDoLote(l)}` }];
 }
 
 function conteudoDasImagens(imagens: Imagem[]): ParteDaMensagem[] {
@@ -495,6 +606,10 @@ export function juntarSaidas(saidas: SaidaDaIA[]): SaidaDaIA {
     saidas.flatMap((s) => s.notas),
     [(n) => n.numero.trim()],
   );
+  // Lancamento nao e deduplicado: dois cafes iguais no mesmo dia tem o mesmo
+  // trecho. A linha que o modelo repetiu aparece como suspeita na conferencia
+  // do total da fatura.
+  r.lancamentos = saidas.flatMap((s) => s.lancamentos);
   r.avisos = [...new Set(saidas.flatMap((s) => s.avisos))];
   r.malformadas = saidas.flatMap((s) => s.malformadas);
   return r;
@@ -528,14 +643,17 @@ export interface PedidoDeLinhas {
 }
 
 export function pedidosDeLinhas(
-  p: Pick<PedidoDeExtracao, "lotes" | "imagens" | "arquivo_para_visao" | "sem_texto">,
+  p: Pick<
+    PedidoDeExtracao,
+    "lotes" | "imagens" | "arquivo_para_visao" | "sem_texto" | "perfil"
+  >,
 ): PedidoDeLinhas[] {
   const grupos: Imagem[][] = [];
   for (let i = 0; i < p.imagens.length; i += IMAGENS_POR_CHAMADA)
     grupos.push(p.imagens.slice(i, i + IMAGENS_POR_CHAMADA));
   return [
     ...p.lotes.map((l) => ({
-      content: conteudoDoLote(l),
+      content: conteudoDoLote(l, p.perfil),
       lote: l,
       origens: [...new Set(l.partes.map((x) => x.origem))],
     })),
@@ -557,7 +675,10 @@ export function pedidosDeLinhas(
 }
 
 const linhasDe = (s: SaidaDasLinhas) =>
-  s.posicoes.length + s.transacoes.length + s.proventos.length;
+  s.posicoes.length +
+  s.transacoes.length +
+  s.proventos.length +
+  (s.lancamentos?.length ?? 0);
 
 /**
  * Duas etapas, sem ferramentas e sem telemetria (trace levaria o extrato para
@@ -609,15 +730,19 @@ export async function extrairComIA(p: PedidoDeExtracao): Promise<ResultadoDaExtr
   if (indices.length > 0 && falhos.length === indices.length && erro) throw erro;
 
   const saidas: SaidaDaIA[] = pedacos.flatMap((pedaco) =>
-    pedaco ? [{ ...saidaVazia(), ...pedaco.saida, avisos: pedaco.avisos }] : [],
+    pedaco
+      ? [
+          {
+            ...saidaVazia(),
+            ...pedaco.saida,
+            lancamentos: pedaco.saida.lancamentos ?? [],
+            avisos: pedaco.avisos,
+          },
+        ]
+      : [],
   );
   const saida = juntarSaidas(saidas);
-  saida.documento = {
-    tipo: cabecalho.tipo,
-    corretora: cabecalho.corretora,
-    data_referencia: cabecalho.data_referencia,
-    totais_declarados: cabecalho.totais_declarados,
-  };
+  saida.documento = cabecalho.documento;
   saida.avisos = [...new Set([...cabecalho.avisos, ...saida.avisos])];
   saida.lotes_falhos = falhos.sort((a, b) => a.indice - b.indice);
   return { saida, cabecalho, uso, chamadas: total };
@@ -653,6 +778,7 @@ export async function corrigirLinhas(
         transacoes: x.tipo === "transacao" ? [x.original as TransacaoDaIA] : [],
         proventos: x.tipo === "provento" ? [x.original as ProventoDaIA] : [],
         notas: [],
+        lancamentos: x.tipo === "lancamento" ? [x.original as LancamentoDaIA] : [],
         malformadas: [],
       });
       return `Linha ${i + 1}, recusada porque: ${x.motivo}\n${bloco}`;
@@ -668,11 +794,11 @@ export async function corrigirLinhas(
   const r = await comRetry(p, "autocorreção", () =>
     generateText({
       ...comum(p),
-      system: SISTEMA_DE_IMPORTACAO,
+      system: perfilDe(p).sistema,
       messages: [
         {
           role: "user",
-          content: `A validação do Bolsiq recusou as linhas abaixo. Releia o trecho original de cada uma no documento e devolva cada linha corrigida, nos mesmos blocos CSV e com os mesmos cabeçalhos. Corrija só o que o motivo aponta. Campo que o documento não traz fica vazio: nunca invente valor. Linha que não é um ativo, uma transação ou um provento do documento (um total, um título): não devolva.\n\n${descricao}\n\nDocumento:\n${paginas}`,
+          content: `A validação do Bolsiq recusou as linhas abaixo. Releia o trecho original de cada uma no documento e devolva cada linha corrigida, nos mesmos blocos CSV e com os mesmos cabeçalhos. Corrija só o que o motivo aponta. Campo que o documento não traz fica vazio: nunca invente valor. Linha que não é ${perfilDe(p).nome === "financas" ? "um lançamento" : "um ativo, uma transação ou um provento"} do documento (um total, um título): não devolva.\n\n${descricao}\n\nDocumento:\n${paginas}`,
         },
       ],
       maxOutputTokens: Math.min(

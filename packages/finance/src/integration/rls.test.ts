@@ -157,6 +157,7 @@ describe("RLS do finance", () => {
       "cards",
       "categories",
       "categorization_rules",
+      "csv_layouts",
       "dead_letter",
       "emitted_alerts",
       "goals",

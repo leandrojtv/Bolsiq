@@ -1,3 +1,9 @@
+/**
+ * Fatura em PDF de layout conhecido (Nubank, Itau, Inter e C6) tambem vai sem
+ * IA: `lerFaturaConhecida`, no texto ja extraido (ADR 0040).
+ */
+export { lerFaturaConhecida } from "./layouts-financas.js";
+
 /** Layouts que o importador atual ja le sem IA. */
 export type Atalho = "bolsiq" | "b3" | "posicao_bolsiq";
 

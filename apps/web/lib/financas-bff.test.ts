@@ -76,8 +76,21 @@ const fin = vi.hoisted(() => ({
   limitesDeImportacao: () => ({ bytes: 1000, linhas: 100, arquivos: 2 }),
 }));
 
+const leitura = vi.hoisted(() => ({
+  novaLeitura: vi.fn(),
+  ultimaLeitura: vi.fn(),
+  lerLeitura: vi.fn(),
+  leituraDoArquivo: vi.fn(),
+  revisarLeitura: vi.fn(),
+}));
+
 vi.mock("@/lib/auth", () => ({ usuarioLogado: () => Promise.resolve(usuario.atual) }));
 vi.mock("@/lib/financas", () => fin);
+vi.mock("@/lib/financas-leitura", () => leitura);
+vi.mock("@/lib/importacao-ia", () => ({
+  confirmarCustoDoJob: vi.fn(),
+  cancelarJob: vi.fn(),
+}));
 vi.mock("@/lib/alertas", () => ({ ErroDeAlerta: class extends Error {} }));
 
 const contas = await import("../app/api/financas/contas/route");
@@ -92,6 +105,10 @@ const analise = await import("../app/api/financas/importacoes/analise/route");
 const linha = await import("../app/api/financas/importacoes/[id]/linhas/[linha]/route");
 const confirmar = await import("../app/api/financas/importacoes/[id]/confirmar/route");
 const regras = await import("../app/api/financas/regras/route");
+const leituraRota = await import("../app/api/financas/importacoes/ia/route");
+const arquivoDaLeitura =
+  await import("../app/api/financas/importacoes/ia/[job]/arquivos/[indice]/route");
+const { ErroDeImportacao } = await import("@bolsiq/assistant");
 const pagarRota =
   await import("../app/api/financas/cartoes/[id]/faturas/[fatura]/pagar/route");
 const recorrenciasRota = await import("../app/api/financas/recorrencias/route");
@@ -318,6 +335,102 @@ describe("BFF de cartoes, importacao e regras", () => {
     ).toBe(200);
     fin.confirmar.mockRejectedValue(new ErroDeFinancas(409, "não está mais em revisão"));
     expect((await confirmar.POST(new Request("http://x"), ctx("i"))).status).toBe(409);
+  });
+
+  it("analise e revisao levam o mapeamento de colunas do CSV, validado", async () => {
+    const ruim = await analise.POST(
+      multipart({ mapeamentos: "{nao e json" }, [["x.csv", "a;b;c\n1;2;3"]]),
+    );
+    expect(ruim.status).toBe(422);
+    const semValor = await analise.POST(
+      multipart(
+        {
+          mapeamentos: JSON.stringify([
+            { assinatura: "a|b", tipo: "conta", data: "a", descricao: "b" },
+          ]),
+        },
+        [["x.csv", "a;b;c\n1;2;3"]],
+      ),
+    );
+    expect(semValor.status).toBe(422);
+    expect(fin.analisar).not.toHaveBeenCalled();
+    fin.analisar.mockResolvedValue({ arquivos: [], para_mapear: [], sugestao: {} });
+    const m = {
+      assinatura: "a|b|c",
+      tipo: "conta",
+      data: "a",
+      descricao: "b",
+      valor: "c",
+    };
+    expect(
+      (
+        await analise.POST(
+          multipart({ mapeamentos: JSON.stringify([m]) }, [["x.csv", "a;b;c"]]),
+        )
+      ).status,
+    ).toBe(200);
+    expect(fin.analisar.mock.calls[0]?.[2]).toEqual([
+      expect.objectContaining({ ...m, formato_data: "dd/mm/aaaa", decimal: "virgula" }),
+    ]);
+  });
+
+  it("leitura de PDF: arquivo obrigatorio, senha por arquivo e 202 com o job", async () => {
+    expect((await leituraRota.POST(multipart({}, []))).status).toBe(422);
+    leitura.novaLeitura.mockResolvedValue("job-1");
+    const r = await leituraRota.POST(
+      multipart(
+        { senhas: JSON.stringify({ "fatura.pdf": "12345" }), aceitar_imagem: "false" },
+        [["fatura.pdf", "%PDF"]],
+      ),
+    );
+    expect(r.status).toBe(202);
+    expect(await r.json()).toEqual({ data: { job_id: "job-1" } });
+    const [, enviados, o] = leitura.novaLeitura.mock.calls[0] as [
+      string,
+      { nome: string; senha: string }[],
+      unknown,
+    ];
+    expect(enviados.map((a) => [a.nome, a.senha])).toEqual([["fatura.pdf", "12345"]]);
+    expect(o).toEqual({ aceitar_imagem: false });
+  });
+
+  it("leitura de PDF: erro do assistente vira o status e o codigo dele", async () => {
+    leitura.novaLeitura.mockRejectedValue(
+      new ErroDeImportacao("senha_incorreta", "A senha de fatura.pdf não confere.", 422),
+    );
+    const r = await leituraRota.POST(multipart({}, [["fatura.pdf", "%PDF"]]));
+    expect(r.status).toBe(422);
+    expect(await r.json()).toEqual({
+      error: { code: "senha_incorreta", message: "A senha de fatura.pdf não confere." },
+    });
+  });
+
+  it("revisao da leitura: parametros e destino validados, 201 com a revisao", async () => {
+    const params = (indice: string) => ({
+      params: Promise.resolve({ job: "j", indice }),
+    });
+    expect(
+      (await arquivoDaLeitura.GET(new Request("http://x"), params("x"))).status,
+    ).toBe(422);
+    expect(
+      (await arquivoDaLeitura.POST(post({ alvo: "cartao" }), params("0"))).status,
+    ).toBe(422);
+    expect(leitura.revisarLeitura).not.toHaveBeenCalled();
+    leitura.revisarLeitura.mockResolvedValue({ id: "imp" });
+    const r = await arquivoDaLeitura.POST(
+      post({ alvo: "cartao", card_id: "k", vencimento: "2026-11-15" }),
+      params("1"),
+    );
+    expect(r.status).toBe(201);
+    expect(leitura.revisarLeitura).toHaveBeenCalledWith("u1", "j", 1, {
+      alvo: "cartao",
+      card_id: "k",
+      vencimento: "2026-11-15",
+    });
+    leitura.leituraDoArquivo.mockRejectedValue(new ErroDeFinancas(404, "não achei"));
+    expect(
+      (await arquivoDaLeitura.GET(new Request("http://x"), params("0"))).status,
+    ).toBe(404);
   });
 
   it("regra com regex invalida e recusada", async () => {

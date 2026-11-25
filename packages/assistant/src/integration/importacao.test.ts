@@ -14,6 +14,20 @@ import {
   repositorioDeJobs,
 } from "../importacao/postgres.js";
 import { saidaVazia } from "../importacao/esquema.js";
+import { abrirArquivosDoEnvio } from "../importacao/envio.js";
+import { executarJob } from "../importacao/job.js";
+import type { ResultadoDaLeituraFinancas } from "../importacao/servico-financas.js";
+import {
+  CAPACIDADES_COMPLETAS,
+  modeloDeRoteiro,
+  verificadorDasFixtures,
+} from "../../eval/importacao/executar.js";
+import { ferramentasDeFinancas } from "../../eval/importacao/executar-financas.js";
+import { HOJE } from "../../eval/importacao/fixtures.js";
+import {
+  FATURA_INTER,
+  FATURA_SANTANDER,
+} from "../../eval/importacao/fixtures-financas.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
 const MESTRA = Buffer.alloc(32, 7);
@@ -166,5 +180,86 @@ describe("importacao com IA no Postgres", () => {
       "UPDATE assistant.import_job_files SET dados = '\\x01', atualizado_em = now() - interval '2 days'",
     );
     expect(await apagarArquivosVencidos(drizzle(dono) as never)).toBe(1);
+  });
+
+  it("job do Financas: senha so no envio, leitura pela IA e pelo atalho, nada da senha no banco", async () => {
+    const senha = FATURA_INTER.senha as string;
+    const enviado = (f: typeof FATURA_INTER, s = "") => {
+      const e = f.arquivo();
+      if (!("bytes" in e)) throw new Error("sem arquivo");
+      return { ...e, corretora: "", senha: s };
+    };
+    const { abertos } = await abrirArquivosDoEnvio(
+      [enviado(FATURA_INTER, senha), enviado(FATURA_SANTANDER)],
+      ferramentasDeFinancas(FATURA_INTER),
+      { limite_mb: 50, documento: "financas" },
+    );
+    // O que o web grava: o job sem carteira e os arquivos ja abertos.
+    const c = await dono.connect();
+    await c.query("BEGIN");
+    await c.query("SET LOCAL ROLE bolsiq_app");
+    await c.query("SELECT set_config('bolsiq.user_id', 'u', true)");
+    await c.query(
+      `INSERT INTO assistant.import_jobs (id, user_id, documento, status) VALUES ('jf', 'u', 'financas', 'lendo')`,
+    );
+    for (const [i, a] of abertos.entries())
+      await c.query(
+        `INSERT INTO assistant.import_job_files (id, job_id, user_id, indice, nome, mime, tamanho, dados, estado)
+         VALUES ($1, 'jf', 'u', $2, $3, $4, $5, $6, 'pendente')`,
+        [`ff${i}`, i, a.nome, a.mime, a.bytes.byteLength, Buffer.from(a.bytes)],
+      );
+    await c.query("COMMIT");
+    c.release();
+    // Job da carteira continua exigindo a carteira.
+    await expect(
+      dono.query(
+        `INSERT INTO assistant.import_jobs (id, user_id, documento, status) VALUES ('jx', 'u', 'carteira', 'lendo')`,
+      ),
+    ).rejects.toThrow(/import_jobs_documento_ck/);
+
+    const repo = repositorioDeJobs(db(), "u", "jf");
+    expect((await repo.job())?.documento).toBe("financas");
+    const log: string[] = [];
+    await executarJob({
+      repo,
+      acesso: {
+        modelo: modeloDeRoteiro(FATURA_SANTANDER.resposta),
+        provedor: "deepseek",
+        nome_do_modelo: "deepseek-flash",
+        preco: { entrada: 1, saida: 2 },
+        capacidades: CAPACIDADES_COMPLETAS,
+        segredos: [],
+        guardar_original: false,
+      },
+      armazem: armazemNoPostgres(db(), "u", "deepseek", "deepseek-flash", HOJE),
+      verificador: verificadorDasFixtures(),
+      ferramentas: {},
+      hoje: HOJE,
+      limite_diario: 100,
+      confirmar_acima_usd: 10,
+      espera_base_ms: 1,
+      aoErrar: (d) => log.push(d),
+    });
+    expect((await repo.job())?.status).toBe("pronto");
+    const r = await dono.query<{ indice: number; resultado: ResultadoDaLeituraFinancas }>(
+      "SELECT indice, resultado FROM assistant.import_job_files WHERE job_id = 'jf' ORDER BY indice",
+    );
+    expect(r.rows.map((x) => [x.resultado.documento, x.resultado.atalho])).toEqual([
+      ["financas", true],
+      ["financas", false],
+    ]);
+    expect(r.rows[1]?.resultado.validacao.conferencia?.confere).toBe(true);
+    const ext = await dono.query<{ provedor: string; versao_prompt: string }>(
+      "SELECT provedor, versao_prompt FROM assistant.extractions WHERE user_id = 'u' AND versao_prompt = 'importacao-financas-v1' ORDER BY provedor",
+    );
+    expect(ext.rows.map((x) => x.provedor)).toEqual(["atalho", "deepseek"]);
+    const tudo = await dono.query<{ t: string }>(
+      `SELECT concat_ws('|', (SELECT string_agg(j::text, '|') FROM assistant.import_jobs j),
+                             (SELECT string_agg(f::text, '|') FROM assistant.import_job_files f),
+                             (SELECT string_agg(e::text, '|') FROM assistant.extractions e),
+                             (SELECT string_agg(u::text, '|') FROM assistant.usage u)) AS t`,
+    );
+    expect(tudo.rows[0]?.t ?? "").not.toContain(senha);
+    expect(log.join("\n")).not.toContain(senha);
   });
 });

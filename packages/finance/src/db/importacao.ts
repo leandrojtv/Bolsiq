@@ -15,6 +15,8 @@ import {
 import { faturaDaCompra, faturaDoMes } from "../cartao.js";
 import type {
   AnaliseDeImportacao,
+  CsvParaMapear,
+  MapeamentoDeCsv,
   EdicaoDeLinha,
   EdicaoDeRegra,
   Importacao,
@@ -33,7 +35,9 @@ import {
   descricoesParecidas,
   ErroDeLeitura,
   lerExtrato,
+  marcacaoDe,
   normalizarDeExtrato,
+  PrecisaDeMapeamento,
   ordenarRegras,
   pareceTransferencia,
   proporLinhas,
@@ -43,6 +47,7 @@ import {
   type OrigemDeRegra,
   type RegraParaAplicar,
 } from "../importacao/index.js";
+import { conferirFatura } from "../importacao/conferencia.js";
 import {
   auditar,
   categoriaDoUsuario,
@@ -66,6 +71,7 @@ import {
   cards,
   categories,
   categorization_rules,
+  csv_layouts,
   import_rows,
   imports,
   outbox,
@@ -97,7 +103,46 @@ export const EVENTO_IMPORTACAO_CONFIRMADA = "finance.importacao.confirmada.v1";
 /** Dias de folga para achar o outro lado de uma transferencia ja lancada. */
 const FOLGA_DE_TRANSFERENCIA = 3;
 
-function lerArquivos(arquivos: ArquivoRecebido[], limites: LimitesDeImportacao) {
+export interface ExtratoRecebido {
+  nome: string;
+  extrato: ExtratoLido;
+}
+
+/** Os mapeamentos de CSV salvos pelo usuario. */
+export async function mapeamentosSalvos(tx: Tx, uid: string): Promise<MapeamentoDeCsv[]> {
+  const linhas = await tx
+    .select({ mapeamento: csv_layouts.mapeamento })
+    .from(csv_layouts)
+    .where(eq(csv_layouts.user_id, uid));
+  return linhas.map((l) => l.mapeamento as MapeamentoDeCsv);
+}
+
+/** Salva (ou troca) o mapeamento do cabecalho: a proxima importacao le sem perguntar. */
+export async function salvarMapeamentos(tx: Tx, uid: string, ms: MapeamentoDeCsv[]) {
+  for (const m of ms)
+    await tx
+      .insert(csv_layouts)
+      .values({ id: randomUUID(), user_id: uid, assinatura: m.assinatura, mapeamento: m })
+      .onConflictDoUpdate({
+        target: [csv_layouts.user_id, csv_layouts.assinatura],
+        set: { mapeamento: m, atualizado_em: sql`now()` },
+      });
+}
+
+function conferirLinhas(lidos: ExtratoRecebido[], limites: LimitesDeImportacao) {
+  const total = lidos.reduce((s, l) => s + l.extrato.linhas.length, 0);
+  if (total > limites.linhas)
+    throw new ErroDeFinancas(
+      422,
+      `Os arquivos têm ${total} linhas; o limite é ${limites.linhas}.`,
+    );
+}
+
+function lerArquivos(
+  arquivos: ArquivoRecebido[],
+  limites: LimitesDeImportacao,
+  mapeamentos: MapeamentoDeCsv[],
+): { lidos: ExtratoRecebido[]; para_mapear: CsvParaMapear[] } {
   if (arquivos.length === 0)
     throw new ErroDeFinancas(422, "Envie pelo menos um arquivo.");
   if (arquivos.length > limites.arquivos)
@@ -105,7 +150,8 @@ function lerArquivos(arquivos: ArquivoRecebido[], limites: LimitesDeImportacao) 
       422,
       `Envie no máximo ${limites.arquivos} arquivos por vez.`,
     );
-  const lidos: { nome: string; extrato: ExtratoLido }[] = [];
+  const lidos: ExtratoRecebido[] = [];
+  const para_mapear: CsvParaMapear[] = [];
   for (const a of arquivos) {
     if (a.bytes.byteLength > limites.bytes)
       throw new ErroDeFinancas(
@@ -113,20 +159,19 @@ function lerArquivos(arquivos: ArquivoRecebido[], limites: LimitesDeImportacao) 
         `${a.nome} passa de ${Math.round(limites.bytes / 1024 / 1024)} MB.`,
       );
     try {
-      lidos.push({ nome: a.nome, extrato: lerExtrato(a.bytes, a.nome) });
+      lidos.push({ nome: a.nome, extrato: lerExtrato(a.bytes, a.nome, mapeamentos) });
     } catch (erro) {
+      if (erro instanceof PrecisaDeMapeamento) {
+        para_mapear.push({ nome: a.nome, ...erro.csv });
+        continue;
+      }
       if (erro instanceof ErroDeLeitura)
         throw new ErroDeFinancas(422, `Não consegui ler ${a.nome}: ${erro.message}`);
       throw erro;
     }
   }
-  const total = lidos.reduce((s, l) => s + l.extrato.linhas.length, 0);
-  if (total > limites.linhas)
-    throw new ErroDeFinancas(
-      422,
-      `Os arquivos têm ${total} linhas; o limite é ${limites.linhas}.`,
-    );
-  return lidos;
+  conferirLinhas(lidos, limites);
+  return { lidos, para_mapear };
 }
 
 // Sugestao de destino
@@ -161,8 +206,30 @@ export async function analisarArquivos(
   uid: string,
   arquivos: ArquivoRecebido[],
   limites: LimitesDeImportacao = LIMITES_PADRAO,
+  mapeamentos: MapeamentoDeCsv[] = [],
 ): Promise<AnaliseDeImportacao> {
-  const lidos = lerArquivos(arquivos, limites);
+  const { lidos, para_mapear } = lerArquivos(arquivos, limites, [
+    ...mapeamentos,
+    ...(await mapeamentosSalvos(tx, uid)),
+  ]);
+  if (lidos.length === 0)
+    return {
+      arquivos: [],
+      para_mapear,
+      sugestao: { alvo: null, account_id: null, card_id: null, vencimento: null },
+    };
+  return { ...(await sugerirDestino(tx, uid, lidos)), para_mapear };
+}
+
+/**
+ * Destino sugerido para extratos ja lidos (arquivo ou assistente): importacao
+ * anterior da mesma conta externa, final do cartao, banco, ou o unico destino.
+ */
+export async function sugerirDestino(
+  tx: Tx,
+  uid: string,
+  lidos: ExtratoRecebido[],
+): Promise<Omit<AnaliseDeImportacao, "para_mapear">> {
   const primeiro = lidos[0]!.extrato;
   const tipo = primeiro.tipo;
   let account_id: string | null = null;
@@ -331,11 +398,11 @@ async function contaQuePagaOCartao(
 /** Credito do cartao que quita fatura: nunca e receita. */
 const ehPagamentoDeFatura = (
   alvo: string,
-  l: { tipo: string; descricao_normalizada: string },
+  l: { tipo: string; descricao_normalizada: string; marcacao?: string | null },
 ) =>
   alvo === "cartao" &&
   l.tipo === "receita" &&
-  pareceTransferencia(l.descricao_normalizada);
+  (l.marcacao === "pagamento" || pareceTransferencia(l.descricao_normalizada));
 
 /**
  * Categoria mais recente que o usuario deu a cada descricao, pela normalizacao
@@ -380,8 +447,42 @@ export async function criarImportacao(
   arquivos: ArquivoRecebido[],
   limites: LimitesDeImportacao = LIMITES_PADRAO,
   origem?: Origem,
+  mapeamentos: MapeamentoDeCsv[] = [],
 ): Promise<ImportacaoComLinhas> {
-  const lidos = lerArquivos(arquivos, limites);
+  const { lidos, para_mapear } = lerArquivos(arquivos, limites, [
+    ...mapeamentos,
+    ...(await mapeamentosSalvos(tx, uid)),
+  ]);
+  if (para_mapear.length > 0)
+    throw new ErroDeFinancas(
+      422,
+      `Diga as colunas de ${para_mapear.map((p) => p.nome).join(", ")} antes de revisar.`,
+    );
+  // So o mapeamento que leu um arquivo fica salvo.
+  const usados = new Set(lidos.map((l) => l.extrato.assinatura).filter(Boolean));
+  await salvarMapeamentos(
+    tx,
+    uid,
+    mapeamentos.filter((m) => usados.has(m.assinatura)),
+  );
+  return criarImportacaoDeExtratos(tx, uid, pedido, lidos, origem);
+}
+
+/**
+ * A revisao a partir de extratos ja lidos: dos arquivos (OFX, CSV) ou do
+ * assistente (PDF e imagem, ADR 0040). Mesma deduplicacao, parcela, plano e
+ * categorizacao para todos.
+ */
+export async function criarImportacaoDeExtratos(
+  tx: Tx,
+  uid: string,
+  pedido: NovaImportacao,
+  lidos: ExtratoRecebido[],
+  origem?: Origem,
+  o: { extracao_id?: string; limites?: LimitesDeImportacao } = {},
+): Promise<ImportacaoComLinhas> {
+  if (lidos.length === 0) throw new ErroDeFinancas(422, "Nenhum extrato para revisar.");
+  conferirLinhas(lidos, o.limites ?? LIMITES_PADRAO);
   for (const { nome, extrato } of lidos)
     if (extrato.tipo && extrato.tipo !== pedido.alvo)
       throw new ErroDeFinancas(
@@ -412,6 +513,8 @@ export async function criarImportacao(
   const propostas = lidos.flatMap(({ extrato }, arquivo) =>
     proporLinhas(extrato).map((l) => ({
       ...l,
+      // Com o destino conhecido: OFX sem tipo nao sabia que era cartao.
+      marcacao: l.marcacao ?? marcacaoDe(l.descricao, pedido.alvo, l.sentido),
       arquivo,
       hash: hashDe(uid, chaveDeDedupe(chaveDestino, l)),
     })),
@@ -538,12 +641,22 @@ export async function criarImportacao(
     // Conferencia de saldo so com um arquivo: com varios, o LEDGERBAL e de qual?
     saldo_informado: lidos.length === 1 ? (primeiro.saldo?.valor ?? null) : null,
     saldo_data: lidos.length === 1 ? (primeiro.saldo?.data ?? null) : null,
+    total_informado:
+      lidos.length === 1 && pedido.alvo === "cartao"
+        ? (primeiro.total_informado ?? null)
+        : null,
+    extracao_id: o.extracao_id ?? null,
   });
-  // Fatura: o LEDGERBAL do cartao (negativo) e o total que o banco cobra.
-  if (dest.statement_id && lidos.length === 1 && primeiro.saldo)
+  // Fatura: o total escrito no documento ou o LEDGERBAL do cartao (negativo).
+  const totalDaFatura =
+    lidos.length === 1
+      ? (primeiro.total_informado ??
+        (primeiro.saldo ? moeda(d(primeiro.saldo.valor).abs()) : null))
+      : null;
+  if (dest.statement_id && totalDaFatura)
     await tx
       .update(statements)
-      .set({ total_informado: moeda(d(primeiro.saldo.valor).abs()) })
+      .set({ total_informado: totalDaFatura })
       .where(and(eq(statements.user_id, uid), eq(statements.id, dest.statement_id)));
 
   const noLote = new Set<string>();
@@ -559,6 +672,9 @@ export async function criarImportacao(
     if (manual) usados.add(manual.id);
     const situacao = repetida ? "ja_importada" : manual ? "possivel_duplicata" : "nova";
     const pagamento = ehPagamentoDeFatura(pedido.alvo, p);
+    // Saldo do dia e saldo anterior so informam; nunca viram lancamento.
+    const informativa = p.marcacao === "saldo_anterior";
+    const duvidosa = p.confianca === "baixa";
     const regra = categorizar(
       p.descricao_normalizada,
       p.tipo,
@@ -567,21 +683,26 @@ export async function criarImportacao(
       cats.naturezaDe,
     );
     // Sem regra nem historico, a categoria que o banco informou.
-    const doBanco = cats.peloNome(p.tipo, p.categoria_sugerida);
-    const cat = pagamento
-      ? { category_id: null, origem: "nenhuma" as const, regra_id: null }
-      : regra.origem === "nenhuma" && doBanco
-        ? { category_id: doBanco, origem: "banco" as const, regra_id: null }
-        : regra;
+    const doBanco = cats.peloNome(
+      p.tipo,
+      p.categoria_sugerida ?? (p.marcacao === "iof" ? "IOF" : null),
+    );
+    const cat =
+      pagamento || informativa
+        ? { category_id: null, origem: "nenhuma" as const, regra_id: null }
+        : regra.origem === "nenhuma" && doBanco
+          ? { category_id: doBanco, origem: "banco" as const, regra_id: null }
+          : regra;
     // Pagamento sem a transferencia ja lancada: vira transferencia da conta que
     // paga o cartao; sem saber a conta, fica desmarcado ate o usuario escolher.
-    const acao = repetida
-      ? "ignorar"
-      : manual
-        ? "conciliar"
-        : pagamento && !pagadora
-          ? "ignorar"
-          : "importar";
+    const acao =
+      repetida || informativa
+        ? "ignorar"
+        : manual
+          ? "conciliar"
+          : (pagamento && !pagadora) || duvidosa
+            ? "ignorar"
+            : "importar";
     const transferenciaDe = pagamento && acao === "importar" ? pagadora : null;
     return {
       id: randomUUID(),
@@ -608,6 +729,16 @@ export async function criarImportacao(
       acao,
       category_id: cat.category_id,
       transferencia_conta_id: transferenciaDe,
+      marcacao: p.marcacao,
+      moeda_original: p.moeda_original ?? null,
+      valor_moeda_original: p.valor_moeda_original ?? null,
+      aviso:
+        p.aviso ??
+        (informativa
+          ? "Saldo informado pelo banco: não é lançamento."
+          : duvidosa
+            ? "Lida com confiança baixa: confira antes de marcar."
+            : null),
     };
   });
   for (let i = 0; i < linhas.length; i += 500)
@@ -642,6 +773,8 @@ const colunasDeImportacao = {
   totais: imports.totais,
   saldo_informado: imports.saldo_informado,
   saldo_data: imports.saldo_data,
+  total_informado: imports.total_informado,
+  extracao_id: imports.extracao_id,
   criada_em: imports.criada_em,
   confirmada_em: imports.confirmada_em,
 };
@@ -738,13 +871,15 @@ async function montarImportacao(
       confere: calculado.eq(i.saldo_informado),
     };
   }
-  const { saldo_informado: _s, saldo_data: _d, ...resto } = i;
+  const { saldo_informado: _s, saldo_data: _d, total_informado: _t, ...resto } = i;
   return {
     ...resto,
     alvo: i.alvo as Importacao["alvo"],
     status: i.status as Importacao["status"],
     totais,
     conferencia,
+    conferencia_fatura:
+      i.total_informado && linhas ? conferirFatura(i.total_informado, linhas) : null,
     pode_desfazer: await podeDesfazer(tx, uid, i.id, i.status),
   };
 }
@@ -793,6 +928,10 @@ export async function obterImportacao(
       transferencia_cartao_id: l.transferencia_cartao_id,
       sugere_transferencia: pareceTransferencia(l.descricao_normalizada),
       divisoes: (l.divisoes as LinhaDeImportacao["divisoes"]) ?? null,
+      marcacao: (l.marcacao as LinhaDeImportacao["marcacao"]) ?? null,
+      moeda_original: l.moeda_original,
+      valor_moeda_original: l.valor_moeda_original,
+      aviso: l.aviso,
     })),
   };
 }

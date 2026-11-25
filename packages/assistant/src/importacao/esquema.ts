@@ -81,7 +81,50 @@ export const TipoDeDocumento = z.enum([
   "nota_corretagem",
   "proventos",
   "misto",
+  // Bolsiq Financas (ADR 0040): o mesmo pipeline, outro prompt e outras linhas.
+  "fatura_cartao",
+  "extrato_conta",
 ]);
+
+export const TipoDeDocumentoFinancas = z.enum(["fatura_cartao", "extrato_conta"]);
+export type TipoDeDocumentoFinancas = z.infer<typeof TipoDeDocumentoFinancas>;
+
+/**
+ * Uma linha de fatura de cartao ou de extrato de conta. `valor` sempre positivo
+ * e `sinal` diz o lado (debito sai, credito entra). Compra internacional traz a
+ * moeda e o valor de origem; o IOF vem em linha propria.
+ */
+export const LancamentoDaIA = z.object({
+  data: texto,
+  descricao: texto,
+  valor: texto,
+  sinal: texto.describe("debito ou credito"),
+  parcela_atual: texto,
+  parcela_total: texto,
+  moeda_original: texto,
+  valor_moeda_original: texto,
+  origem: Origem,
+  confianca: Confianca,
+});
+export type LancamentoDaIA = z.infer<typeof LancamentoDaIA>;
+
+/**
+ * O cabecalho da fatura ou do extrato, o unico schema que vai ao provedor na
+ * importacao do Financas: nove propriedades (o teste reprova acima de 10).
+ */
+export const CabecalhoFinancasDaIA = z.object({
+  banco: z.string(),
+  tipo: TipoDeDocumentoFinancas,
+  final_cartao: z.string(),
+  data_fechamento: z.string(),
+  data_vencimento: z.string(),
+  total_fatura: z.string(),
+  periodo_inicio: z.string(),
+  periodo_fim: z.string(),
+  avisos: z.array(z.string()),
+});
+export type CabecalhoFinancasDaIA = z.infer<typeof CabecalhoFinancasDaIA>;
+export type DocumentoFinancas = Omit<CabecalhoFinancasDaIA, "avisos">;
 
 export const SaidaDaIA = z.object({
   documento: z.object({
@@ -89,11 +132,14 @@ export const SaidaDaIA = z.object({
     corretora: texto,
     data_referencia: texto,
     totais_declarados: z.array(z.object({ descricao: z.string(), valor: z.string() })),
+    /** Fatura ou extrato do Financas: o cabecalho como o modelo leu. */
+    financas: CabecalhoFinancasDaIA.omit({ avisos: true }).optional(),
   }),
   posicoes: z.array(PosicaoDaIA),
   transacoes: z.array(TransacaoDaIA),
   proventos: z.array(ProventoDaIA),
   notas: z.array(NotaDaIA),
+  lancamentos: z.array(LancamentoDaIA).default([]),
   avisos: z.array(z.string()),
   /** Lotes que falharam (provedor fora, resposta ilegivel): a revisao oferece reprocessar. */
   lotes_falhos: z
@@ -119,6 +165,7 @@ export const saidaVazia = (): SaidaDaIA => ({
   transacoes: [],
   proventos: [],
   notas: [],
+  lancamentos: [],
   avisos: [],
   malformadas: [],
   lotes_falhos: [],
@@ -163,6 +210,17 @@ export const COLUNAS_DO_BLOCO = {
     "sentido_liquido",
     "pagina_ou_aba",
     "trecho_original",
+  ],
+  lancamentos: [
+    "data",
+    "descricao",
+    "valor",
+    "sinal",
+    "parcela_atual",
+    "parcela_total",
+    "moeda_original",
+    "valor_moeda_original",
+    ...ORIGEM,
   ],
 } as const;
 export type TipoDeBloco = keyof typeof COLUNAS_DO_BLOCO;

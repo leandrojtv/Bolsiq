@@ -85,6 +85,10 @@ function resumo(p: LinhaDoPlano, parcelas: Parcela[]): Plano {
   const previstas = numeradas.filter((x) => !realizada(x.status));
   const restante = previstas.reduce((s, x) => s.plus(x.valor), d(0));
   const proxima = previstas[0];
+  // Plano criado de uma parcela importada (6/7) nao tem as anteriores: ja pagas.
+  const anteriores = numeradas.length
+    ? Math.min(...numeradas.map((x) => x.parcela_numero as number)) - 1
+    : 0;
   return {
     id: p.id,
     origem: p.origem as Plano["origem"],
@@ -99,7 +103,7 @@ function resumo(p: LinhaDoPlano, parcelas: Parcela[]): Plano {
     taxa_mensal: p.taxa_mensal,
     primeira_data: p.primeira_data,
     ativo: p.ativo,
-    parcelas_pagas: numeradas.length - previstas.length,
+    parcelas_pagas: anteriores + numeradas.length - previstas.length,
     parcelas_restantes: previstas.length,
     valor_restante: moeda(restante),
     saldo_devedor:

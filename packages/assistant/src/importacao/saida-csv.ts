@@ -3,6 +3,7 @@ import {
   COLUNAS_DO_BLOCO,
   TIPOS_DE_BLOCO,
   type Confianca,
+  type LancamentoDaIA,
   type NotaDaIA,
   type PosicaoDaIA,
   type ProventoDaIA,
@@ -24,7 +25,10 @@ export interface BlocoCsv {
   conteudo: string;
 }
 
-export type SaidaDasLinhas = Omit<SaidaDaIA, "documento" | "avisos" | "lotes_falhos">;
+export type SaidaDasLinhas = Omit<
+  SaidaDaIA,
+  "documento" | "avisos" | "lotes_falhos" | "lancamentos"
+> & { lancamentos?: LancamentoDaIA[] };
 
 export interface LeituraDaResposta {
   saida: SaidaDasLinhas;
@@ -46,6 +50,7 @@ export function tipoPeloCabecalho(cabecalho: string): TipoDeBloco | null {
   if (c.includes("valor_liquido") && c.includes("numero")) return "notas";
   if (c.includes("data_pagamento")) return "proventos";
   if (c.includes("ticker") && c.includes("preco")) return "transacoes";
+  if (c.includes("descricao") && c.includes("sinal")) return "lancamentos";
   return null;
 }
 
@@ -101,6 +106,7 @@ const vazia = (): SaidaDasLinhas => ({
   transacoes: [],
   proventos: [],
   notas: [],
+  lancamentos: [],
   malformadas: [],
 });
 
@@ -212,6 +218,16 @@ function lerBloco(
           confianca: confianca(v("confianca")),
         });
         break;
+      case "lancamentos":
+        (saida.lancamentos ??= []).push({
+          ...(Object.fromEntries(
+            COLUNAS_DO_BLOCO.lancamentos.slice(0, -3).map((c) => [c, v(c)]),
+          ) as Omit<LancamentoDaIA, "origem" | "confianca">),
+          data: normalizarData(v("data")),
+          origem,
+          confianca: confianca(v("confianca")),
+        });
+        break;
       case "notas": {
         const sentido = semAcento(v("sentido_liquido"));
         saida.notas.push({
@@ -287,6 +303,7 @@ export function escreverBlocos(s: SaidaDasLinhas): string {
     linhas("transacoes", s.transacoes.map(comOrigem)),
     linhas("proventos", s.proventos.map(comOrigem)),
     linhas("notas", s.notas.map(comOrigem)),
+    linhas("lancamentos", (s.lancamentos ?? []).map(comOrigem)),
   ]
     .filter(Boolean)
     .join("\n\n");

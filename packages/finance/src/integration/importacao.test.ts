@@ -20,6 +20,7 @@ import {
   analisarArquivos,
   confirmarImportacao,
   criarImportacao,
+  criarImportacaoDeExtratos,
   desfazerImportacao,
   editarLinha,
   listarRegras,
@@ -29,7 +30,13 @@ import {
   type ArquivoRecebido,
 } from "../db/importacao.js";
 import { FiltroDeLancamentos, NovaConta, NovoLancamento } from "../contratos.js";
-import { NovaImportacao, NovaRegra, NovoCartao } from "../contratos-importacao.js";
+import {
+  MapeamentoDeCsv,
+  NovaImportacao,
+  NovaRegra,
+  NovoCartao,
+} from "../contratos-importacao.js";
+import type { ExtratoLido } from "../importacao/tipos.js";
 
 const HOST = process.env.TEST_HOST ?? "127.0.0.1";
 const HOJE = "2023-11-30";
@@ -664,10 +671,12 @@ describe("fatura do C6 em CSV", () => {
     expect(planos.find((p) => p.descricao === "CLINICA SORRISO")).toMatchObject({
       n_parcelas: 7,
       primeira_data: "2026-05-30",
+      parcelas_pagas: 6,
       parcelas_restantes: 1,
     });
     expect(planos.find((p) => p.descricao === "ANUIDADE DIFERENCIADA")).toMatchObject({
       n_parcelas: 12,
+      parcelas_pagas: 5,
       parcelas_restantes: 7,
     });
   });
@@ -706,7 +715,246 @@ describe("fatura do C6 em CSV", () => {
     const plano = (await comoC((tx) => listarPlanos(tx, C))).find(
       (p) => p.descricao === "CLINICA SORRISO",
     );
-    expect(plano).toMatchObject({ parcelas_restantes: 0 });
+    expect(plano).toMatchObject({ parcelas_pagas: 7, parcelas_restantes: 0 });
+  });
+});
+
+describe("fatura lida de PDF e CSV com mapeamento (ADR 0040)", () => {
+  const D = "user-ddd";
+  const HOJE_D = "2026-11-08";
+  const comoD = <T>(f: (tx: Tx) => Promise<T>) => comoUsuario(db, D, f);
+  let cartao = "";
+  let conta = "";
+  let iof = "";
+
+  /** O que o assistente entrega para a revisao: o ExtratoLido de uma fatura do Nubank. */
+  const doPdf = (): ExtratoLido => ({
+    formato: "pdf-layout",
+    tipo: "cartao",
+    banco: "Nubank",
+    conta: "4321",
+    inicio: "2026-10-05",
+    fim: "2026-11-03",
+    saldo: null,
+    vencimento: "2026-11-15",
+    total_informado: "746.50",
+    avisos: [],
+    linhas: [
+      ["2026-10-05", "Padaria Pao Quente", "23.50", "debito"],
+      ["2026-10-07", "Mercado Bom Preco", "312.87", "debito"],
+      ["2026-10-08", "Loja Exemplo - Parcela 2/6", "150.00", "debito"],
+      ["2026-10-10", "Amazon Web Services", "58.10", "debito", "USD", "10.00"],
+      ["2026-10-10", "IOF de compra internacional", "2.03", "debito"],
+      ["2026-10-12", "Pagamento recebido", "1873.40", "credito"],
+      ["2026-10-14", "Estorno de Loja Exemplo", "49.90", "credito"],
+      ["2026-10-20", "Posto Avenida", "210.00", "debito"],
+      ["2026-11-03", "Streaming Filmes", "39.90", "debito"],
+      ["2026-11-03", "SALDO ANTERIOR", "900.00", "debito"],
+    ].map(([data, descricao, valor, sentido, moeda, original], indice) => ({
+      indice,
+      fitid: null,
+      trntype: null,
+      data: data as string,
+      descricao: descricao as string,
+      valor: valor as string,
+      sentido: sentido as "credito" | "debito",
+      moeda_original: moeda ?? null,
+      valor_moeda_original: original ?? null,
+      confianca: descricao === "Posto Avenida" ? ("baixa" as const) : ("alta" as const),
+    })),
+  });
+  const pedido = () =>
+    NovaImportacao.parse({ alvo: "cartao", card_id: cartao, vencimento: "2026-11-15" });
+
+  beforeAll(async () => {
+    await comoD((tx) => semearCategorias(tx, D));
+    iof =
+      (await comoD((tx) => listarCategorias(tx, D))).find((c) => c.nome === "IOF")?.id ??
+      "";
+    conta = (
+      await comoD((tx) =>
+        criarConta(
+          tx,
+          D,
+          NovaConta.parse({
+            nome: "Nu conta",
+            tipo: "corrente",
+            instituicao: "Nubank",
+            data_saldo_inicial: "2026-01-01",
+          }),
+          HOJE_D,
+        ),
+      )
+    ).id;
+    cartao = (
+      await comoD((tx) =>
+        criarCartao(
+          tx,
+          D,
+          NovoCartao.parse({
+            nome: "Nubank roxinho",
+            instituicao: "Nubank",
+            final: "4321",
+            dia_fechamento: 8,
+            dia_vencimento: 15,
+            account_id: conta,
+          }),
+          HOJE_D,
+        ),
+      )
+    ).id;
+  });
+
+  it("marcacoes, moeda, IOF na categoria IOF e total conferido na mesma revisao", async () => {
+    const rev = await comoD((tx) =>
+      criarImportacaoDeExtratos(
+        tx,
+        D,
+        pedido(),
+        [{ nome: "Nubank.pdf", extrato: doPdf() }],
+        undefined,
+        {
+          extracao_id: "ext-1",
+        },
+      ),
+    );
+    const achar = (d: string) => rev.linhas.find((l) => l.descricao_original === d)!;
+    expect(rev).toMatchObject({ extracao_id: "ext-1", origem: "pdf-layout" });
+    expect(rev.conferencia_fatura).toMatchObject({
+      total_informado: "746.50",
+      total_calculado: "746.50",
+      confere: true,
+    });
+    expect(achar("Pagamento recebido")).toMatchObject({
+      marcacao: "pagamento",
+      tipo: "receita",
+      category_id: null,
+      transferencia_conta_id: conta,
+    });
+    expect(achar("Estorno de Loja Exemplo")).toMatchObject({
+      marcacao: "estorno",
+      tipo: "receita",
+    });
+    expect(achar("SALDO ANTERIOR")).toMatchObject({
+      marcacao: "saldo_anterior",
+      acao: "ignorar",
+      aviso: expect.stringMatching(/não é lançamento/),
+    });
+    expect(achar("IOF de compra internacional")).toMatchObject({
+      marcacao: "iof",
+      category_id: iof,
+    });
+    expect(achar("Amazon Web Services")).toMatchObject({
+      moeda_original: "USD",
+      valor_moeda_original: "10.00",
+    });
+    expect(achar("Posto Avenida")).toMatchObject({
+      acao: "ignorar",
+      aviso: expect.stringMatching(/confiança baixa/),
+    });
+    expect(achar("Loja Exemplo - Parcela 2/6")).toMatchObject({
+      parcela_atual: 2,
+      parcela_total: 6,
+    });
+
+    await comoD((tx) => confirmarImportacao(tx, D, rev.id, undefined, HOJE_D));
+    const gravados = await comoUsuario(db, D, (tx) =>
+      listarLancamentos(
+        tx,
+        D,
+        FiltroDeLancamentos.parse({ importacao: rev.id, por_pagina: 200 }),
+      ),
+    );
+    // Saldo anterior e a de confianca baixa ficam fora; o pagamento vira transferencia (2 lados).
+    expect(gravados.data.some((l) => l.descricao === "SALDO ANTERIOR")).toBe(false);
+    expect(gravados.data.filter((l) => l.tipo === "transferencia")).toHaveLength(2);
+    expect(
+      gravados.data.filter((l) => l.tipo === "despesa").map((l) => l.descricao),
+    ).not.toContain("Pagamento recebido");
+    const plano = (await comoD((tx) => listarPlanos(tx, D))).find(
+      (p) => p.descricao === "LOJA EXEMPLO",
+    );
+    expect(plano).toBeDefined();
+  });
+
+  it("a mesma fatura de novo (PDF ou de novo pela IA) cai como ja importada", async () => {
+    const rev = await comoD((tx) =>
+      criarImportacaoDeExtratos(tx, D, pedido(), [
+        { nome: "Nubank.pdf", extrato: doPdf() },
+      ]),
+    );
+    // Nada novo a gravar: o resto ja foi, a de confianca baixa e o saldo vem desmarcados.
+    expect(
+      rev.linhas.filter((l) => l.acao !== "ignorar" && l.situacao === "nova"),
+    ).toEqual([]);
+    await comoD((tx) => cancelarImportacao(tx, D, rev.id));
+  });
+
+  it("total que nao fecha aponta as linhas suspeitas", async () => {
+    const e = doPdf();
+    e.total_informado = "700.00";
+    const rev = await comoD((tx) =>
+      criarImportacaoDeExtratos(tx, D, pedido(), [{ nome: "outra.pdf", extrato: e }]),
+    );
+    expect(rev.conferencia_fatura).toMatchObject({ confere: false, diferenca: "46.50" });
+    // A de confianca baixa ja veio com aviso.
+    expect(rev.conferencia_fatura?.suspeitas).toContain(
+      rev.linhas.find((l) => l.descricao_original === "Posto Avenida")?.id,
+    );
+    await comoD((tx) => cancelarImportacao(tx, D, rev.id));
+  });
+
+  it("CSV desconhecido pede o mapeamento; depois de usado, fica salvo", async () => {
+    const csv = texto(
+      "banco-x.csv",
+      "Dt|Historico|Valor\n05/10/2026|PADARIA|-12,30\n06/10/2026|SALARIO|5.000,00",
+    );
+    const antes = await comoD((tx) => analisarArquivos(tx, D, [csv]));
+    expect(antes.arquivos).toEqual([]);
+    expect(antes.para_mapear[0]).toMatchObject({
+      nome: "banco-x.csv",
+      colunas: ["dt", "historico", "valor"],
+    });
+    await expect(
+      comoD((tx) =>
+        criarImportacao(
+          tx,
+          D,
+          NovaImportacao.parse({ alvo: "conta", account_id: conta }),
+          [csv],
+        ),
+      ),
+    ).rejects.toThrow(/Diga as colunas/);
+    const m = MapeamentoDeCsv.parse({
+      assinatura: antes.para_mapear[0]!.assinatura,
+      tipo: "conta",
+      data: "dt",
+      descricao: "historico",
+      valor: "valor",
+    });
+    const rev = await comoD((tx) =>
+      criarImportacao(
+        tx,
+        D,
+        NovaImportacao.parse({ alvo: "conta", account_id: conta }),
+        [csv],
+        undefined,
+        undefined,
+        [m],
+      ),
+    );
+    expect(rev.linhas.map((l) => [l.tipo, l.valor])).toEqual([
+      ["despesa", "12.30"],
+      ["receita", "5000.00"],
+    ]);
+    await comoD((tx) => cancelarImportacao(tx, D, rev.id));
+    // Sem mandar o mapeamento de novo: o salvo le o mesmo cabecalho.
+    const depois = await comoD((tx) => analisarArquivos(tx, D, [csv]));
+    expect(depois.para_mapear).toEqual([]);
+    expect(depois.arquivos[0]).toMatchObject({ formato: "csv-mapeado", linhas: 2 });
+    expect(
+      (await cruComoB("select count(*)::int as n from finance.csv_layouts")).rows[0],
+    ).toEqual({ n: 0 });
   });
 });
 

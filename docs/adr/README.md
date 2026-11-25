@@ -35,6 +35,7 @@ anterior como `substituído por`.
 | [0035](0035-insights-financas.md)                     | Bolsiq Finanças: insights determinísticos de gastos               | aceito       |
 | [0038](0038-importacao-csv-c6.md)                     | Bolsiq Finanças: fatura do C6 em CSV                              | aceito       |
 | [0039](0039-excluir-divida.md)                        | Bolsiq Finanças: excluir empréstimo ou financiamento              | aceito       |
+| [0040](0040-faturas-e-extratos-em-pdf-e-csv.md)       | Bolsiq Finanças: faturas e extratos em PDF e CSV                  | aceito       |
 | [0041](0041-indicadores-por-acao-12m-controladora.md) | Indicadores por ação: 12 meses, controladora e units              | aceito       |
 
 ## Números reservados

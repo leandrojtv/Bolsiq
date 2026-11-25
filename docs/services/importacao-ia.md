@@ -319,6 +319,23 @@ O e2e (`apps/web/e2e/importacao-ia.spec.ts`) envia três arquivos de uma vez (XP
 Nubank em PDF e Santander em XLSX) contra o provedor falso (`infra/docker/llm-falso.mjs`),
 com respostas geradas das fixtures (`pnpm --filter @bolsiq/assistant run e2e:importacao`).
 
+Faturas e extratos do Financas, em `fixtures-financas.ts` (PDF gerado no teste a
+partir das mesmas linhas da resposta gravada), sempre pela IA no eval
+(`sem_atalho`), e pelo atalho no `make test`:
+
+| Fixture                  | Documento                                                            |
+| ------------------------ | -------------------------------------------------------------------- |
+| `nubank-fatura-pdf`      | datas `DD MMM`, compra em dólar com IOF, parcela, pagamento, estorno |
+| `itau-fatura-pdf`        | saldo anterior e pagamento, parcela na descrição, IOF com o nome     |
+| `inter-fatura-pdf-senha` | fatura com senha, datas completas, crédito com `+`                   |
+| `c6-fatura-pdf`          | datas `dd mmm`, parcela, anuidade e estorno                          |
+| `santander-fatura-pdf`   | layout sem atalho                                                    |
+| `bradesco-extrato-pdf`   | extrato de conta com saldo anterior, sem total                       |
+
+Aprova o Financas com: 95% das linhas e das parcelas, nenhuma linha inventada, todo
+total conferido como o esperado e toda marcação certa. O modelo só fica homologado se
+aprovar na carteira e no Financas.
+
 ### Como adicionar uma fixture
 
 1. Em `fixtures.ts`, monte o documento com dados inventados: `planilha()` para XLSX,
@@ -328,6 +345,27 @@ com respostas geradas das fixtures (`pnpm --filter @bolsiq/assistant run e2e:imp
 3. Escreva o `esperado`: as linhas com os campos que importam e se a carga concilia.
 4. Ticker ou pregão novo: inclua em `TICKERS` e `FAIXAS`.
 5. `make test` roda a fixture no roteiro; `make eval-importacao` com um modelo real.
+
+## Financas
+
+Fatura de cartão e extrato de conta do [Bolsiq Financas](finance.md#fatura-e-extrato-em-pdf-ou-foto)
+em PDF ou foto ([ADR 0040](../adr/0040-faturas-e-extratos-em-pdf-e-csv.md)): o mesmo
+pipeline, com `documento = financas` no job e o `PERFIL_DE_FINANCAS` na extração.
+
+| O quê       | Carteira                         | Financas                                                          |
+| ----------- | -------------------------------- | ----------------------------------------------------------------- |
+| prompt      | `importacao-v4`                  | `importacao-financas-v1`                                          |
+| cabeçalho   | `CabecalhoDaIA` (7 propriedades) | `CabecalhoFinancasDaIA` (9)                                       |
+| linhas      | posições, transações, proventos  | bloco `lancamentos`                                               |
+| antes da IA | atalho de CSV e aba no layout    | `lerFaturaConhecida`: Nubank, Itaú, Inter, C6                     |
+| validação   | `validarExtracao`                | `validarLancamentos` (origem, data, sinal, marcações, IOF, total) |
+| saída       | revisão da carteira              | `extratoDaLeitura` para a revisão do Financas                     |
+
+CSV e OFX no job do Financas são recusados (`use_sem_ia`): vão pelos leitores do
+Financas, sem IA. A senha do PDF é usada em `abrirArquivosDoEnvio`, no BFF, e não chega
+ao job. O atalho grava a extração com provedor `atalho`, sem custo e fora do limite
+diário. Lançamentos não são deduplicados entre lotes (dois cafés iguais no mesmo dia);
+a linha repetida pelo modelo aparece como suspeita na conferência do total.
 
 ## Limitações
 

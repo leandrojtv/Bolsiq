@@ -148,6 +148,7 @@ export function repositorioDeJobs(
         const [j] = await tx
           .select({
             id: importJobs.id,
+            documento: importJobs.documento,
             status: importJobs.status,
             aceitou_imagem: importJobs.aceitou_imagem,
             confirmado: importJobs.confirmado,

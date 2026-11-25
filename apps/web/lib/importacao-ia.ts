@@ -2,22 +2,18 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import {
+  abrirArquivosDoEnvio,
   acessoParaImportar as acessoNoBanco,
   apagarArquivosDoJob,
   capacidadesDoModelo,
   csvDePosicoes,
   csvDeTransacoes,
-  decodificar,
-  detectarAtalho,
   ErroDeImportacao,
-  exigeSenha,
   ferramentasDoSistema,
   importacoesHoje,
   lerChaveMestra,
   modelosParaImportar,
   schema,
-  SenhaIncorreta,
-  tipoDoArquivo,
   validarLinhasEditadas,
   verificadorPorHttp,
   type Atalho,
@@ -184,12 +180,39 @@ export interface ResultadoDoEnvio {
 
 /**
  * Cria o job. Antes, sem IA: limites, atalho (CSV ja no layout vai pelo
- * importador de sempre), e o PDF com senha, aberto aqui com qpdf; a senha nao e
- * gravada nem vai ao worker, so o PDF decifrado, que sai do banco no fim.
+ * importador de sempre), e o PDF com senha, aberto aqui com qpdf
+ * (`abrirArquivosDoEnvio`); a senha nao e gravada nem vai ao worker, so o PDF
+ * decifrado, que sai do banco no fim.
  */
-export async function criarJobDeImportacao(
+export function criarJobDeImportacao(
   uid: string,
   carteira: string,
+  arquivos: ArquivoEnviado[],
+  o: { modelo?: string; aceitar_imagem: boolean },
+): Promise<ResultadoDoEnvio> {
+  return criarJob(uid, { documento: "carteira", carteira_id: carteira }, arquivos, o);
+}
+
+/** Fatura e extrato do Bolsiq Financas em PDF ou imagem (ADR 0040): o mesmo job. */
+export async function criarJobDeFinancas(
+  uid: string,
+  arquivos: ArquivoEnviado[],
+  o: { modelo?: string; aceitar_imagem: boolean },
+): Promise<string> {
+  const r = await criarJob(
+    uid,
+    { documento: "financas", carteira_id: null },
+    arquivos,
+    o,
+  );
+  if (!r.job_id)
+    throw new ErroDeImportacao("vazio", "Envie um PDF ou uma foto da fatura.");
+  return r.job_id;
+}
+
+async function criarJob(
+  uid: string,
+  destino: { documento: "carteira" | "financas"; carteira_id: string | null },
   arquivos: ArquivoEnviado[],
   o: { modelo?: string; aceitar_imagem: boolean },
 ): Promise<ResultadoDoEnvio> {
@@ -201,64 +224,11 @@ export async function criarJobDeImportacao(
   // Confere configuracao e consentimento antes de guardar qualquer arquivo.
   await acessoNoBanco(banco(), uid, opcoesDaCredencial(), o.modelo);
 
-  const limite = env.ASSISTANT_IMPORT_MAX_MB * 1024 * 1024;
-  const atalhos: ResultadoDoEnvio["atalhos"] = [];
-  const precisaSenha: string[] = [];
-  const paraOJob: ArquivoEnviado[] = [];
-  const ferramentas = await ferramentasDoSistema();
-  for (const a of arquivos) {
-    if (a.bytes.byteLength === 0)
-      throw new ErroDeImportacao("vazio", `${a.nome} está vazio.`);
-    if (a.bytes.byteLength > limite)
-      throw new ErroDeImportacao(
-        "grande_demais",
-        `${a.nome} passa de ${env.ASSISTANT_IMPORT_MAX_MB} MB. Divida o arquivo por período ou por conta.`,
-        413,
-      );
-    const tipo = tipoDoArquivo(a.nome, a.mime, a.bytes);
-    if (tipo === "csv" || tipo === "txt") {
-      const atalho = detectarAtalho(decodificar(a.bytes));
-      if (atalho) {
-        atalhos.push({ nome: a.nome, atalho });
-        continue;
-      }
-    }
-    if (tipo === "pdf" && (await exigeSenha(a.bytes))) {
-      if (!a.senha) {
-        precisaSenha.push(a.nome);
-        continue;
-      }
-      if (!ferramentas.decifrarPdf)
-        throw new ErroDeImportacao(
-          "sem_qpdf",
-          "Este servidor não consegue abrir PDF com senha. Salve o PDF sem senha e envie de novo.",
-          503,
-        );
-      try {
-        paraOJob.push({
-          ...a,
-          bytes: await ferramentas.decifrarPdf(a.bytes, a.senha),
-          senha: "",
-        });
-      } catch (e) {
-        if (e instanceof SenhaIncorreta)
-          throw new ErroDeImportacao(
-            "senha_incorreta",
-            `A senha de ${a.nome} não confere.`,
-            422,
-          );
-        throw e;
-      }
-      continue;
-    }
-    paraOJob.push(a);
-  }
-  if (precisaSenha.length > 0)
-    throw new ErroDeImportacao(
-      "precisa_senha",
-      `${precisaSenha.join(", ")} ${precisaSenha.length === 1 ? "tem" : "têm"} senha. Informe para abrir (muitos bancos usam parte do CPF).`,
-      422,
-    );
+  const { abertos: paraOJob, atalhos } = await abrirArquivosDoEnvio(
+    arquivos,
+    await ferramentasDoSistema(),
+    { limite_mb: env.ASSISTANT_IMPORT_MAX_MB, documento: destino.documento },
+  );
   if (paraOJob.length === 0) return { job_id: null, atalhos };
 
   const id = randomUUID();
@@ -266,7 +236,8 @@ export async function criarJobDeImportacao(
     await tx.insert(importJobs).values({
       id,
       user_id: uid,
-      carteira_id: carteira,
+      documento: destino.documento,
+      carteira_id: destino.carteira_id,
       status: "lendo",
       modelo: o.modelo ?? null,
       aceitou_imagem: o.aceitar_imagem,
@@ -325,6 +296,7 @@ export async function lerJob(uid: string, jobId: string): Promise<JobNaTela> {
     throw new ErroDeImportacao("job_nao_encontrado", "Importação não encontrada.", 404);
   return {
     id: r.j.id,
+    documento: r.j.documento as JobNaTela["documento"],
     carteira_id: r.j.carteira_id,
     status: r.j.status as JobNaTela["status"],
     estimativa: (r.j.estimativa as JobNaTela["estimativa"]) ?? null,
@@ -429,10 +401,10 @@ export async function reprocessarArquivo(
   });
 }
 
-/** O ultimo job da carteira que ainda importa (para voltar a pagina depois). */
+/** O ultimo job da carteira (ou do Financas) que ainda importa, para voltar a pagina. */
 export async function ultimoJob(
   uid: string,
-  carteira: string,
+  carteira: string | null,
 ): Promise<JobNaTela | null> {
   const id = await comoUsuario(banco(), uid, async (tx) => {
     const [j] = await tx
@@ -440,7 +412,9 @@ export async function ultimoJob(
       .from(importJobs)
       .where(
         and(
-          eq(importJobs.carteira_id, carteira),
+          carteira
+            ? eq(importJobs.carteira_id, carteira)
+            : eq(importJobs.documento, "financas"),
           sql`${importJobs.criado_em} > now() - interval '24 hours'`,
         ),
       )

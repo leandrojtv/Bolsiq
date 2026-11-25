@@ -1,6 +1,16 @@
 import { d } from "../decimal.js";
-import { detectarParcela, normalizarDeExtrato } from "./normalizar.js";
+import { detectarParcela, marcacaoDe, normalizarDeExtrato } from "./normalizar.js";
 import { leitorCsvC6 } from "./csv-c6.js";
+import {
+  cabecalhoDoCsv,
+  leitorCsvInterConta,
+  leitorCsvItauConta,
+  leitorCsvMapeado,
+  leitorCsvNubankCartao,
+  leitorCsvNubankConta,
+  PrecisaDeMapeamento,
+} from "./csv.js";
+import type { MapeamentoDeCsv } from "../contratos-importacao.js";
 import { leitorOfx } from "./ofx.js";
 import {
   ErroDeLeitura,
@@ -10,13 +20,25 @@ import {
 } from "./tipos.js";
 
 export * from "./categorizar.js";
+export * from "./conferencia.js";
+export * from "./csv.js";
 export { categoriaDoC6, dataC6, leitorCsvC6, valorC6 } from "./csv-c6.js";
 export * from "./normalizar.js";
 export { dataOfx, leitorOfx, valorOfx } from "./ofx.js";
 export * from "./tipos.js";
 
-/** Formatos aceitos. PDF entra aqui como novo leitor. */
-export const LEITORES: LeitorDeExtrato[] = [leitorOfx, leitorCsvC6];
+/**
+ * Formatos lidos sem IA. PDF e imagem nao passam por aqui: o assistente os le
+ * (ADR 0040) e entrega um `ExtratoLido` para a mesma revisao.
+ */
+export const LEITORES: LeitorDeExtrato[] = [
+  leitorOfx,
+  leitorCsvC6,
+  leitorCsvNubankCartao,
+  leitorCsvNubankConta,
+  leitorCsvInterConta,
+  leitorCsvItauConta,
+];
 
 /**
  * Bytes -> texto. Banco brasileiro declara CHARSET:1252 e manda UTF-8, ou o
@@ -33,17 +55,34 @@ export function decodificar(bytes: Uint8Array): string {
   return texto.charCodeAt(0) === 0xfeff ? texto.slice(1) : texto;
 }
 
-export function lerExtrato(bytes: Uint8Array, nome: string): ExtratoLido {
+const pareceCsv = (nome: string) => /\.(csv|txt)$/i.test(nome);
+
+/**
+ * Leitor conhecido primeiro; depois o mapeamento salvo para o mesmo cabecalho;
+ * CSV com cabecalho e sem mapeamento pede um (`PrecisaDeMapeamento`).
+ */
+export function lerExtrato(
+  bytes: Uint8Array,
+  nome: string,
+  mapeamentos: MapeamentoDeCsv[] = [],
+): ExtratoLido {
   const texto = decodificar(bytes);
-  const leitor = LEITORES.find((l) => l.reconhece(texto, nome));
-  if (!leitor)
-    throw new ErroDeLeitura(
-      "Formato não suportado: por enquanto, OFX e a fatura do C6 em CSV.",
-    );
-  return leitor.ler(texto, nome);
+  const leitor =
+    LEITORES.find((l) => l.reconhece(texto, nome)) ??
+    mapeamentos.map(leitorCsvMapeado).find((l) => l.reconhece(texto, nome));
+  if (leitor) return leitor.ler(texto, nome);
+  const csv = pareceCsv(nome) ? cabecalhoDoCsv(texto) : null;
+  if (csv) {
+    const { indice: _, ...cabecalho } = csv;
+    throw new PrecisaDeMapeamento(nome, cabecalho);
+  }
+  throw new ErroDeLeitura(
+    "Formato não suportado: OFX ou CSV aqui; PDF e foto vão pela leitura com IA.",
+  );
 }
 
 export interface LinhaProposta extends LinhaLida {
+  marcacao: NonNullable<LinhaLida["marcacao"]> | null;
   tipo: "receita" | "despesa";
   descricao_normalizada: string;
   parcela_atual: number | null;
@@ -65,6 +104,7 @@ export function proporLinhas(extrato: ExtratoLido): LinhaProposta[] {
     const parcela = l.parcela !== undefined ? l.parcela : detectarParcela(l.descricao);
     return {
       ...l,
+      marcacao: l.marcacao ?? marcacaoDe(l.descricao, extrato.tipo ?? "conta", l.sentido),
       tipo: l.sentido === "credito" ? "receita" : "despesa",
       descricao_normalizada,
       parcela_atual: parcela?.atual ?? null,

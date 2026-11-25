@@ -160,6 +160,7 @@ export async function exportarDados(uid: string) {
     importacoes: await tx.select().from(financas.imports),
     linhas_importadas: await tx.select().from(financas.import_rows),
     regras: await tx.select().from(financas.categorization_rules),
+    mapeamentos_de_csv: await tx.select().from(financas.csv_layouts),
     recorrencias: await tx.select().from(financas.recurrences),
     planejamento: await tx.select().from(financas.budget_items),
     parcelamentos: await tx.select().from(financas.installment_plans),
@@ -232,6 +233,7 @@ export async function excluirDados(uid: string): Promise<void> {
     await tx
       .delete(financas.categorization_rules)
       .where(eq(financas.categorization_rules.user_id, uid));
+    await tx.delete(financas.csv_layouts).where(eq(financas.csv_layouts.user_id, uid));
     await tx.delete(financas.recurrences).where(eq(financas.recurrences.user_id, uid));
     await tx.delete(financas.budget_items).where(eq(financas.budget_items.user_id, uid));
     await tx.delete(financas.insights).where(eq(financas.insights.user_id, uid));

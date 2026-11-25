@@ -25,6 +25,14 @@ import {
   type MedidaDaFixture,
 } from "./executar.js";
 import { FIXTURES } from "./fixtures.js";
+import {
+  executarFixtureDeFinancas,
+  medirFinancas,
+  resumirFinancas,
+  type MedidaDeFinancas,
+} from "./executar-financas.js";
+import { FIXTURES_DE_FINANCAS } from "./fixtures-financas.js";
+import { VERSAO_DO_PROMPT_DE_FINANCAS } from "../../prompts/importacao-financas-v1.js";
 
 const { EVAL_PROVEDOR, EVAL_MODELO, EVAL_CHAVE, EVAL_URL, EVAL_FIXTURES } = process.env;
 const raiz =
@@ -94,7 +102,62 @@ for (const f of fixtures) {
   );
 }
 
-const resumo = resumirMedidas(medidas);
+// Faturas e extratos do Financas (ADR 0040): sempre pela IA, mesmo nos
+// layouts que tem atalho, para medir o modelo em todos os bancos.
+const deFinancas = EVAL_FIXTURES
+  ? FIXTURES_DE_FINANCAS.filter((f) => EVAL_FIXTURES.split(",").includes(f.id))
+  : FIXTURES_DE_FINANCAS;
+const medidasDeFinancas: MedidaDeFinancas[] = [];
+for (const f of deFinancas) {
+  const modelo = real
+    ? criarModelo(
+        {
+          provedor: EVAL_PROVEDOR as Provedor,
+          chave: EVAL_CHAVE ?? null,
+          baseUrl: EVAL_URL ?? null,
+        },
+        EVAL_MODELO as string,
+      )
+    : modeloDeRoteiro(f.resposta);
+  let m: MedidaDeFinancas;
+  try {
+    m = medirFinancas(
+      f,
+      await executarFixtureDeFinancas(f, modelo, { capacidades, sem_atalho: true }),
+    );
+  } catch (erro) {
+    m = medirFinancas(
+      f,
+      null,
+      (erro as Error).message.replace(EVAL_CHAVE ?? "\u0000", "[removido]"),
+    );
+  }
+  medidasDeFinancas.push(m);
+  const ok =
+    m.faltantes.length === 0 &&
+    m.inventadas.length === 0 &&
+    m.total_conferido &&
+    m.parcelas_certas === m.parcelas_esperadas;
+  escrever(
+    `${ok ? "ok   " : "FALHA"} ${f.id}` +
+      (ok
+        ? ""
+        : ` linhas=${m.linhas_extraidas}/${m.linhas_esperadas} total=${m.total_conferido}` +
+          ` parcelas=${m.parcelas_certas}/${m.parcelas_esperadas}` +
+          ` faltantes=[${m.faltantes.join(", ")}] inventadas=[${m.inventadas.join(", ")}]` +
+          (m.erro ? ` erro=${m.erro}` : "")),
+  );
+}
+
+const resumoDaCarteira = resumirMedidas(medidas);
+const financas = resumirFinancas(medidasDeFinancas);
+const resumo = {
+  ...resumoDaCarteira,
+  // Fixtures filtradas sem nenhuma do Financas: vale so a carteira.
+  aprovado:
+    resumoDaCarteira.aprovado && (medidasDeFinancas.length === 0 || financas.aprovado),
+  financas,
+};
 escrever(JSON.stringify(resumo, null, 2));
 
 if (real && !EVAL_FIXTURES) {
@@ -109,9 +172,11 @@ if (real && !EVAL_FIXTURES) {
         provedor: EVAL_PROVEDOR,
         modelo: EVAL_MODELO,
         prompt: VERSAO_DO_PROMPT_DE_IMPORTACAO,
+        prompt_financas: VERSAO_DO_PROMPT_DE_FINANCAS,
         data: new Date().toISOString().slice(0, 10),
         resumo,
         fixtures: medidas,
+        fixtures_financas: medidasDeFinancas,
       },
       null,
       2,

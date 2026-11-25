@@ -515,6 +515,10 @@ export const imports = finance.table(
     fim: dia("fim"),
     saldo_informado: dinheiro("saldo_informado"),
     saldo_data: dia("saldo_data"),
+    /** Total da fatura escrito no documento: a revisao confere a soma das linhas. */
+    total_informado: dinheiro("total_informado"),
+    /** Extracao do assistente (PDF ou imagem lidos com IA ou pelo atalho), ADR 0040. */
+    extracao_id: text("extracao_id"),
     /** linhas, selecionadas, total, duplicadas, sem_categoria, gravadas. */
     totais: jsonb("totais").notNull().default({}),
     criada_em: utc("criada_em").notNull().defaultNow(),
@@ -592,9 +596,20 @@ export const import_rows = finance.table(
     divisoes: jsonb("divisoes"),
     /** Lancamento(s) gravados na confirmacao. */
     transaction_id: text("transaction_id"),
+    /** pagamento | estorno | saldo_anterior | iof: nao e compra nem receita comum. */
+    marcacao: text("marcacao"),
+    /** Compra internacional: moeda e valor na moeda de origem. */
+    moeda_original: text("moeda_original"),
+    valor_moeda_original: dinheiro("valor_moeda_original"),
+    /** Por que a linha merece um olhar (lida com confianca baixa, total que nao fecha). */
+    aviso: text("aviso"),
   },
   (t) => [
     index("import_rows_import_idx").on(t.import_id, t.ordem),
+    check(
+      "import_rows_marcacao_ck",
+      sql`${t.marcacao} is null or ${t.marcacao} in ('pagamento', 'estorno', 'saldo_anterior', 'iof')`,
+    ),
     foreignKey({
       name: "import_rows_import_fk",
       columns: [t.user_id, t.import_id],
@@ -613,6 +628,25 @@ export const import_rows = finance.table(
     check("import_rows_acao_ck", sql`${t.acao} in ('importar', 'ignorar', 'conciliar')`),
     check("import_rows_valor_ck", sql`${t.valor} > 0`),
   ],
+);
+
+/**
+ * Mapeamento de colunas de um CSV que nenhum leitor conhece, pelo cabecalho
+ * normalizado (`assinatura`). O mesmo banco exporta o mesmo cabecalho: a
+ * proxima importacao le sem perguntar.
+ */
+export const csv_layouts = finance.table(
+  "csv_layouts",
+  {
+    id: text("id").primaryKey(),
+    user_id: text("user_id").notNull(),
+    assinatura: text("assinatura").notNull(),
+    /** data, descricao, valor ou credito/debito, parcela, formatos e sinal. */
+    mapeamento: jsonb("mapeamento").notNull(),
+    criado_em: utc("criado_em").notNull().defaultNow(),
+    atualizado_em: utc("atualizado_em").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("csv_layouts_assinatura_uq").on(t.user_id, t.assinatura)],
 );
 
 /** Regra de categorizacao. A do usuario vence a aprendida. */

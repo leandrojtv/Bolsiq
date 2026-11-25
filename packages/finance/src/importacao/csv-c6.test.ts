@@ -174,12 +174,15 @@ describe("leitor CSV do C6: casos de borda", () => {
     expect(e.avisos).toEqual(['linha 2: parcela "7/3" não reconhecida']);
   });
 
-  it("CSV de outro banco nao e reconhecido", () => {
+  it("CSV de outro banco nao e lido como C6: pede o mapeamento das colunas", () => {
     expect(() =>
       lerExtrato(
         new TextEncoder().encode("data;descricao;valor\n01/10/2026;X;1"),
         "x.csv",
       ),
+    ).toThrow(/CSV desconhecido/);
+    expect(() =>
+      lerExtrato(new TextEncoder().encode("isto nao e extrato"), "x.pdf"),
     ).toThrow(/Formato não suportado/);
   });
 

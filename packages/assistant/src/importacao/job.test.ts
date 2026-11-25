@@ -27,6 +27,7 @@ const bytesDe = (e: Entrada) =>
 function repoEmMemoria(ids: string[], job: Partial<JobDeImportacao> = {}) {
   const estado: JobDeImportacao = {
     id: "job-1",
+    documento: "carteira",
     status: "lendo",
     aceitou_imagem: true,
     confirmado: false,

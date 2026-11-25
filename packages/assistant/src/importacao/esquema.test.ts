@@ -1,6 +1,6 @@
 import { zodSchema } from "ai";
 import { describe, expect, it } from "vitest";
-import { CabecalhoDaIA } from "./esquema.js";
+import { CabecalhoDaIA, CabecalhoFinancasDaIA } from "./esquema.js";
 
 /** Campos com uniao de tipos: `type: [..]`, `anyOf` ou `oneOf`, em qualquer nivel. */
 function unioes(no: unknown): number {
@@ -31,6 +31,14 @@ describe("schema enviado ao provedor", () => {
     expect(propriedades(await zodSchema(CabecalhoDaIA).jsonSchema)).toBeLessThanOrEqual(
       10,
     );
+  });
+
+  it("o cabecalho do Financas tambem (ADR 0040), sem uniao e todo campo obrigatorio", async () => {
+    const s = await zodSchema(CabecalhoFinancasDaIA).jsonSchema;
+    expect(propriedades(s)).toBeLessThanOrEqual(10);
+    expect(unioes(s)).toBe(0);
+    const o = s as { properties: Record<string, unknown>; required: string[] };
+    expect([...o.required].sort()).toEqual(Object.keys(o.properties).sort());
   });
 
   it("nao tem uniao de tipos: a Anthropic recusa acima de 16", async () => {

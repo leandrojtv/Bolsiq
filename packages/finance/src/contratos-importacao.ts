@@ -110,7 +110,41 @@ export const STATUS_DE_IMPORTACAO = [
   "desfeita",
 ] as const;
 export const SITUACOES = ["nova", "ja_importada", "possivel_duplicata"] as const;
+export const MARCACOES_DE_LINHA = [
+  "pagamento",
+  "estorno",
+  "saldo_anterior",
+  "iof",
+] as const;
 export const ACOES = ["importar", "ignorar", "conciliar"] as const;
+
+const NomeDeColuna = z.string().min(1).max(120);
+
+/** Colunas de um CSV desconhecido, salvas pelo cabecalho (`assinatura`). */
+export const MapeamentoDeCsv = z
+  .object({
+    assinatura: z.string().min(1).max(500),
+    tipo: z.enum(["conta", "cartao"]),
+    data: NomeDeColuna,
+    descricao: NomeDeColuna,
+    valor: NomeDeColuna.nullable().default(null),
+    credito: NomeDeColuna.nullable().default(null),
+    debito: NomeDeColuna.nullable().default(null),
+    parcela: NomeDeColuna.nullable().default(null),
+    formato_data: z
+      .enum(["dd/mm/aaaa", "aaaa-mm-dd", "mm/dd/aaaa"])
+      .default("dd/mm/aaaa"),
+    decimal: z.enum(["virgula", "ponto"]).default("virgula"),
+    inverter_sinal: z.boolean().default(false),
+  })
+  .refine((m) => m.valor || m.credito || m.debito, {
+    message: "escolha a coluna do valor",
+    path: ["valor"],
+  });
+export type MapeamentoDeCsv = z.infer<typeof MapeamentoDeCsv>;
+export type MapeamentoDigitado = z.input<typeof MapeamentoDeCsv>;
+
+export const Mapeamentos = z.array(MapeamentoDeCsv).max(10).default([]);
 
 /** Campos de texto do multipart que cria a importacao (os arquivos vao em `arquivos`). */
 export const NovaImportacao = z
@@ -145,8 +179,19 @@ export const AnaliseDeArquivo = z.object({
   avisos: z.array(z.string()),
 });
 
+/** CSV sem leitor nem mapeamento salvo: a tela pede as colunas. */
+export const CsvParaMapear = z.object({
+  nome: z.string(),
+  assinatura: z.string(),
+  separador: z.string(),
+  colunas: z.array(z.string()),
+  amostra: z.array(z.array(z.string())),
+});
+export type CsvParaMapear = z.infer<typeof CsvParaMapear>;
+
 export const AnaliseDeImportacao = z.object({
   arquivos: z.array(AnaliseDeArquivo),
+  para_mapear: z.array(CsvParaMapear),
   /** Destino sugerido pelo BANKID/ACCTID, pelo final do cartao ou por importacao anterior. */
   sugestao: z.object({
     alvo: z.enum(ALVOS).nullable(),
@@ -157,6 +202,83 @@ export const AnaliseDeImportacao = z.object({
   }),
 });
 export type AnaliseDeImportacao = z.infer<typeof AnaliseDeImportacao>;
+
+// Leitura de PDF e imagem pelo assistente (ADR 0040)
+
+export const STATUS_DA_LEITURA = [
+  "lendo",
+  "aguardando_confirmacao",
+  "extraindo",
+  "pronto",
+  "falhou",
+  "cancelado",
+] as const;
+
+/** O job da leitura como a tela acompanha (por SSE ou consulta). */
+export const JobDeLeitura = z.object({
+  id: Id,
+  status: z.enum(STATUS_DA_LEITURA),
+  estimativa: z.object({ custo_estimado: z.string().nullable() }).nullable(),
+  erro: z.string().nullable(),
+  criado_em: z.string(),
+  arquivos: z.array(
+    z.object({
+      indice: z.number().int(),
+      nome: z.string(),
+      estado: z.string(),
+      progresso: z
+        .object({
+          etapa: z.string(),
+          feitos: z.number().optional(),
+          total: z.number().optional(),
+          linhas: z.number().optional(),
+        })
+        .nullable(),
+      estrategia: z.string().nullable(),
+      erro: z.string().nullable(),
+      tem_resultado: z.boolean(),
+      tem_arquivo: z.boolean(),
+    }),
+  ),
+});
+export type JobDeLeitura = z.infer<typeof JobDeLeitura>;
+
+/** Campos do multipart da leitura com IA, alem dos `arquivos`. */
+export const NovaLeitura = z.object({
+  modelo: z.string().trim().max(200).optional(),
+  aceitar_imagem: z.enum(["true", "false"]).default("false"),
+  /** Senha de PDF por nome de arquivo (JSON). Usada so em memoria; nunca gravada. */
+  senhas: z.record(z.string().max(200), z.string().max(200)).default({}),
+});
+
+/** O que a IA (ou o atalho) leu de um arquivo, antes de criar a revisao. */
+export const LeituraDeFatura = z.object({
+  nome: z.string(),
+  /** Lida pelo layout conhecido do banco, sem IA. */
+  atalho: z.boolean(),
+  tipo: z.enum(ALVOS),
+  banco: z.string().nullable(),
+  final_cartao: z.string().nullable(),
+  vencimento: Data.nullable(),
+  fechamento: Data.nullable(),
+  total_informado: Dinheiro.nullable(),
+  linhas: z.number().int(),
+  /** Linhas que a IA propos e a validacao recusou (invencao, total, data). */
+  rejeitadas: z.array(z.object({ motivo: z.string(), trecho: z.string() })),
+  avisos: z.array(z.string()),
+  sugestao: z.object({
+    alvo: z.enum(ALVOS).nullable(),
+    account_id: Id.nullable(),
+    card_id: Id.nullable(),
+    vencimento: Data.nullable(),
+  }),
+});
+export type LeituraDeFatura = z.infer<typeof LeituraDeFatura>;
+
+export const ParametroDaLeitura = z.object({
+  job: Id,
+  indice: z.coerce.number().int().min(0),
+});
 
 const Divisao = z.object({ category_id: Id, valor: Dinheiro });
 
@@ -187,6 +309,11 @@ export const LinhaDeImportacao = z.object({
   /** Pagamento de fatura ou transferencia propria pela descricao. */
   sugere_transferencia: z.boolean(),
   divisoes: z.array(Divisao).nullable(),
+  /** Pagamento, estorno e saldo anterior nao entram como despesa; IOF tem categoria propria. */
+  marcacao: z.enum(MARCACOES_DE_LINHA).nullable(),
+  moeda_original: z.string().nullable(),
+  valor_moeda_original: Dinheiro.nullable(),
+  aviso: z.string().nullable(),
 });
 export type LinhaDeImportacao = z.infer<typeof LinhaDeImportacao>;
 
@@ -224,6 +351,22 @@ export const Importacao = z.object({
       confere: z.boolean(),
     })
     .nullable(),
+  /**
+   * Total escrito na fatura contra a soma das linhas do documento (compras,
+   * IOF e tarifas menos estornos; pagamento e saldo anterior fora). Diferenca
+   * acima de R$ 0,05 e aviso, com as linhas suspeitas.
+   */
+  conferencia_fatura: z
+    .object({
+      total_informado: Dinheiro,
+      total_calculado: Dinheiro,
+      diferenca: Dinheiro,
+      confere: z.boolean(),
+      suspeitas: z.array(Id),
+    })
+    .nullable(),
+  /** Lida de PDF ou imagem pelo assistente (IA ou atalho). */
+  extracao_id: Id.nullable(),
   /** Pode desfazer: confirmada e nenhum lancamento conciliado. */
   pode_desfazer: z.boolean(),
   criada_em: z.string(),

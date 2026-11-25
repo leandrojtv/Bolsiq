@@ -15,6 +15,10 @@ import {
   type ResultadoDaImportacaoComIA,
 } from "./servico.js";
 import type { Verificador } from "./validacao.js";
+import {
+  importarFinancasComIA,
+  type ResultadoDaLeituraFinancas,
+} from "./servico-financas.js";
 
 /**
  * Importacao com IA em segundo plano (ADR 0027). O web cria o job e os arquivos;
@@ -37,8 +41,12 @@ export type EstadoDoArquivo =
   | "falhou"
   | "cancelado";
 
+/** carteira: posicoes e transacoes; financas: fatura e extrato (ADR 0040). */
+export type DocumentoDoJob = "carteira" | "financas";
+
 export interface JobDeImportacao {
   id: string;
+  documento: DocumentoDoJob;
   status: StatusDoJob;
   aceitou_imagem: boolean;
   confirmado: boolean;
@@ -59,7 +67,7 @@ export interface CamposDoArquivo {
   progresso?: Progresso | null;
   estrategia?: string;
   estimativa?: Estimativa;
-  resultado?: ResultadoDaImportacaoComIA;
+  resultado?: ResultadoDaImportacaoComIA | ResultadoDaLeituraFinancas;
   erro?: string | null;
 }
 
@@ -229,8 +237,9 @@ export async function executarJob(
         .then(() => d.repo.atualizarArquivo(a.indice, { estado, progresso: x }))
         .catch(() => undefined);
     });
+    const importar = job.documento === "financas" ? importarFinancasComIA : importarComIA;
     try {
-      const resultado = await importarComIA({
+      const resultado = await importar({
         arquivo: p,
         original: d.acesso.guardar_original
           ? { mime: a.mime, dados: a.dados as Uint8Array }

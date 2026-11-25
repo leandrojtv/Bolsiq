@@ -64,6 +64,8 @@ import {
   confirmarImportacao,
   criarCartao,
   criarImportacao,
+  criarImportacaoDeExtratos,
+  sugerirDestino,
   criarRegra,
   desfazerImportacao,
   editarCartao,
@@ -75,6 +77,8 @@ import {
   listarRegras,
   obterImportacao,
   type ArquivoRecebido,
+  type ExtratoRecebido,
+  type MapeamentoDeCsv,
   type EdicaoDeCartao,
   type EdicaoDeLinha,
   type EdicaoDeRegra,
@@ -251,19 +255,48 @@ export const limitesDeImportacao = (): LimitesDeImportacao => ({
   arquivos: env.FINANCE_IMPORT_MAX_FILES,
 });
 
-export const analisar = (uid: string, arquivos: ArquivoRecebido[]) =>
-  como(uid, (tx) => analisarArquivos(tx, uid, arquivos, limitesDeImportacao()));
+export const analisar = (
+  uid: string,
+  arquivos: ArquivoRecebido[],
+  mapeamentos: MapeamentoDeCsv[] = [],
+) =>
+  como(uid, (tx) =>
+    analisarArquivos(tx, uid, arquivos, limitesDeImportacao(), mapeamentos),
+  );
 
 export async function novaImportacao(
   uid: string,
   pedido: NovaImportacao,
   arquivos: ArquivoRecebido[],
+  mapeamentos: MapeamentoDeCsv[] = [],
 ) {
   const o = await origem();
   return como(uid, (tx) =>
-    criarImportacao(tx, uid, pedido, arquivos, limitesDeImportacao(), o),
+    criarImportacao(tx, uid, pedido, arquivos, limitesDeImportacao(), o, mapeamentos),
   );
 }
+
+/**
+ * Revisao a partir de extratos ja lidos (PDF e imagem pelo assistente, ADR
+ * 0040): a mesma deduplicacao, parcela e categorizacao do OFX e do CSV.
+ */
+export async function novaImportacaoDeExtratos(
+  uid: string,
+  pedido: NovaImportacao,
+  lidos: ExtratoRecebido[],
+  extracao_id: string,
+) {
+  const o = await origem();
+  return como(uid, (tx) =>
+    criarImportacaoDeExtratos(tx, uid, pedido, lidos, o, {
+      extracao_id,
+      limites: limitesDeImportacao(),
+    }),
+  );
+}
+
+export const destinoSugerido = (uid: string, lidos: ExtratoRecebido[]) =>
+  como(uid, (tx) => sugerirDestino(tx, uid, lidos));
 
 export const importacoes = (uid: string) => como(uid, (tx) => listarImportacoes(tx, uid));
 

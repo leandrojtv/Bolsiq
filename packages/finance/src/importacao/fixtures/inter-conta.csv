@@ -1,0 +1,10 @@
+Extrato Conta Corrente 
+Conta ;00000000
+Período ;01/10/2026 a 31/10/2026
+Saldo ;3.210,45
+
+Data Lançamento;Histórico;Descrição;Valor;Saldo
+02/10/2026;Pix recebido;EMPRESA EXEMPLO LTDA;4.800,00;8.010,45
+04/10/2026;Compra no debito;SUPERMERCADO CENTRAL;-245,30;7.765,15
+09/10/2026;Pagamento efetuado;FATURA CARTAO INTER;-1.120,00;6.645,15
+15/10/2026;Pix enviado;ALUGUEL EXEMPLO;-2.500,00;4.145,15

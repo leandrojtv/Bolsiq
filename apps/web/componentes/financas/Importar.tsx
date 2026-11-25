@@ -6,8 +6,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import type {
   AnaliseDeImportacao,
   Categoria,
+  CsvParaMapear,
   ImportacaoComLinhas,
   LinhaDeImportacao,
+  MapeamentoDigitado,
 } from "@bolsiq/finance/puro";
 import { Button, Card, EmptyState, Money, Skeleton, StatTile, cn } from "@bolsiq/ui";
 import { api } from "@/lib/api";
@@ -20,10 +22,11 @@ import {
   useCartoes,
   useCategorias,
   useContas,
-  useFaturas,
   useImportacoes,
 } from "./cliente";
 import { ROTULO } from "./Contas";
+import { SeletorDeDestino, useDestino } from "./Destino";
+import { LeituraComIA } from "./LeituraComIA";
 
 const STATUS = {
   revisao: "Em revisão",
@@ -31,6 +34,13 @@ const STATUS = {
   cancelada: "Cancelada",
   desfeita: "Desfeita",
 } as const;
+
+const MARCACAO: Record<NonNullable<LinhaDeImportacao["marcacao"]>, string> = {
+  pagamento: "pagamento da fatura",
+  estorno: "estorno",
+  saldo_anterior: "saldo anterior: não entra",
+  iof: "IOF",
+};
 
 const comSinal = (l: Pick<LinhaDeImportacao, "tipo" | "valor">) =>
   l.tipo === "despesa" ? `-${l.valor}` : l.valor;
@@ -64,53 +74,213 @@ function Categorias({
   );
 }
 
+const OPCAO_VAZIA = "";
+
+/** As colunas de um CSV que nenhum leitor conhece; fica salvo para a proxima vez. */
+function MapeamentoDoCsv({
+  csv,
+  onAplicar,
+}: {
+  csv: CsvParaMapear;
+  onAplicar: (m: MapeamentoDigitado) => void;
+}) {
+  const acha = (re: RegExp) => csv.colunas.find((c) => re.test(c)) ?? OPCAO_VAZIA;
+  const [m, setM] = useState({
+    tipo: "conta" as "conta" | "cartao",
+    data: acha(/data|dt/),
+    descricao: acha(/descri|hist|lanc|estabelec|title/),
+    valor: acha(/^valor|amount|montante/),
+    credito: acha(/cr[eé]dito|entrada/),
+    debito: acha(/d[eé]bito|sa[ií]da/),
+    parcela: acha(/parc/),
+    formato_data: "dd/mm/aaaa" as MapeamentoDigitado["formato_data"],
+    decimal: "virgula" as MapeamentoDigitado["decimal"],
+    inverter_sinal: false,
+  });
+  const [separado, setSeparado] = useState(!m.valor && Boolean(m.credito || m.debito));
+  const coluna = (
+    campo: "data" | "descricao" | "valor" | "credito" | "debito" | "parcela",
+    rotulo: string,
+  ) => (
+    <label className={ROTULO}>
+      {rotulo}
+      <select
+        className={CAMPO}
+        value={m[campo]}
+        onChange={(e) => setM({ ...m, [campo]: e.target.value })}
+      >
+        <option value={OPCAO_VAZIA}>Nenhuma</option>
+        {csv.colunas.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+  return (
+    <fieldset
+      aria-label={`Colunas de ${csv.nome}`}
+      className="m-0 flex flex-col gap-3 rounded-control border border-border p-3"
+    >
+      <legend className="px-1 text-sm font-semibold">{csv.nome}: diga as colunas</legend>
+      <div className="overflow-x-auto">
+        <table aria-label={`Amostra de ${csv.nome}`} className="text-xs">
+          <thead>
+            <tr>
+              {csv.colunas.map((c) => (
+                <th key={c} className="px-2 py-1 text-left font-medium text-text-3">
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {csv.amostra.map((l, i) => (
+              <tr key={i}>
+                {l.map((v, j) => (
+                  <td key={j} className="px-2 py-1 font-mono whitespace-nowrap">
+                    {v}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <label className={ROTULO}>
+          É de
+          <select
+            className={CAMPO}
+            value={m.tipo}
+            onChange={(e) => setM({ ...m, tipo: e.target.value as "conta" | "cartao" })}
+          >
+            <option value="conta">Conta</option>
+            <option value="cartao">Cartão de crédito</option>
+          </select>
+        </label>
+        {coluna("data", "Coluna da data")}
+        {coluna("descricao", "Coluna da descrição")}
+        <label className="flex items-center gap-2 text-sm md:col-span-3">
+          <input
+            type="checkbox"
+            checked={separado}
+            onChange={(e) => setSeparado(e.target.checked)}
+          />
+          Crédito e débito em colunas separadas
+        </label>
+        {separado ? (
+          <>
+            {coluna("credito", "Coluna do crédito")}
+            {coluna("debito", "Coluna do débito")}
+          </>
+        ) : (
+          coluna("valor", "Coluna do valor")
+        )}
+        {coluna("parcela", "Coluna da parcela")}
+        <label className={ROTULO}>
+          Formato da data
+          <select
+            className={CAMPO}
+            value={m.formato_data}
+            onChange={(e) =>
+              setM({
+                ...m,
+                formato_data: e.target.value as MapeamentoDigitado["formato_data"],
+              })
+            }
+          >
+            <option value="dd/mm/aaaa">dd/mm/aaaa</option>
+            <option value="aaaa-mm-dd">aaaa-mm-dd</option>
+            <option value="mm/dd/aaaa">mm/dd/aaaa</option>
+          </select>
+        </label>
+        <label className={ROTULO}>
+          Decimal
+          <select
+            className={CAMPO}
+            value={m.decimal}
+            onChange={(e) =>
+              setM({ ...m, decimal: e.target.value as MapeamentoDigitado["decimal"] })
+            }
+          >
+            <option value="virgula">vírgula (1.234,56)</option>
+            <option value="ponto">ponto (1,234.56)</option>
+          </select>
+        </label>
+        {!separado && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={m.inverter_sinal}
+              onChange={(e) => setM({ ...m, inverter_sinal: e.target.checked })}
+            />
+            {m.tipo === "cartao" ? "Compras vêm negativas" : "Saídas vêm positivas"}
+          </label>
+        )}
+      </div>
+      <Button
+        variant="secondary"
+        disabled={
+          !m.data || !m.descricao || (separado ? !m.credito && !m.debito : !m.valor)
+        }
+        onClick={() =>
+          onAplicar({
+            assinatura: csv.assinatura,
+            tipo: m.tipo,
+            data: m.data,
+            descricao: m.descricao,
+            valor: separado ? null : m.valor || null,
+            credito: separado ? m.credito || null : null,
+            debito: separado ? m.debito || null : null,
+            parcela: m.parcela || null,
+            formato_data: m.formato_data,
+            decimal: m.decimal,
+            inverter_sinal: !separado && m.inverter_sinal,
+          })
+        }
+      >
+        Ler com estas colunas
+      </Button>
+    </fieldset>
+  );
+}
+
 /** Passo 1: arquivos, leitura sem gravar e destino sugerido. */
 function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
-  const { data: contas = [] } = useContas();
-  const { data: cartoes = [] } = useCartoes();
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [analise, setAnalise] = useState<AnaliseDeImportacao | null>(null);
-  const [alvo, setAlvo] = useState<"conta" | "cartao">("conta");
-  const [conta, setConta] = useState("");
-  const [cartao, setCartao] = useState("");
-  const [vencimento, setVencimento] = useState("");
+  const [mapeamentos, setMapeamentos] = useState<MapeamentoDigitado[]>([]);
+  const destino = useDestino();
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const { data: faturas = [] } = useFaturas(alvo === "cartao" ? cartao : "");
-  // A lista cobre os ciclos ao redor de hoje; extrato antigo sugere fatura fora dela.
-  const sugerida =
-    analise?.sugestao.card_id === cartao ? analise.sugestao.vencimento : null;
-  const opcoesDeFatura = [
-    ...faturas,
-    ...(sugerida && !faturas.some((f) => f.vencimento === sugerida)
-      ? [{ vencimento: sugerida }]
-      : []),
-  ].sort((a, b) => b.vencimento.localeCompare(a.vencimento));
 
-  const formulario = (extra: Record<string, string> = {}) => {
+  const formulario = (
+    lista: File[],
+    ms: MapeamentoDigitado[],
+    extra: Record<string, string> = {},
+  ) => {
     const form = new FormData();
-    for (const a of arquivos) form.append("arquivos", a);
+    for (const a of lista) form.append("arquivos", a);
+    if (ms.length > 0) form.set("mapeamentos", JSON.stringify(ms));
     for (const [k, v] of Object.entries(extra)) if (v) form.set(k, v);
     return form;
   };
 
-  async function ler(lista: File[]) {
+  async function ler(lista: File[], ms: MapeamentoDigitado[] = []) {
     setArquivos(lista);
+    setMapeamentos(ms);
     setAnalise(null);
     setErro(null);
     if (lista.length === 0) return;
-    const form = new FormData();
-    for (const a of lista) form.append("arquivos", a);
     try {
       const { data } = await api<{ data: AnaliseDeImportacao }>(
         "financas/importacoes/analise",
-        { method: "POST", body: form },
+        { method: "POST", body: formulario(lista, ms) },
       );
       setAnalise(data);
-      if (data.sugestao.alvo) setAlvo(data.sugestao.alvo);
-      setConta(data.sugestao.account_id ?? "");
-      setCartao(data.sugestao.card_id ?? "");
-      setVencimento(data.sugestao.vencimento ?? "");
+      destino.sugerir(data.sugestao);
     } catch (falha) {
       setErro((falha as Error).message);
     }
@@ -123,11 +293,7 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
     try {
       const { data } = await api<{ data: ImportacaoComLinhas }>("financas/importacoes", {
         method: "POST",
-        body: formulario(
-          alvo === "conta"
-            ? { alvo, account_id: conta }
-            : { alvo, card_id: cartao, vencimento },
-        ),
+        body: formulario(arquivos, mapeamentos, destino.pedido()),
       });
       onRevisao(data);
     } catch (falha) {
@@ -137,6 +303,7 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
     }
   }
 
+  const pendentes = analise?.para_mapear ?? [];
   return (
     <Card title="Importar extrato ou fatura">
       <form onSubmit={(e) => void revisar(e)} className="flex flex-col gap-4" noValidate>
@@ -144,7 +311,7 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
           Arquivos OFX ou CSV
           <input
             type="file"
-            accept=".ofx,.qfx,.csv"
+            accept=".ofx,.qfx,.csv,.txt"
             multiple
             className={cn(CAMPO, "py-1.5")}
             onChange={(e) => void ler(Array.from(e.target.files ?? []))}
@@ -152,10 +319,11 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
         </label>
         <p className="m-0 text-xs text-text-3">
           No app ou no internet banking, exporte o extrato da conta ou a fatura do cartão
-          em OFX (às vezes chamado de Money). Do C6, a fatura em CSV também serve. Dá para
-          enviar vários de uma vez.
+          em OFX (às vezes chamado de Money) ou CSV. Nubank, Inter, Itaú e C6 são lidos
+          direto; de outro banco, você diz uma vez quais são as colunas. Dá para enviar
+          vários de uma vez. Fatura só em PDF ou foto vai na leitura com IA, abaixo.
         </p>
-        {analise && (
+        {analise && analise.arquivos.length > 0 && (
           <ul
             aria-label="Arquivos lidos"
             className="m-0 flex list-none flex-col gap-1 p-0"
@@ -177,82 +345,20 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
             ))}
           </ul>
         )}
-        {analise && (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <label className={ROTULO}>
-              Destino
-              <select
-                className={CAMPO}
-                value={alvo}
-                onChange={(e) => setAlvo(e.target.value as "conta" | "cartao")}
-              >
-                <option value="conta">Conta</option>
-                <option value="cartao">Cartão de crédito</option>
-              </select>
-            </label>
-            {alvo === "conta" ? (
-              <label className={ROTULO}>
-                Conta
-                <select
-                  className={CAMPO}
-                  value={conta}
-                  onChange={(e) => setConta(e.target.value)}
-                >
-                  <option value="">Escolha</option>
-                  {contas
-                    .filter((c) => !c.arquivada)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.nome}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            ) : (
-              <>
-                <label className={ROTULO}>
-                  Cartão
-                  <select
-                    className={CAMPO}
-                    value={cartao}
-                    onChange={(e) => setCartao(e.target.value)}
-                  >
-                    <option value="">Escolha</option>
-                    {cartoes
-                      .filter((c) => !c.arquivado)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nome}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label className={ROTULO}>
-                  Fatura (vencimento)
-                  <select
-                    className={CAMPO}
-                    value={vencimento}
-                    onChange={(e) => setVencimento(e.target.value)}
-                  >
-                    <option value="">Escolha</option>
-                    {opcoesDeFatura.map((f) => (
-                      <option key={f.vencimento} value={f.vencimento}>
-                        {dataBr(f.vencimento)}
-                        {f.vencimento === analise.sugestao.vencimento
-                          ? " (sugerida)"
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-          </div>
-        )}
-        {analise && alvo === "cartao" && cartoes.length === 0 && (
-          <p className="m-0 text-sm text-text-2">
-            Cadastre o cartão antes, em <a href="/financas/cartoes">Cartões</a>.
-          </p>
+        {pendentes.map((p) => (
+          <MapeamentoDoCsv
+            key={p.assinatura}
+            csv={p}
+            onAplicar={(m) =>
+              void ler(arquivos, [
+                ...mapeamentos.filter((x) => x.assinatura !== m.assinatura),
+                m,
+              ])
+            }
+          />
+        ))}
+        {analise && analise.arquivos.length > 0 && (
+          <SeletorDeDestino d={destino} sugestao={analise.sugestao} />
         )}
         {erro && (
           <p role="alert" className="m-0 text-sm text-down">
@@ -263,7 +369,11 @@ function Envio({ onRevisao }: { onRevisao: (i: ImportacaoComLinhas) => void }) {
           type="submit"
           variant="primary"
           disabled={
-            enviando || !analise || (alvo === "conta" ? !conta : !cartao || !vencimento)
+            enviando ||
+            !analise ||
+            pendentes.length > 0 ||
+            analise.arquivos.length === 0 ||
+            !destino.completo
           }
         >
           <Upload aria-hidden="true" size={16} />
@@ -433,6 +543,9 @@ function Revisao({
   }
 
   const t = imp.totais;
+  const suspeitas = new Set(
+    imp.conferencia_fatura?.confere === false ? imp.conferencia_fatura.suspeitas : [],
+  );
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -471,6 +584,39 @@ function Revisao({
           {imp.conferencia.confere ? "." : ". Confira o saldo inicial da conta."}
         </p>
       )}
+      {imp.conferencia_fatura && (
+        <p
+          role={imp.conferencia_fatura.confere ? undefined : "alert"}
+          aria-label="Total da fatura"
+          className={cn(
+            "m-0 rounded-control px-3 py-2 text-sm",
+            imp.conferencia_fatura.confere ? "bg-up-soft" : "bg-warn-bg",
+          )}
+        >
+          {imp.conferencia_fatura.confere ? (
+            <>
+              Total da fatura confere:{" "}
+              <Money value={imp.conferencia_fatura.total_informado} />.
+            </>
+          ) : (
+            <>
+              A soma das linhas (<Money value={imp.conferencia_fatura.total_calculado} />)
+              não bate com o total da fatura (
+              <Money value={imp.conferencia_fatura.total_informado} />
+              ): diferença de <Money value={imp.conferencia_fatura.diferenca} />.{" "}
+              {imp.conferencia_fatura.suspeitas.length > 0
+                ? `Confira as ${imp.conferencia_fatura.suspeitas.length} linhas destacadas.`
+                : "Confira se faltou alguma linha."}
+            </>
+          )}
+        </p>
+      )}
+      {imp.extracao_id && (
+        <p className="m-0 text-xs text-text-3">
+          Lida do PDF ou da foto. Confira as linhas antes de gravar: nada é gravado sem a
+          sua confirmação.
+        </p>
+      )}
       {erro && (
         <p role="alert" className="m-0 text-sm text-down">
           {erro}
@@ -498,6 +644,7 @@ function Revisao({
           <tbody>
             {imp.linhas.map((l) => {
               const transferencia = l.transferencia_conta_id || l.transferencia_cartao_id;
+              const suspeita = suspeitas.has(l.id);
               const iguais = imp.linhas.filter(
                 (x) =>
                   x.id !== l.id &&
@@ -510,6 +657,7 @@ function Revisao({
                   className={cn(
                     "border-t border-border align-top",
                     l.acao === "ignorar" && "text-text-3",
+                    suspeita && "bg-warn-bg",
                   )}
                 >
                   <td className="py-2.5">
@@ -543,6 +691,18 @@ function Revisao({
                       />
                     </span>
                     <span className="flex flex-wrap gap-1.5 text-xs">
+                      {suspeita && (
+                        <span className="font-semibold text-warn">suspeita</span>
+                      )}
+                      {l.marcacao && l.marcacao !== "pagamento" && (
+                        <span className="text-text-2">{MARCACAO[l.marcacao]}</span>
+                      )}
+                      {l.moeda_original && l.valor_moeda_original && (
+                        <span className="text-text-3">
+                          {l.moeda_original} {l.valor_moeda_original.replace(".", ",")}
+                        </span>
+                      )}
+                      {l.aviso && <span className="text-warn">{l.aviso}</span>}
                       {l.parcela_atual && (
                         <span className="text-text-3">
                           parcela {l.parcela_atual}/{l.parcela_total}
@@ -863,7 +1023,10 @@ export function PaginaDeImportacao() {
       ) : revisao ? (
         <Revisao key={revisao.id} inicial={revisao} onFim={sair} />
       ) : (
-        <Envio onRevisao={setRevisao} />
+        <>
+          <Envio onRevisao={setRevisao} />
+          <LeituraComIA onRevisao={setRevisao} />
+        </>
       )}
       {!revisao && <Historico onAbrir={(id) => void abrir(id)} />}
     </div>

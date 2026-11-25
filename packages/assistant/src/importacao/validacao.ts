@@ -19,6 +19,7 @@ import {
 } from "./conciliacao.js";
 import type {
   Confianca,
+  LancamentoDaIA,
   NotaDaIA,
   Origem,
   PosicaoDaIA,
@@ -92,8 +93,9 @@ export interface LinhaProposta {
 
 /** Linha que a autocorrecao manda de volta ao modelo, com o motivo. */
 export interface ParaCorrigir {
-  tipo: TipoDeLinha;
-  original: PosicaoDaIA | TransacaoDaIA | ProventoDaIA;
+  /** lancamento: linha de fatura ou extrato do Bolsiq Financas (ADR 0040). */
+  tipo: TipoDeLinha | "lancamento";
+  original: PosicaoDaIA | TransacaoDaIA | ProventoDaIA | LancamentoDaIA;
   motivo: string;
 }
 
@@ -306,10 +308,10 @@ const recorte = (o: Origem): Origem => ({
 
 const texto = (v: string | null | undefined) => (v ?? "").trim();
 
-const PARECE_INSTRUCAO =
+export const PARECE_INSTRUCAO =
   /\bignor[ea]\b|\bdesconsider|instru[cç][aãoõ]|\brespond[ae]\b|\badicion[ea]\b|\bacrescent[ea]\b|\binclua\b|\bprompt\b|\bsystem\b|\byou are\b|voc[eê] (?:é|deve)|\bassistente\b/i;
 
-interface Conferida {
+export interface Conferida {
   ok: boolean;
   motivo: string | null;
   confianca: Confianca;
@@ -320,7 +322,7 @@ interface Conferida {
  * Confere uma linha contra o documento. `valores` sao os numeros que precisam
  * aparecer; `ativo` sao as grafias aceitas do ativo (uma basta).
  */
-function conferirOrigem(
+export function conferirOrigem(
   fontes: Fontes,
   origem: Origem,
   confianca: Confianca,
@@ -384,7 +386,7 @@ function conferirOrigem(
 }
 
 /** Palavras do nome que identificam o ativo: "CDB BANCO XYZ" aceita "BANCO" ou "XYZ". */
-const palavrasDoNome = (nome: string) =>
+export const palavrasDoNome = (nome: string) =>
   nome.split(/[\s\-/]+/).filter((p) => compacto(p).length >= 4 && !/^\d+$/.test(p));
 
 // ---------------------------------------------------------------------------
@@ -1106,3 +1108,6 @@ export async function validarLinhasEditadas(
   }
   return { rejeicoes };
 }
+
+/** O texto do documento, para conferir linha de outro tipo de documento (ADR 0040). */
+export { Fontes as FontesDoDocumento };

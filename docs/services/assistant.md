@@ -29,7 +29,7 @@ Painel (apps/web) --POST /api/assistente/chat--> BFF
 | `src/numeros.ts`                 | número sem origem nas ferramentas (eval e relatório)             |
 | `prompts/sistema-financas-v1.ts` | system prompt do Bolsiq Finanças                                 |
 | `src/importacao/`                | importação com IA ([importacao-ia.md](importacao-ia.md))         |
-| `prompts/importacao-*`           | prompt da importação, gerado do Markdown                         |
+| `prompts/importacao-*`           | prompts da importação (carteira, gerado do Markdown; Finanças)   |
 | `homologacao/`                   | modelos testados e resultado do eval de cada um                  |
 | `eval/`                          | perguntas, base de teste e medidas                               |
 

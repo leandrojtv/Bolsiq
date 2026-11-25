@@ -1,4 +1,4 @@
-import type { ArquivoRecebido } from "@bolsiq/finance";
+import { Mapeamentos, type ArquivoRecebido, type MapeamentoDeCsv } from "@bolsiq/finance";
 import { limitesDeImportacao } from "@/lib/financas";
 
 /** Os arquivos do campo `arquivos` do multipart, ou a mensagem do erro. */
@@ -21,6 +21,22 @@ export async function arquivosDoForm(
       bytes: new Uint8Array(await a.arrayBuffer()),
     })),
   );
+}
+
+/** O campo `mapeamentos` (JSON) do multipart: colunas de CSV desconhecido. */
+export function mapeamentosDoForm(form: FormData | null): MapeamentoDeCsv[] | string {
+  const v = form?.get("mapeamentos");
+  if (typeof v !== "string" || !v) return [];
+  let bruto: unknown;
+  try {
+    bruto = JSON.parse(v);
+  } catch {
+    return "Mapeamento de colunas inválido.";
+  }
+  const r = Mapeamentos.safeParse(bruto);
+  return r.success
+    ? r.data
+    : `Mapeamento de colunas inválido: ${r.error.issues[0]?.message ?? ""}`;
 }
 
 export const erroDeEnvio = (message: string) =>

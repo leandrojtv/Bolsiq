@@ -29,6 +29,10 @@ import {
   type ResultadoDaValidacao,
   type Verificador,
 } from "./validacao.js";
+import type { ResultadoDaValidacaoFinancas } from "./validacao-financas.js";
+
+/** O relatorio guardado com a extracao: da carteira ou do Financas (ADR 0040). */
+export type Relatorio = ResultadoDaValidacao | ResultadoDaValidacaoFinancas;
 
 export interface ChaveDoCache {
   hash: string;
@@ -52,12 +56,12 @@ export interface ArmazemDeImportacao {
     nome_arquivo: string;
     tipo_arquivo: string;
     saida: SaidaDaIA;
-    relatorio: ResultadoDaValidacao;
+    relatorio: Relatorio;
     uso: Uso;
     custo_estimado: string | null;
     original: { mime: string; dados: Uint8Array } | null;
   }): Promise<string>;
-  atualizarRelatorio(id: string, relatorio: ResultadoDaValidacao): Promise<void>;
+  atualizarRelatorio(id: string, relatorio: Relatorio): Promise<void>;
   registrarUso(uso: Uso, custo: string | null): Promise<void>;
 }
 
@@ -92,6 +96,8 @@ export interface PedidoDeImportacao {
   corretora?: string;
   /** Ignora o cache: outra tentativa com o mesmo modelo. */
   reprocessar?: boolean;
+  /** Financas: vai ao modelo mesmo com layout conhecido (o eval mede a IA nele). */
+  sem_atalho?: boolean;
   /** Refaz so estes lotes, mantendo o resto da extracao guardada. */
   reprocessar_lotes?: number[];
   /** Imagem e pagina escaneada vao sem anonimizacao: o usuario precisa aceitar. */
@@ -154,6 +160,7 @@ export function linhasDoLayout(tabelas: TabelaNoLayout[]): SaidaDasLinhas {
     transacoes: [],
     proventos: [],
     notas: [],
+    lancamentos: [],
     malformadas: [],
   };
   for (const t of tabelas) {
@@ -401,7 +408,7 @@ export async function importarComIA(
         const r = await extrairComIA({
           ...pedido,
           apenas: p.reprocessar_lotes,
-          cabecalho: { ...anterior.documento, avisos: [] },
+          cabecalho: { documento: anterior.documento, avisos: [] },
         });
         Object.assign(uso, r.uso);
         const origens = new Set(

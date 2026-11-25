@@ -100,7 +100,9 @@ export interface ArquivoDoJobNaTela {
 
 export interface JobNaTela {
   id: string;
-  carteira_id: string;
+  /** carteira ou financas (fatura e extrato, ADR 0040). */
+  documento: "carteira" | "financas";
+  carteira_id: string | null;
   status: StatusDoJob;
   estimativa: { custo_estimado: string | null } | null;
   erro: string | null;

@@ -43,5 +43,33 @@
       "avisos": []
     },
     "csv": "```csv posicoes\ndata_posicao;corretora;classe;subclasse;ativo;codigo;cnpj;emissor;indexador;pct_indexador;taxa_aa;data_aplicacao;vencimento;liquidez_diaria;quantidade;preco_unitario;preco_medio;valor_aplicado;saldo_bruto;ir;iof;saldo_liquido;valorizacao;observacao;pagina_ou_aba;trecho_original;confianca\n;;COE;;COE Santander Ibovespa Alta 2027;COE-SAN-0042;;Banco Santander (Brasil) S.A.;;;;05/04/2025;05/04/2027;;;;;R$ 10.000,00;R$ 10.845,20;;;;;;aba COE;\"COE-SAN-0042;COE Santander Ibovespa Alta 2027;Banco Santander (Brasil) S.A.;05/04/2025;05/04/2027;R$ 10.000,00;R$ 10.845,20\";alta\n;;COE;;COE Santander Dólar Proteção 2028;COE-SAN-0057;;Banco Santander (Brasil) S.A.;;;;12/08/2025;14/08/2028;;;;;R$ 5.000,00;R$ 5.120,90;;;;;;aba COE;\"COE-SAN-0057;COE Santander Dólar Proteção 2028;Banco Santander (Brasil) S.A.;12/08/2025;14/08/2028;R$ 5.000,00;R$ 5.120,90\";alta\n;;;;Total geral;;;;;;;;;;;;;;R$ 15.966,10;;;;;;aba COE;\"Total geral;;Banco Santander (Brasil) S.A.;;;R$ 15.000,00;R$ 15.966,10\";alta\n```"
+  },
+  "Nu Pagamentos S.A. - Fatura": {
+    "cabecalho": {
+      "banco": "Nubank",
+      "tipo": "fatura_cartao",
+      "final_cartao": "4321",
+      "data_fechamento": "2026-11-08",
+      "data_vencimento": "2026-11-15",
+      "total_fatura": "746.50",
+      "periodo_inicio": "",
+      "periodo_fim": "",
+      "avisos": []
+    },
+    "csv": "```csv lancamentos\ndata;descricao;valor;sinal;parcela_atual;parcela_total;moeda_original;valor_moeda_original;pagina_ou_aba;trecho_original;confianca\n2026-10-05;Padaria Pao Quente;23.50;debito;;;;;página 2;05 OUT | Padaria Pao Quente | R$ 23,50;alta\n2026-10-07;Mercado Bom Preco;312.87;debito;;;;;página 2;07 OUT | Mercado Bom Preco | R$ 312,87;alta\n2026-10-08;Loja Exemplo;150.00;debito;2;6;;;página 2;08 OUT | Loja Exemplo - Parcela 2/6 | R$ 150,00;alta\n2026-10-10;Amazon Web Services;58.10;debito;;;USD;10.00;página 2;10 OUT | Amazon Web Services | USD 10,00 | R$ 58,10;alta\n2026-10-10;IOF de compra internacional;2.03;debito;;;;;página 2;10 OUT | IOF de compra internacional | R$ 2,03;alta\n2026-10-12;Pagamento recebido;1873.40;credito;;;;;página 2;12 OUT | Pagamento recebido | -R$ 1.873,40;alta\n2026-10-14;Estorno de Loja Exemplo;49.90;credito;;;;;página 2;14 OUT | Estorno de Loja Exemplo | -R$ 49,90;alta\n2026-10-20;Posto Avenida;210.00;debito;;;;;página 2;20 OUT | Posto Avenida | R$ 210,00;alta\n2026-11-03;Streaming Filmes;39.90;debito;;;;;página 2;03 NOV | Streaming Filmes | R$ 39,90;alta\n```"
+  },
+  "Santander - Resumo da fatura": {
+    "cabecalho": {
+      "banco": "Santander",
+      "tipo": "fatura_cartao",
+      "final_cartao": "",
+      "data_fechamento": "",
+      "data_vencimento": "2026-11-12",
+      "total_fatura": "1085.20",
+      "periodo_inicio": "",
+      "periodo_fim": "",
+      "avisos": []
+    },
+    "csv": "```csv lancamentos\ndata;descricao;valor;sinal;parcela_atual;parcela_total;moeda_original;valor_moeda_original;pagina_ou_aba;trecho_original;confianca\n2026-10-02;ACADEMIA FORMA;119.90;debito;;;;;página 2;02/10 | ACADEMIA FORMA | 119,90;alta\n2026-10-04;NOTEBOOK LOJA PARC 01/05;780.00;debito;1;5;;;página 2;04/10 | NOTEBOOK LOJA PARC 01/05 | 780,00;alta\n2026-10-06;PAGAMENTO DE FATURA;950.00;credito;;;;;página 2;06/10 | PAGAMENTO DE FATURA | -950,00;alta\n2026-10-18;POSTO RODOVIA;185.30;debito;;;;;página 2;18/10 | POSTO RODOVIA | 185,30;alta\n```"
   }
 }

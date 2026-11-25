@@ -167,7 +167,10 @@ export const importJobs = assistant.table(
   {
     id: text("id").primaryKey(),
     user_id: text("user_id").notNull(),
-    carteira_id: text("carteira_id").notNull(),
+    /** carteira (posicoes e transacoes) ou financas (fatura e extrato, ADR 0040). */
+    documento: text("documento").notNull().default("carteira"),
+    /** So no job da carteira. */
+    carteira_id: text("carteira_id"),
     /** lendo, aguardando_confirmacao, extraindo, pronto, falhou, cancelado. */
     status: text("status").notNull(),
     modelo: text("modelo"),

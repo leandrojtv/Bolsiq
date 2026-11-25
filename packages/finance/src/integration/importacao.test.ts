@@ -671,10 +671,12 @@ describe("fatura do C6 em CSV", () => {
     expect(planos.find((p) => p.descricao === "CLINICA SORRISO")).toMatchObject({
       n_parcelas: 7,
       primeira_data: "2026-05-30",
+      parcelas_pagas: 6,
       parcelas_restantes: 1,
     });
     expect(planos.find((p) => p.descricao === "ANUIDADE DIFERENCIADA")).toMatchObject({
       n_parcelas: 12,
+      parcelas_pagas: 5,
       parcelas_restantes: 7,
     });
   });
@@ -713,7 +715,7 @@ describe("fatura do C6 em CSV", () => {
     const plano = (await comoC((tx) => listarPlanos(tx, C))).find(
       (p) => p.descricao === "CLINICA SORRISO",
     );
-    expect(plano).toMatchObject({ parcelas_restantes: 0 });
+    expect(plano).toMatchObject({ parcelas_pagas: 7, parcelas_restantes: 0 });
   });
 });
 

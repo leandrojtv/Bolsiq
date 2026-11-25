@@ -111,7 +111,9 @@ insights (cache, respostas e ajustes) e auditoria do módulo; a exclusão també
 
 - **Compra parcelada**: uma parcela em cada fatura pelo ciclo; a fatura fechada
   realiza o que estava previsto nela. Importar a fatura com "PARC 02/10" concilia com
-  a parcela prevista; sem plano, cria o plano e gera as restantes.
+  a parcela prevista; sem plano, cria o plano e gera as restantes. As parcelas
+  anteriores à importada (1 a 5 de uma 6/7) não viram lançamento, mas contam como
+  pagas no resumo do plano.
 - **Dívidas**: Price ou SAC, tabela com juros, amortização e saldo; saldo devedor
   derivado do histórico. Simular amortização extra (reduzir prazo ou parcela, com os
   juros economizados), registrar, quitar.

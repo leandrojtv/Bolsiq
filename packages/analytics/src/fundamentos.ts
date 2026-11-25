@@ -33,7 +33,7 @@ export function derivar(dem: Demonstrativo, mkt: DadosDeMercado): Derivados {
     // fica com o caixa. Divida liquida negativa reduz o EV.
     enterprise_value: valor_de_mercado.plus(divida_liquida),
     // LPA no lucro consolidado e VPA no patrimonio da controladora: e a
-    // convencao dos sites de mercado brasileiros (ADR 0040).
+    // convencao dos sites de mercado brasileiros (ADR 0041).
     lpa: dividir(d(dem.lucro_liquido), acoes),
     vpa: dividir(patrimonioDaControladora(dem), acoes),
   };

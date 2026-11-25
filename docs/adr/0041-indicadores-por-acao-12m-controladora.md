@@ -1,4 +1,4 @@
-# ADR 0040 - Indicadores por ação: 12 meses, controladora e units
+# ADR 0041 - Indicadores por ação: 12 meses, controladora e units
 
 - **Status:** aceito
 - **Data:** 2026-11-24

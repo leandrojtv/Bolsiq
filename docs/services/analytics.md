@@ -66,7 +66,7 @@ qualquer filtro de valor.
 
 ### 12 meses, controladora e units
 
-Decidido no [ADR 0040](../adr/0040-indicadores-por-acao-12m-controladora.md).
+Decidido no [ADR 0041](../adr/0041-indicadores-por-acao-12m-controladora.md).
 
 - **12 meses.** Resultado = DFP do ano anterior + acumulado do ano no ITR -
   acumulado do mesmo periodo do ano anterior. A DRE do ITR vem por trimestre e e
